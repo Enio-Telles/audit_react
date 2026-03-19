@@ -1032,7 +1032,9 @@ class MainWindow(QMainWindow):
             self.aggregation_table_view.resizeColumnsToContents()
 
     def refresh_logs(self) -> None:
-        self.log_view.setPlainText("\n".join(self.servico_agregacao.ler_linhas_log()))
+        import json
+        logs = [json.dumps(log) for log in self.servico_agregacao.ler_linhas_log()]
+        self.log_view.setPlainText("\n".join(logs))
 
     def open_cnpj_folder(self) -> None:
         if not self.state.current_cnpj:
