@@ -372,13 +372,14 @@ def gerar_tabela_itens_caracteristicas(cnpj: str, pasta_cnpj: Path | None = None
     rprint(f"\n[bold cyan]Gerando tabela_itens_caracteristicas para CNPJ: {cnpj}[/bold cyan]")
 
     # ── 1. Localiza arquivos via encontrar_arquivo ──
+    diretorios_validos = [d for d in (arq_dir, pasta_cnpj) if d.exists()]
+
     def _resolver(prefixo: str) -> Path | None:
         """Busca o parquet em arquivos_parquet/ e depois na raiz do CNPJ."""
-        for diretorio in (arq_dir, pasta_cnpj):
-            if diretorio.exists():
-                arq = encontrar_arquivo(diretorio, prefixo, cnpj)
-                if arq:
-                    return arq
+        for diretorio in diretorios_validos:
+            arq = encontrar_arquivo(diretorio, prefixo, cnpj)
+            if arq:
+                return arq
         return None
 
     # ── 2. Carrega ano base do reg_0000 ──
