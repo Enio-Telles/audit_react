@@ -340,84 +340,94 @@ class ServicoAgregacao:
     def recalcular_valores_totais(self, cnpj: str) -> bool:
         """
         Calcula tot_v_entradas e tot_v_saidas para cada chave_produto + unidade.
-        Filtra CFOP por operacao_mercantil == 'X' (campo sisaudit_estoque).
         """
+        import sys
+        if str(FUNCOES_ROOT / "funcoes_auxiliares") not in sys.path:
+            sys.path.append(str(FUNCOES_ROOT / "funcoes_auxiliares"))
         from aux_leitura_notas import ler_nfe_nfce, ler_c170
         
         destino = self.caminho_tabela_editavel(cnpj)
         if not destino.exists():
             return False
 
-        # 1. Carrega CFOPs válidos (Mercantil)
-        df_cfop = pl.read_parquet(CFOP_BI_PATH).filter(pl.col("sisaudit_estoque") == "X")
-        cfops_validos = df_cfop.select("co_cfop").to_series().to_list()
+        # 1. Preparar DF de CFOPs válidos (Mercantil) para passar para as funções de leitura
+        df_cfop = pl.read_parquet(CFOP_BI_PATH).filter(pl.col("sisaudit_estoque") == "X").select("co_cfop")
 
-        # 2. Carrega Transações
-        df_c170 = ler_c170(cnpj).filter(pl.col("co_cfop").is_in(cfops_validos))
-        df_nfe = ler_nfe_nfce(cnpj).filter(pl.col("co_cfop").is_in(cfops_validos))
+        # 2. Localizar caminhos dos arquivos
+        base_dir = CNPJ_ROOT / cnpj / "analises" / "tabelas_brutas"
+        path_c170 = base_dir / f"c170_{cnpj}.parquet"
+        path_nfe  = base_dir / f"nfe_{cnpj}.parquet"
+        path_nfce = base_dir / f"nfce_{cnpj}.parquet"
 
-        # 3. Calcula Valores
-        # Entradas (C170): IND_OPER == 0, VALOR_ITEM
-        df_ent = (
-            df_c170.filter(pl.col("ind_oper") == 0)
-            .group_by(["codigo", "descricao", "unid_med"])
-            .agg(pl.col("valor_item").sum().alias("v_ent"))
-        )
-
-        # Saídas (NFe/NFCe): V_item = PROD_VPROD + PROD_VFRETE + PROD_VSEG + PROD_VOUTRO - PROD_VDESC
-        # Note: aux_leitura_notas may have different column names, we use standard logic
-        df_sai_raw = df_nfe.filter(pl.col("ind_oper") == 1)
+        # 3. Carregar Transações usando aux_leitura_notas (que já aplica filtros de emitente e operacao)
+        dfs_trans = []
         
-        # Garante colunas para a fórmula
-        for c in ["prod_vprod", "prod_vfrete", "prod_vseg", "prod_voutro", "prod_vdesc"]:
-            if c not in df_sai_raw.columns:
-                df_sai_raw = df_sai_raw.with_columns(pl.lit(0.0).alias(c))
+        # Entradas (C170)
+        df_c170 = ler_c170(path_c170, cfop_df=df_cfop)
+        if df_c170 is not None:
+            dfs_trans.append(df_c170)
 
-        df_sai_calc = df_sai_raw.with_columns(
-            (pl.col("prod_vprod") + pl.col("prod_vfrete") + pl.col("prod_vseg") + 
-             pl.col("prod_voutro") - pl.col("prod_vdesc")).alias("_v_calc")
+        # Saídas (NFe e NFCe)
+        for p, source in [(path_nfe, "NFe"), (path_nfce, "NFCe")]:
+            df_n = ler_nfe_nfce(p, cnpj, source, cfop_df=df_cfop)
+            if df_n is not None:
+                dfs_trans.append(df_n)
+
+        if not dfs_trans:
+            return False
+
+        df_all = pl.concat(dfs_trans, how="diagonal")
+
+        # 4. Agrupar por Item (codigo+descricao+unidade)
+        # Note: aux_leitura_notas output contains: valor_entrada, quantidade_entrada, valor_saida, quantidade_saida
+        df_res = (
+            df_all.group_by(["codigo", "descricao", "unidade"])
+            .agg([
+                pl.col("valor_entrada").sum().alias("v_ent"),
+                pl.col("valor_saida").sum().alias("v_sai")
+            ])
         )
 
-        df_sai = (
-            df_sai_calc.group_by(["codigo", "descricao", "unid_med"])
-            .agg(pl.col("_v_calc").sum().alias("v_sai"))
-        )
-
-        # 4. Join com Item -> chave_item_individualizado
+        # 5. Join com Item para obter chave_item_individualizado
         arq_itens = CNPJ_ROOT / cnpj / "analises" / "produtos" / f"tab_itens_caract_normalizada_{cnpj}.parquet"
-        df_itens = pl.read_parquet(arq_itens).select(["codigo", "descricao", "chave_item_individualizado"])
+        df_itens = pl.read_parquet(arq_itens).select(["codigo", "descricao", "unidade", "chave_item_individualizado"])
         
-        df_res_ent = df_ent.join(df_itens, on=["codigo", "descricao"], how="left")
-        df_res_sai = df_sai.join(df_itens, on=["codigo", "descricao"], how="left")
+        df_res_chaves = df_res.join(df_itens, on=["codigo", "descricao", "unidade"], how="left")
 
-        # 5. Join com Editable -> chave_produto
+        # 6. Mapear para chave_produto do editável
         df_edit = pl.read_parquet(destino)
         df_map = df_edit.select(["chave_produto", "lista_chave_item_individualizado"]).explode("lista_chave_item_individualizado")
 
-        df_v_ent = df_res_ent.join(df_map, left_on="chave_item_individualizado", right_on="lista_chave_item_individualizado", how="inner")
-        df_v_sai = df_res_sai.join(df_map, left_on="chave_item_individualizado", right_on="lista_chave_item_individualizado", how="inner")
+        df_vols = df_res_chaves.join(df_map, left_on="chave_item_individualizado", right_on="lista_chave_item_individualizado", how="inner")
 
-        # 6. Agrupa por chave_produto + unidade (unid_med) e formata
-        def _format_list(df, col_val, col_name):
+        # 7. Formatar Totais por Unidade
+        def _format_totals(df, val_col, name_col):
             return (
-                df.group_by(["chave_produto", "unid_med"])
-                .agg(pl.col(col_val).sum())
-                .sort(["chave_produto", "unid_med"])
+                df.group_by(["chave_produto", "unidade"])
+                .agg(pl.col(val_col).sum())
+                .filter(pl.col(val_col) > 0)
+                .sort(["chave_produto", "unidade"])
                 .with_columns(
-                    ("[" + pl.col("unid_med") + "; " + pl.col(col_val).cast(pl.Int64).cast(pl.String) + "]").alias("_str")
+                    ("[" + pl.col("unidade") + "; " + pl.col(val_col).cast(pl.Int64).cast(pl.String) + "]").alias("_str")
                 )
                 .group_by("chave_produto")
-                .agg(pl.col("_str").unique().sort().str.join("; ").alias(col_name))
+                .agg(pl.col("_str").str.join("; ").alias(name_col))
             )
 
-        df_final_ent = _format_list(df_v_ent, "v_ent", "tot_v_entradas")
-        df_final_sai = _format_list(df_v_sai, "v_sai", "tot_v_saidas")
+        df_f_ent = _format_totals(df_vols, "v_ent", "tot_v_entradas")
+        df_f_sai = _format_totals(df_vols, "v_sai", "tot_v_saidas")
 
-        # 7. Update editable table
+        # 8. Atualizar Tabela Editável
         df_edit = df_edit.drop([c for c in ["tot_v_entradas", "tot_v_saidas"] if c in df_edit.columns])
-        df_edit = df_edit.join(df_final_ent, on="chave_produto", how="left")
-        df_edit = df_edit.join(df_final_sai, on="chave_produto", how="left")
+        df_edit = df_edit.join(df_f_ent, on="chave_produto", how="left")
+        df_edit = df_edit.join(df_f_sai, on="chave_produto", how="left")
         
+        # Preencher nulos com "[N/A; 0]" ou string vazia (usaremos string vazia para ficar limpo)
+        df_edit = df_edit.with_columns([
+            pl.col("tot_v_entradas").fill_null(""),
+            pl.col("tot_v_saidas").fill_null("")
+        ])
+
         df_edit.write_parquet(destino, compression="snappy")
         return True
 
