@@ -15,7 +15,7 @@ from typing import Any
 
 import polars as pl
 
-from fiscal_app.config import AGGREGATION_LOG_FILE, CNPJ_ROOT, CFOP_BI_PATH
+from fiscal_app.config import AGGREGATION_LOG_FILE, CNPJ_ROOT, CFOP_BI_PATH, FUNCOES_ROOT
 from fiscal_app.utils.text import natural_sort_key, normalize_text
 
 CODE_ENTRY_RE = re.compile(r"\[(.*?);\s*(\d+)\]")
@@ -71,6 +71,19 @@ class ServicoAgregacao:
         # Garante que as colunas básicas existam
         if "verificado" not in df.columns:
             df = df.with_columns(pl.lit(False).alias("verificado"))
+        
+        # Implementa chave_id e lista_chave_produto se não existirem
+        if "chave_id" not in df.columns:
+            df = df.with_columns(pl.col("chave_produto").alias("chave_id"))
+        
+        if "lista_chave_produto" not in df.columns:
+            # Transforma a chave_produto atual em uma lista unitária
+            df = df.with_columns(
+                pl.col("chave_produto").map_elements(lambda x: [x], return_dtype=pl.List(pl.String)).alias("lista_chave_produto")
+            )
+            
+        if "lista_unidades" in df.columns:
+            df = df.drop("lista_unidades")
             
         df.write_parquet(destino, compression="snappy")
         return destino
@@ -183,10 +196,21 @@ class ServicoAgregacao:
                         valores.append(v)
             return self._escolher_moda(valores)
 
+        # Chaves de produto originais
+        lista_chv_produtos = self._mesclar_colunas_lista(linhas, "chave_produto")
+        if not lista_chv_produtos:
+            lista_chv_produtos = [hashlib.md5(str(r).encode()).hexdigest() for r in linhas]
+
+        # Gerar chave_id única (MD5 das chaves originais ordenadas)
+        texto_chave_id = "".join(sorted(lista_chv_produtos))
+        chave_id = hashlib.md5(texto_chave_id.encode()).hexdigest()
+
         lista_sefin = self._mesclar_colunas_lista(linhas, "lista_co_sefin_inferido")
 
         agregada = {
-            "chave_produto": chave_produto,
+            "chave_id": chave_id,
+            "lista_chave_produto": lista_chv_produtos,
+            "chave_produto": chave_id, 
             "descricao": desc,
             "lista_chave_item_individualizado": lista_final_itens,
             "lista_codigos": mesclados_codigos,
@@ -196,7 +220,7 @@ class ServicoAgregacao:
             "cest_padrao": _get_moda_lista("lista_cest") or _get_moda_lista("cest_padrao"),
             "gtin_padrao": _get_moda_lista("lista_gtin") or _get_moda_lista("gtin_padrao"),
             "tipo_item_padrao": _get_moda_lista("lista_tipo_item") or _get_moda_lista("tipo_item_padrao"),
-            "unid_padrao": _get_moda_lista("lista_unidades") or _get_moda_lista("lista_unids") or _get_moda_lista("unid_padrao"),
+            "unid_padrao": _get_moda_lista("lista_unids") or _get_moda_lista("unid_padrao"),
             "co_sefin_agr": self._escolher_moda(lista_sefin),
             "co_sefin_agr_divergente": len(set([str(s) for s in lista_sefin if s])) > 1,
             "lista_tipo_item": self._mesclar_colunas_lista(linhas, "lista_tipo_item"),
@@ -204,7 +228,6 @@ class ServicoAgregacao:
             "lista_cest": self._mesclar_colunas_lista(linhas, "lista_cest"),
             "lista_gtin": self._mesclar_colunas_lista(linhas, "lista_gtin"),
             "lista_unids": self._mesclar_colunas_lista(linhas, "lista_unids"),
-            "lista_unidades": self._mesclar_colunas_lista(linhas, "lista_unidades"),
             "lista_co_sefin_inferido": lista_sefin,
             "total_entradas": sum([float(r.get("total_entradas") or 0) for r in linhas]),
             "total_saidas": sum([float(r.get("total_saidas") or 0) for r in linhas]),

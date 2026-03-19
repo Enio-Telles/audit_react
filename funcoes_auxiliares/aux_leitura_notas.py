@@ -93,7 +93,7 @@ def ler_nfe_nfce(path: Path | None, cnpj: str, fonte: str, cfop_df: pl.DataFrame
 
 
 def ler_c170(path: Path | None, cfop_df: pl.DataFrame | None = None, ano_padrao: str = "", print_status: bool = False) -> pl.DataFrame | None:
-    """Lê c170_simplificada (ou c170) e mapeia colunas."""
+    """Lê c170_simplificada (ou c170) e mapeia colunas. Processa entradas E saídas."""
     if path is None or not path.exists():
         print("  [!] C170 nao encontrado.")
         return None
@@ -110,10 +110,10 @@ def ler_c170(path: Path | None, cfop_df: pl.DataFrame | None = None, ano_padrao:
         "cest": "cest",
         "cod_barra": "gtin",
         "unid": "unidade",
-        "valor_item": "valor_entrada",
+        "vl_item": "vl_item",
         "co_cfop": "co_cfop",
         "ind_oper": "ind_oper",
-        "qtd": "quantidade_entrada"
+        "qtd": "qtd"
     }
 
     selecionar = [c for c in col_map.keys() if c in schema]

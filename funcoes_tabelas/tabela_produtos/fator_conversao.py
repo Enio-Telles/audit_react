@@ -186,7 +186,7 @@ def _agrupar_por_produto_ano(df_vols: pl.DataFrame) -> tuple[pl.DataFrame, pl.Da
         ])
     )
 
-    # 5.1. Pegar a descrição mais longa/comum para cada chave_produto
+    # Descrição mais longa/comum para cada chave_produto
     df_meta = (
         df_vols.group_by("chave_produto")
         .agg(pl.col("descricao").sort_by(pl.col("descricao").str.len_chars(), descending=True).first().alias("descricao"))
@@ -208,11 +208,10 @@ def _agrupar_por_produto_ano(df_vols: pl.DataFrame) -> tuple[pl.DataFrame, pl.Da
 
 def _detectar_erros_conversao(df_final: pl.DataFrame) -> pl.DataFrame:
     """
-    Monitora anomalias conforme documentação:
+    Monitora anomalias:
     - Fator Extremo: < 0.001 ou > 1000
     - Valor Inválido: <= 0
     - Fragmentação: > 5 unidades para o mesmo item
-    - Volatilidade: CV alto (não implementado aqui, mas pode ser via df_aggr)
     """
     # Fragmentação: conta unidades por chave_produto
     df_frag = (
@@ -232,7 +231,7 @@ def _detectar_erros_conversao(df_final: pl.DataFrame) -> pl.DataFrame:
           .otherwise(pl.lit("OK"))
           .alias("status_qualidade")
     ]).drop("_num_unid")
-    
+
     return df_final
 
 
@@ -269,6 +268,13 @@ def _calcular_fator_final(df_fator: pl.DataFrame, df_aggr: pl.DataFrame) -> pl.D
             "fator_de_conversao"
         ])
     )
+
+    df_final = df_final.select([
+        "chave_produto", "descricao", "unidade", "unid_padrao",
+        "v_entr_total", "v_saida_total",
+        "preco_medio_entrada", "preco_medio_saida",
+        "fator_de_conversao"
+    ])
 
     # Aplica detector de erros
     df_final = _detectar_erros_conversao(df_final)
@@ -401,8 +407,8 @@ def calcular_fator_conversao(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         .join(df_item_prod, on="item_N", how="inner")
     )
     
-    # 5 e 6. Agrupar por produto/ano e definir unidade padrão
-    df_aggr, df_fator = _agrupar_por_produto_ano(df_vols)
+    # 5 e 6. Agrupar por produto e definir unidade padrão
+    df_aggr, df_fator = _agrupar_por_produto(df_vols)
 
     # 7. Join para calcular fator em relação à unid_padrao
     df_final = _calcular_fator_final(df_fator, df_aggr)

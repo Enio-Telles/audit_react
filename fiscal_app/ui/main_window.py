@@ -947,7 +947,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            self.servico_agregacao.agregar_linhas(
+            res = self.servico_agregacao.agregar_linhas(
                 cnpj=self.state.current_cnpj,
                 linhas_selecionadas=combined,
             )
@@ -955,19 +955,19 @@ class MainWindow(QMainWindow):
             self.atualizar_tabelas_agregacao()
             self.recarregar_historico_agregacao(self.state.current_cnpj)
             
-            QMessageBox.information(self, "Sucesso", "Agregação realizada com sucesso e salva permanentemente.")
+            self.show_info(
+                "Agregação concluída",
+                f"As {len(combined)} descrições foram unificadas em:\n'{res.linha_agregada['descricao']}'"
+            )
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self.show_error("Erro na agregação", f"Ocorreu um erro ao agregar: {e}")
             
             # Clear checks and reload top table
             self.aggregation_table_model.clear_checked()
             self.results_table_model.clear_checked()
             self.open_editable_aggregation_table()
-            
-            self.show_info(
-                "Agregação concluída",
-                f"As {len(combined)} descrições foram unificadas em:\n'{result.linha_agregada['descricao']}'"
-            )
         except Exception as exc:
             self.show_error("Falha na agregação", str(exc))
 
@@ -1100,7 +1100,7 @@ class MainWindow(QMainWindow):
                 "ano": "ano",
                 "codigo_produto_ajustado": "chave_produto",
                 "unid": "unidade",
-                "fator": "fator_conversao"
+                "fator": "fator_de_conversao"
             }
             cols_obrigatorias = list(mapping.keys())
             if not all(c in df_excel.columns for c in cols_obrigatorias):
@@ -1112,7 +1112,7 @@ class MainWindow(QMainWindow):
             # Renomeia para colunas internas e garante tipos
             df_imp = df_excel.select(cols_obrigatorias).rename({c: mapping[c] for c in cols_obrigatorias})
             df_imp = df_imp.with_columns([
-                pl.col("fator_conversao").cast(pl.Float64)
+                pl.col("fator_de_conversao").cast(pl.Float64)
             ])
 
             df_imp.write_parquet(pasta_produtos / nome_saida)
