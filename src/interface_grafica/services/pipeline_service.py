@@ -27,14 +27,14 @@ class PipelineService:
     @staticmethod
     def sanitize_cnpj(cnpj: str) -> str:
         digits = re.sub(r"\D", "", cnpj or "")
-        if len(digits) != 14:
-            raise ValueError("Informe um CNPJ com 14 dígitos.")
+        if len(digits) not in {11, 14}:
+            raise ValueError("Informe um CPF com 11 digitos ou um CNPJ com 14 digitos.")
         return digits
 
     def run_for_cnpj(self, cnpj: str, data_limite: str | None = None) -> PipelineResult:
         cnpj = self.sanitize_cnpj(cnpj)
         if not self.pipeline_script.exists():
-            raise FileNotFoundError(f"Pipeline não encontrado: {self.pipeline_script}")
+            raise FileNotFoundError(f"Pipeline nao encontrado: {self.pipeline_script}")
 
         cmd = [
             sys.executable,

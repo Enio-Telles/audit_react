@@ -1,8 +1,10 @@
 import json
 import sys
 from pathlib import Path
+from time import perf_counter
 
 import polars as pl
+from utilitarios.perf_monitor import registrar_evento_performance
 
 ROOT_DIR = Path(r"c:\funcoes - Copia")
 SRC_DIR = ROOT_DIR / "src"
@@ -35,6 +37,16 @@ except ImportError:
     calcular_fatores_conversao = None
 
 try:
+    from precos_medios_produtos_final import calcular_precos_medios_produtos_final
+except ImportError:
+    calcular_precos_medios_produtos_final = None
+
+try:
+    from id_agrupados import gerar_id_agrupados
+except ImportError:
+    gerar_id_agrupados = None
+
+try:
     from c170_xml import gerar_c170_xml
 except ImportError:
     gerar_c170_xml = None
@@ -49,9 +61,41 @@ try:
 except ImportError:
     gerar_movimentacao_estoque = None
 
+try:
+    from calculos_mensais import gerar_calculos_mensais
+except ImportError:
+    gerar_calculos_mensais = None
+
+try:
+    from calculos_anuais import gerar_calculos_anuais
+except ImportError:
+    gerar_calculos_anuais = None
+
 
 class ServicoAgregacao:
     """Gerencia a tabela produtos_agrupados e as derivacoes da camada _agr."""
+
+    def __init__(self) -> None:
+        self.ultimo_tempo_etapas: dict[str, float] = {}
+
+    def _registrar_tempo(self, nome: str, duracao: float, progresso=None, contexto: dict | None = None) -> None:
+        self.ultimo_tempo_etapas[nome] = duracao
+        registrar_evento_performance(f"aggregation_service.{nome}", duracao, contexto or {})
+        if progresso:
+            progresso(f"OK {nome} em {duracao:.2f}s")
+
+    def _executar_etapa_tempo(self, nome: str, funcao, progresso=None, contexto: dict | None = None):
+        if progresso:
+            progresso(f"Iniciando {nome}...")
+        inicio = perf_counter()
+        resultado = funcao()
+        self._registrar_tempo(nome, perf_counter() - inicio, progresso, contexto=contexto)
+        return resultado
+
+    def resumo_tempos(self) -> str:
+        if not self.ultimo_tempo_etapas:
+            return ""
+        return " | ".join(f"{nome}: {duracao:.2f}s" for nome, duracao in self.ultimo_tempo_etapas.items())
 
     @staticmethod
     def _normalizar_descricao_para_match(texto: str | None):
@@ -331,6 +375,8 @@ class ServicoAgregacao:
         )
 
         df_final.write_parquet(path_final)
+        if gerar_id_agrupados is not None:
+            return bool(gerar_id_agrupados(cnpj))
         return True
 
     def refazer_tabelas_agr(self, cnpj: str) -> bool:
@@ -339,7 +385,7 @@ class ServicoAgregacao:
             raise ImportError("Nao foi possivel importar fontes_produtos.py.")
         return bool(gerar_fontes_produtos(cnpj))
 
-    def recalcular_referencias_agr(self, cnpj: str) -> bool:
+    def recalcular_referencias_agr(self, cnpj: str, progresso=None, reset_timings: bool = True) -> bool:
         """
         Recalcula tabelas dependentes das agregacoes:
         - produtos_final
@@ -348,9 +394,15 @@ class ServicoAgregacao:
         - c170_xml
         - c176_xml
         - mov_estoque
+        - aba_mensal
+        - aba_anual
         """
-        ok_final = self.recalcular_produtos_final(cnpj)
-        ok_fontes = self.refazer_tabelas_agr(cnpj)
+        if reset_timings:
+            self.ultimo_tempo_etapas = {}
+        inicio_total = perf_counter()
+        contexto_base = {"cnpj": cnpj, "fluxo": "recalcular_referencias_agr"}
+        ok_final = self._executar_etapa_tempo("produtos_final", lambda: self.recalcular_produtos_final(cnpj), progresso, contexto=contexto_base)
+        ok_fontes = self._executar_etapa_tempo("fontes_agr", lambda: self.refazer_tabelas_agr(cnpj), progresso, contexto=contexto_base)
         if calcular_fatores_conversao is None:
             raise ImportError("Nao foi possivel importar fatores_conversao.py.")
         if gerar_c170_xml is None:
@@ -359,20 +411,63 @@ class ServicoAgregacao:
             raise ImportError("Nao foi possivel importar c176_xml.py.")
         if gerar_movimentacao_estoque is None:
             raise ImportError("Nao foi possivel importar movimentacao_estoque.py.")
+        if gerar_calculos_mensais is None:
+            raise ImportError("Nao foi possivel importar calculos_mensais.py.")
+        if gerar_calculos_anuais is None:
+            raise ImportError("Nao foi possivel importar calculos_anuais.py.")
 
-        ok_fatores = bool(calcular_fatores_conversao(cnpj)) if (ok_final and ok_fontes) else False
-        ok_c170 = bool(gerar_c170_xml(cnpj)) if ok_fatores else False
-        ok_c176 = bool(gerar_c176_xml(cnpj)) if ok_c170 else False
-        ok_mov = bool(gerar_movimentacao_estoque(cnpj)) if ok_c176 else False
-        return bool(ok_final and ok_fontes and ok_fatores and ok_c170 and ok_c176 and ok_mov)
+        ok_fatores = self._executar_etapa_tempo("fatores_conversao", lambda: bool(calcular_fatores_conversao(cnpj)), progresso, contexto=contexto_base) if (ok_final and ok_fontes) else False
+        ok_c170 = self._executar_etapa_tempo("c170_xml", lambda: bool(gerar_c170_xml(cnpj)), progresso, contexto=contexto_base) if ok_fatores else False
+        ok_c176 = self._executar_etapa_tempo("c176_xml", lambda: bool(gerar_c176_xml(cnpj)), progresso, contexto=contexto_base) if ok_c170 else False
+        ok_mov = self._executar_etapa_tempo("mov_estoque", lambda: bool(gerar_movimentacao_estoque(cnpj)), progresso, contexto=contexto_base) if ok_c176 else False
+        ok_mensal = self._executar_etapa_tempo("calculos_mensais", lambda: bool(gerar_calculos_mensais(cnpj)), progresso, contexto=contexto_base) if ok_mov else False
+        ok_anual = self._executar_etapa_tempo("calculos_anuais", lambda: bool(gerar_calculos_anuais(cnpj)), progresso, contexto=contexto_base) if ok_mensal else False
+        ok_total = bool(ok_final and ok_fontes and ok_fatores and ok_c170 and ok_c176 and ok_mov and ok_mensal and ok_anual)
+        self._registrar_tempo(
+            "recalcular_referencias_agr_total",
+            perf_counter() - inicio_total,
+            progresso,
+            contexto={**contexto_base, "sucesso": ok_total},
+        )
+        return ok_total
 
     def refazer_tabelas_produtos(self, cnpj: str) -> bool:
         """Alias legado para refazer_tabelas_agr."""
         return self.refazer_tabelas_agr(cnpj)
 
-    def recalcular_referencias_produtos(self, cnpj: str) -> bool:
+    def recalcular_referencias_produtos(self, cnpj: str, progresso=None, reset_timings: bool = True) -> bool:
         """Alias legado para recalcular_referencias_agr."""
-        return self.recalcular_referencias_agr(cnpj)
+        return self.recalcular_referencias_agr(cnpj, progresso=progresso, reset_timings=reset_timings)
+
+    def recalcular_mov_estoque(self, cnpj: str, progresso=None, reset_timings: bool = True) -> bool:
+        """
+        Recalcula artefatos diretamente afetados por ajustes manuais em fatores de conversao.
+        """
+        if gerar_c176_xml is None:
+            raise ImportError("Nao foi possivel importar c176_xml.py.")
+        if gerar_movimentacao_estoque is None:
+            raise ImportError("Nao foi possivel importar movimentacao_estoque.py.")
+        if gerar_calculos_mensais is None:
+            raise ImportError("Nao foi possivel importar calculos_mensais.py.")
+        if gerar_calculos_anuais is None:
+            raise ImportError("Nao foi possivel importar calculos_anuais.py.")
+
+        if reset_timings:
+            self.ultimo_tempo_etapas = {}
+        inicio_total = perf_counter()
+        contexto_base = {"cnpj": cnpj, "fluxo": "recalcular_mov_estoque"}
+        ok_c176 = self._executar_etapa_tempo("c176_xml", lambda: bool(gerar_c176_xml(cnpj)), progresso, contexto=contexto_base)
+        ok_mov = self._executar_etapa_tempo("mov_estoque", lambda: bool(gerar_movimentacao_estoque(cnpj)), progresso, contexto=contexto_base) if ok_c176 else False
+        ok_mensal = self._executar_etapa_tempo("calculos_mensais", lambda: bool(gerar_calculos_mensais(cnpj)), progresso, contexto=contexto_base) if ok_mov else False
+        ok_anual = self._executar_etapa_tempo("calculos_anuais", lambda: bool(gerar_calculos_anuais(cnpj)), progresso, contexto=contexto_base) if ok_mensal else False
+        ok_total = bool(ok_c176 and ok_mov and ok_mensal and ok_anual)
+        self._registrar_tempo(
+            "recalcular_mov_estoque_total",
+            perf_counter() - inicio_total,
+            progresso,
+            contexto={**contexto_base, "sucesso": ok_total},
+        )
+        return ok_total
 
     def _registrar_log(self, cnpj: str, entrada: dict):
         log_path = self.caminho_log_agregacoes(cnpj)
@@ -412,11 +507,20 @@ class ServicoAgregacao:
             )
         return path_agr
 
-    def recalcular_todos_padroes(self, cnpj: str) -> bool:
+    def recalcular_todos_padroes(
+        self,
+        cnpj: str,
+        progresso=None,
+        reprocessar_referencias: bool = True,
+        reset_timings: bool = True,
+    ) -> bool:
         """
         Recalcula descr/ncm/cest/gtin/co_sefin padrao de todos os grupos
         com base nos itens originais em item_unidades.
         """
+        if reset_timings:
+            self.ultimo_tempo_etapas = {}
+        inicio_total = perf_counter()
         if calcular_atributos_padrao is None:
             raise ImportError("Nao foi possivel importar produtos_agrupados.py.")
 
@@ -485,14 +589,31 @@ class ServicoAgregacao:
 
         df_novo = pl.DataFrame(registros, schema=df_agrup.schema)
         df_novo.drop("lista_chave_produto", strict=False).write_parquet(path_agrup)
-        self.recalcular_produtos_final(cnpj)
-        self.recalcular_referencias_produtos(cnpj)
+        contexto_base = {"cnpj": cnpj, "fluxo": "recalcular_todos_padroes"}
+        if reprocessar_referencias:
+            self._executar_etapa_tempo("produtos_final", lambda: self.recalcular_produtos_final(cnpj), progresso, contexto=contexto_base)
+            self._executar_etapa_tempo(
+                "referencias_produtos",
+                lambda: self.recalcular_referencias_produtos(cnpj, progresso=progresso, reset_timings=False),
+                progresso,
+                contexto=contexto_base,
+            )
+        self._registrar_tempo("recalcular_todos_padroes_total", perf_counter() - inicio_total, progresso, contexto=contexto_base)
         return True
 
-    def recalcular_valores_totais(self, cnpj: str) -> bool:
+    def recalcular_valores_totais(
+        self,
+        cnpj: str,
+        progresso=None,
+        reprocessar_referencias: bool = True,
+        reset_timings: bool = True,
+    ) -> bool:
         """
         Recalcula totais de compras/vendas por grupo e persiste em produtos_agrupados.
         """
+        if reset_timings:
+            self.ultimo_tempo_etapas = {}
+        inicio_total = perf_counter()
         path_agrup = self.caminho_tabela_agregadas(cnpj)
         path_prod = self.caminho_tabela_base(cnpj)
         path_base = self.caminho_itens_unidades(cnpj)
@@ -539,6 +660,85 @@ class ServicoAgregacao:
         )
 
         df_agrup.drop("lista_chave_produto", strict=False).write_parquet(path_agrup)
-        self.recalcular_produtos_final(cnpj)
-        self.recalcular_referencias_produtos(cnpj)
+        contexto_base = {"cnpj": cnpj, "fluxo": "recalcular_valores_totais"}
+        if reprocessar_referencias:
+            self._executar_etapa_tempo("produtos_final", lambda: self.recalcular_produtos_final(cnpj), progresso, contexto=contexto_base)
+            self._executar_etapa_tempo(
+                "referencias_produtos",
+                lambda: self.recalcular_referencias_produtos(cnpj, progresso=progresso, reset_timings=False),
+                progresso,
+                contexto=contexto_base,
+            )
+        self._registrar_tempo("recalcular_totais_total", perf_counter() - inicio_total, progresso, contexto=contexto_base)
         return True
+
+    def reprocessar_agregacao(self, cnpj: str, progresso=None) -> bool:
+        """
+        Reprocessa toda a cadeia da agregacao em uma unica operacao:
+        - padroes dos grupos
+        - totais de compras/vendas
+        - produtos_final
+        - fontes *_agr
+        - precos medios por unidade agregada
+        - fatores de conversao
+        - c170_xml / c176_xml
+        - mov_estoque
+        - aba_mensal
+        - aba_anual
+        """
+        self.ultimo_tempo_etapas = {}
+        inicio_total = perf_counter()
+        contexto_base = {"cnpj": cnpj, "fluxo": "reprocessar_agregacao"}
+
+        if calcular_fatores_conversao is None:
+            raise ImportError("Nao foi possivel importar fatores_conversao.py.")
+        if gerar_c170_xml is None:
+            raise ImportError("Nao foi possivel importar c170_xml.py.")
+        if gerar_c176_xml is None:
+            raise ImportError("Nao foi possivel importar c176_xml.py.")
+        if gerar_movimentacao_estoque is None:
+            raise ImportError("Nao foi possivel importar movimentacao_estoque.py.")
+        if gerar_calculos_mensais is None:
+            raise ImportError("Nao foi possivel importar calculos_mensais.py.")
+        if gerar_calculos_anuais is None:
+            raise ImportError("Nao foi possivel importar calculos_anuais.py.")
+
+        ok_padroes = bool(
+            self.recalcular_todos_padroes(
+                cnpj,
+                progresso=progresso,
+                reprocessar_referencias=False,
+                reset_timings=False,
+            )
+        )
+        ok_totais = bool(
+            self.recalcular_valores_totais(
+                cnpj,
+                progresso=progresso,
+                reprocessar_referencias=False,
+                reset_timings=False,
+            )
+        ) if ok_padroes else False
+        ok_final = self._executar_etapa_tempo("produtos_final", lambda: self.recalcular_produtos_final(cnpj), progresso, contexto=contexto_base) if ok_totais else False
+        ok_fontes = self._executar_etapa_tempo("fontes_agr", lambda: self.refazer_tabelas_agr(cnpj), progresso, contexto=contexto_base) if ok_final else False
+        ok_precos = self._executar_etapa_tempo(
+            "precos_medios_produtos_final",
+            lambda: bool(calcular_precos_medios_produtos_final(cnpj)) if calcular_precos_medios_produtos_final is not None else True,
+            progresso,
+            contexto=contexto_base,
+        ) if ok_fontes else False
+        ok_fatores = self._executar_etapa_tempo("fatores_conversao", lambda: bool(calcular_fatores_conversao(cnpj)), progresso, contexto=contexto_base) if ok_precos else False
+        ok_c170 = self._executar_etapa_tempo("c170_xml", lambda: bool(gerar_c170_xml(cnpj)), progresso, contexto=contexto_base) if ok_fatores else False
+        ok_c176 = self._executar_etapa_tempo("c176_xml", lambda: bool(gerar_c176_xml(cnpj)), progresso, contexto=contexto_base) if ok_c170 else False
+        ok_mov = self._executar_etapa_tempo("mov_estoque", lambda: bool(gerar_movimentacao_estoque(cnpj)), progresso, contexto=contexto_base) if ok_c176 else False
+        ok_mensal = self._executar_etapa_tempo("calculos_mensais", lambda: bool(gerar_calculos_mensais(cnpj)), progresso, contexto=contexto_base) if ok_mov else False
+        ok_anual = self._executar_etapa_tempo("calculos_anuais", lambda: bool(gerar_calculos_anuais(cnpj)), progresso, contexto=contexto_base) if ok_mensal else False
+
+        ok_total = bool(ok_padroes and ok_totais and ok_final and ok_fontes and ok_precos and ok_fatores and ok_c170 and ok_c176 and ok_mov and ok_mensal and ok_anual)
+        self._registrar_tempo(
+            "reprocessar_agregacao_total",
+            perf_counter() - inicio_total,
+            progresso,
+            contexto={**contexto_base, "sucesso": ok_total},
+        )
+        return ok_total

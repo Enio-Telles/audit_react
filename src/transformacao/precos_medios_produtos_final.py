@@ -50,22 +50,51 @@ def calcular_precos_medios_produtos_final(
     pasta_analises = pasta_cnpj / "analises" / "produtos"
     arq_unid = pasta_analises / f"item_unidades_{cnpj}.parquet"
     arq_agrup = pasta_analises / f"produtos_agrupados_{cnpj}.parquet"
+    arq_final = pasta_analises / f"produtos_final_{cnpj}.parquet"
     arq_map = pasta_analises / f"map_produto_agrupado_{cnpj}.parquet"
 
-    for arq in (arq_unid, arq_agrup, arq_map):
+    for arq in (arq_unid, arq_agrup):
         if not arq.exists():
             raise FileNotFoundError(f"Arquivo necessario nao encontrado: {arq}")
 
     df_unid = pl.read_parquet(arq_unid)
-    df_unid = pl.read_parquet(arq_unid)
     df_agrup = pl.read_parquet(arq_agrup).select(["id_agrupado", "descr_padrao"])
-    df_map = pl.read_parquet(arq_map).rename({"chave_produto": "codigo_fonte"})
 
-    df_link = (
-        df_unid
-        .join(df_map, on="codigo_fonte", how="left")
-        .join(df_agrup, on="id_agrupado", how="left")
-    )
+    if "codigo_fonte" in df_unid.columns and arq_map.exists():
+        df_map = pl.read_parquet(arq_map).rename({"chave_produto": "codigo_fonte"})
+        df_link = (
+            df_unid
+            .join(df_map, on="codigo_fonte", how="left")
+            .join(df_agrup, on="id_agrupado", how="left")
+        )
+    else:
+        if not arq_final.exists():
+            raise FileNotFoundError(f"Arquivo necessario nao encontrado: {arq_final}")
+        df_final = (
+            pl.read_parquet(arq_final)
+            .select(["descricao_normalizada", "id_agrupado", "descr_padrao"])
+            .with_columns(
+                [
+                    pl.col("descricao_normalizada").cast(pl.Utf8, strict=False).fill_null(""),
+                    pl.col("id_agrupado").cast(pl.Utf8, strict=False),
+                    pl.col("descr_padrao").cast(pl.Utf8, strict=False),
+                ]
+            )
+            .filter(pl.col("descricao_normalizada") != "")
+            .unique(subset=["descricao_normalizada", "id_agrupado"])
+        )
+        df_link = (
+            df_unid
+            .with_columns(
+                pl.col("descricao")
+                .cast(pl.Utf8, strict=False)
+                .map_elements(_norm, return_dtype=pl.String)
+                .alias("descricao_normalizada")
+            )
+            .join(df_final, on="descricao_normalizada", how="left")
+            .drop("descricao_normalizada")
+            .join(df_agrup, on=["id_agrupado", "descr_padrao"], how="left")
+        )
 
     df_precos = (
         df_link

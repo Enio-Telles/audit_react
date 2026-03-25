@@ -32,6 +32,8 @@ try:
     from c170_xml import gerar_c170_xml
     from c176_xml import gerar_c176_xml
     from movimentacao_estoque import gerar_movimentacao_estoque
+    from calculos_mensais import gerar_calculos_mensais
+    from calculos_anuais import gerar_calculos_anuais
 except ImportError as e:
     rprint(f"[red]Erro de importacao no orquestrador:[/red] {e}")
     sys.exit(1)
@@ -73,6 +75,8 @@ def executar_pipeline_completo(
             ("c170_xml", gerar_c170_xml),
             ("c176_xml", gerar_c176_xml),
             ("movimentacao_estoque", gerar_movimentacao_estoque),
+            ("calculos_mensais", gerar_calculos_mensais),
+            ("calculos_anuais", gerar_calculos_anuais),
         ]
 
         for tab_id, func in ordem:

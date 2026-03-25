@@ -80,8 +80,8 @@ def _ler_primeiro(arq_dir: Path, prefix: str) -> pl.DataFrame | None:
 
 def gerar_fontes_produtos(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
     cnpj = re.sub(r"\D", "", cnpj or "")
-    if len(cnpj) != 14:
-        raise ValueError("CNPJ invalido.")
+    if len(cnpj) not in {11, 14}:
+        raise ValueError("CPF/CNPJ invalido.")
 
     if pasta_cnpj is None:
         pasta_cnpj = CNPJ_ROOT / cnpj

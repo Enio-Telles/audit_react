@@ -14,6 +14,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Callable
 
 import polars as pl
@@ -45,6 +46,7 @@ class ResultadoPipeline:
     mensagens: list[str] = field(default_factory=list)
     arquivos_gerados: list[str] = field(default_factory=list)
     erros: list[str] = field(default_factory=list)
+    tempos: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -54,6 +56,7 @@ class ResultadoGeracaoTabelas:
     ok: bool
     geradas: list[str] = field(default_factory=list)
     erros: list[str] = field(default_factory=list)
+    tempos: dict[str, float] = field(default_factory=dict)
 
 
 TABELAS_DISPONIVEIS: list[dict[str, str]] = [
@@ -127,6 +130,20 @@ TABELAS_DISPONIVEIS: list[dict[str, str]] = [
         "modulo": "movimentacao_estoque",
         "funcao": "gerar_movimentacao_estoque",
     },
+    {
+        "id": "calculos_mensais",
+        "nome": "10. Calculos Mensais",
+        "descricao": "Gera a aba mensal resumida a partir da movimentacao de estoque",
+        "modulo": "calculos_mensais",
+        "funcao": "gerar_calculos_mensais",
+    },
+    {
+        "id": "calculos_anuais",
+        "nome": "11. Calculos Anuais",
+        "descricao": "Gera a aba anual resumida a partir da movimentacao de estoque",
+        "modulo": "calculos_anuais",
+        "funcao": "gerar_calculos_anuais",
+    },
 ]
 
 
@@ -161,8 +178,8 @@ class ServicoExtracao:
     @staticmethod
     def sanitizar_cnpj(cnpj: str) -> str:
         digitos = re.sub(r"\D", "", cnpj or "")
-        if len(digitos) != 14:
-            raise ValueError("Informe um CNPJ com 14 digitos.")
+        if len(digitos) not in {11, 14}:
+            raise ValueError("Informe um CPF com 11 digitos ou um CNPJ com 14 digitos.")
         return digitos
 
     def apagar_dados_cnpj(self, cnpj: str) -> bool:
@@ -365,6 +382,7 @@ class ServicoTabelas:
         pasta_cnpj = CNPJ_ROOT / cnpj
         geradas: list[str] = []
         erros: list[str] = []
+        tempos: dict[str, float] = {}
 
         ordem = [
             "tb_documentos",
@@ -377,6 +395,8 @@ class ServicoTabelas:
             "c170_xml",
             "c176_xml",
             "movimentacao_estoque",
+            "calculos_mensais",
+            "calculos_anuais",
         ]
 
         for tab_id in ordem:
@@ -388,18 +408,21 @@ class ServicoTabelas:
                 continue
 
             _msg(f"Gerando {info['nome']}...")
+            inicio_etapa = perf_counter()
             try:
                 funcao = _importar_funcao_tabela(info["modulo"], info["funcao"])
                 resultado = funcao(cnpj, pasta_cnpj)
             except Exception as exc:
+                tempos[tab_id] = perf_counter() - inicio_etapa
                 erro = f"Erro ao gerar {info['nome']}: {exc}"
                 erros.append(erro)
                 _msg(erro)
                 break
 
+            tempos[tab_id] = perf_counter() - inicio_etapa
             if resultado:
                 geradas.append(tab_id)
-                _msg(f"OK {info['nome']} gerada com sucesso.")
+                _msg(f"OK {info['nome']} gerada com sucesso em {tempos[tab_id]:.2f}s.")
                 continue
 
             erro = f"Geracao interrompida em {info['nome']}: a etapa retornou False."
@@ -411,6 +434,7 @@ class ServicoTabelas:
             ok=not erros,
             geradas=geradas,
             erros=erros,
+            tempos=tempos,
         )
 
 
@@ -449,6 +473,7 @@ class ServicoPipelineCompleto:
 
         if consultas:
             _msg(f"=== Fase 1: Extracao Oracle ({len(consultas)} consultas) ===")
+            inicio_extracao = perf_counter()
             try:
                 arquivos = self.servico_extracao.executar_consultas(
                     cnpj,
@@ -457,6 +482,8 @@ class ServicoPipelineCompleto:
                     _msg,
                 )
                 resultado.arquivos_gerados.extend(arquivos)
+                resultado.tempos["extracao_oracle"] = perf_counter() - inicio_extracao
+                _msg(f"Tempo da extracao Oracle: {resultado.tempos['extracao_oracle']:.2f}s")
             except Exception as exc:
                 resultado.erros.append(f"Falha na extracao: {exc}")
                 resultado.ok = False
@@ -464,9 +491,13 @@ class ServicoPipelineCompleto:
 
         if tabelas:
             _msg(f"=== Fase 2: Geracao de tabelas ({len(tabelas)} selecionadas) ===")
+            inicio_tabelas = perf_counter()
             try:
                 resultado_tabelas = self.servico_tabelas.gerar_tabelas(cnpj, tabelas, _msg)
                 resultado.arquivos_gerados.extend(resultado_tabelas.geradas)
+                resultado.tempos.update({f"tabela::{k}": v for k, v in resultado_tabelas.tempos.items()})
+                resultado.tempos["geracao_tabelas"] = perf_counter() - inicio_tabelas
+                _msg(f"Tempo da geracao de tabelas: {resultado.tempos['geracao_tabelas']:.2f}s")
                 if not resultado_tabelas.ok:
                     resultado.ok = False
                     resultado.erros.extend(resultado_tabelas.erros)

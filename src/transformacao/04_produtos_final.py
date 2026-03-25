@@ -34,6 +34,7 @@ for _dir in (SRC_DIR, UTILITARIOS_DIR):
 try:
     from salvar_para_parquet import salvar_para_parquet
     from descricao_produtos import descricao_produtos
+    from id_agrupados import gerar_id_agrupados
 except ImportError as e:
     rprint(f"[red]Erro ao importar modulos:[/red] {e}")
     sys.exit(1)
@@ -111,8 +112,8 @@ def _calcular_atributos_padrao(df_base: pl.DataFrame) -> dict[str, str | None]:
 
 def produtos_agrupados(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
     cnpj = re.sub(r"\D", "", cnpj or "")
-    if len(cnpj) != 14:
-        raise ValueError("CNPJ invalido.")
+    if len(cnpj) not in {11, 14}:
+        raise ValueError("CPF/CNPJ invalido.")
 
     if pasta_cnpj is None:
         pasta_cnpj = CNPJ_ROOT / cnpj
@@ -242,7 +243,10 @@ def produtos_agrupados(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         .sort(["id_agrupado", "id_descricao"], nulls_last=True)
     )
 
-    return salvar_para_parquet(df_final, pasta_analises, f"produtos_final_{cnpj}.parquet")
+    ok_final = salvar_para_parquet(df_final, pasta_analises, f"produtos_final_{cnpj}.parquet")
+    if not ok_final:
+        return False
+    return gerar_id_agrupados(cnpj, pasta_cnpj)
 
 
 def gerar_produtos_final(cnpj: str, pasta_cnpj: Path | None = None) -> bool:

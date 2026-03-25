@@ -61,10 +61,105 @@ def _salvar_log_sem_compra(df_sem_compra: pl.DataFrame, pasta_analises: Path, cn
         json.dump(resumo, f, ensure_ascii=False, indent=2)
 
 
+def _df_vazio_override_unid() -> pl.DataFrame:
+    return pl.DataFrame(schema={"id_agrupado": pl.Utf8, "unid_ref_override": pl.Utf8})
+
+
+def _df_vazio_override_fator() -> pl.DataFrame:
+    return pl.DataFrame(schema={"id_agrupado": pl.Utf8, "unid": pl.Utf8, "fator_override": pl.Float64})
+
+
+def _extrair_overrides_existentes(df_existente: pl.DataFrame, df_final: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
+    if df_existente.is_empty():
+        return _df_vazio_override_unid(), _df_vazio_override_fator()
+
+    df_existente = df_existente.with_columns(
+        [
+            pl.col("id_agrupado").cast(pl.Utf8, strict=False),
+            pl.col("unid").cast(pl.Utf8, strict=False),
+            pl.col("unid_ref").cast(pl.Utf8, strict=False),
+            pl.col("fator").cast(pl.Float64, strict=False),
+            pl.col("preco_medio").cast(pl.Float64, strict=False),
+        ]
+    )
+
+    if "unid_ref_manual" in df_existente.columns:
+        df_unid_override = (
+            df_existente
+            .filter(pl.col("unid_ref_manual").cast(pl.Boolean, strict=False).fill_null(False))
+            .select(["id_agrupado", pl.col("unid_ref").alias("unid_ref_override")])
+            .drop_nulls(["id_agrupado", "unid_ref_override"])
+            .unique(subset=["id_agrupado"], keep="first")
+        )
+    else:
+        df_ref_final = (
+            df_final
+            .select(["id_agrupado", "unid_ref_sugerida"])
+            .with_columns(
+                [
+                    pl.col("id_agrupado").cast(pl.Utf8, strict=False),
+                    pl.col("unid_ref_sugerida").cast(pl.Utf8, strict=False),
+                ]
+            )
+            .unique(subset=["id_agrupado"], keep="first")
+        )
+        df_unid_override = (
+            df_existente
+            .select(["id_agrupado", "unid_ref"])
+            .drop_nulls(["id_agrupado", "unid_ref"])
+            .unique(subset=["id_agrupado"], keep="first")
+            .join(df_ref_final, on="id_agrupado", how="left")
+            .filter(
+                pl.col("unid_ref").is_not_null()
+                & (
+                    pl.col("unid_ref_sugerida").is_null()
+                    | (pl.col("unid_ref") != pl.col("unid_ref_sugerida"))
+                )
+            )
+            .select(["id_agrupado", pl.col("unid_ref").alias("unid_ref_override")])
+        )
+
+    if "fator_manual" in df_existente.columns:
+        df_fator_override = (
+            df_existente
+            .filter(pl.col("fator_manual").cast(pl.Boolean, strict=False).fill_null(False))
+            .select(["id_agrupado", "unid", pl.col("fator").alias("fator_override")])
+            .drop_nulls(["id_agrupado", "unid"])
+            .unique(subset=["id_agrupado", "unid"], keep="first")
+        )
+    else:
+        df_ref_prev = (
+            df_existente
+            .filter(pl.col("unid") == pl.col("unid_ref"))
+            .group_by("id_agrupado")
+            .agg(pl.col("preco_medio").mean().alias("__preco_ref_prev__"))
+        )
+        df_fator_override = (
+            df_existente
+            .join(df_ref_prev, on="id_agrupado", how="left")
+            .with_columns(
+                pl.when(pl.col("__preco_ref_prev__") > 0)
+                .then(pl.col("preco_medio") / pl.col("__preco_ref_prev__"))
+                .otherwise(1.0)
+                .alias("__fator_calc_prev__")
+            )
+            .filter((pl.col("fator") - pl.col("__fator_calc_prev__")).abs() > 1e-9)
+            .select(["id_agrupado", "unid", pl.col("fator").alias("fator_override")])
+            .drop_nulls(["id_agrupado", "unid"])
+            .unique(subset=["id_agrupado", "unid"], keep="first")
+        )
+
+    if df_unid_override.is_empty():
+        df_unid_override = _df_vazio_override_unid()
+    if df_fator_override.is_empty():
+        df_fator_override = _df_vazio_override_fator()
+    return df_unid_override, df_fator_override
+
+
 def calcular_fatores_conversao(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
     cnpj = re.sub(r"\D", "", cnpj or "")
-    if len(cnpj) != 14:
-        raise ValueError("CNPJ invalido.")
+    if len(cnpj) not in {11, 14}:
+        raise ValueError("CPF/CNPJ invalido.")
 
     if pasta_cnpj is None:
         pasta_cnpj = CNPJ_ROOT / cnpj
@@ -72,6 +167,7 @@ def calcular_fatores_conversao(cnpj: str, pasta_cnpj: Path | None = None) -> boo
     pasta_analises = pasta_cnpj / "analises" / "produtos"
     arq_unid = pasta_analises / f"item_unidades_{cnpj}.parquet"
     arq_final = pasta_analises / f"produtos_final_{cnpj}.parquet"
+    arq_fatores_existente = pasta_analises / f"fatores_conversao_{cnpj}.parquet"
 
     for arq in (arq_unid, arq_final):
         if not arq.exists():
@@ -82,6 +178,7 @@ def calcular_fatores_conversao(cnpj: str, pasta_cnpj: Path | None = None) -> boo
 
     df_unid = pl.read_parquet(arq_unid)
     df_final = pl.read_parquet(arq_final)
+    df_fatores_existente = pl.read_parquet(arq_fatores_existente) if arq_fatores_existente.exists() else pl.DataFrame()
 
     if df_unid.is_empty() or df_final.is_empty():
         rprint("[yellow]Aviso: sem dados para calcular fatores de conversao.[/yellow]")
@@ -101,10 +198,12 @@ def calcular_fatores_conversao(cnpj: str, pasta_cnpj: Path | None = None) -> boo
     df_unid = df_unid.with_columns(_normalizar_descricao_expr("descricao"))
     df_final = df_final.with_columns(
         [
+            pl.col("id_agrupado").cast(pl.Utf8, strict=False).alias("id_agrupado"),
             pl.col("descricao_normalizada").cast(pl.Utf8, strict=False).fill_null("").alias("descricao_normalizada"),
             pl.coalesce([pl.col("descr_padrao"), pl.col("descricao_final")]).alias("descr_padrao_calc"),
         ]
     )
+    df_unid_override, df_fator_override = _extrair_overrides_existentes(df_fatores_existente, df_final)
 
     df_link = (
         df_unid
@@ -209,7 +308,10 @@ def calcular_fatores_conversao(cnpj: str, pasta_cnpj: Path | None = None) -> boo
         df_precos
         .join(unid_ref_manual, on="id_agrupado", how="left")
         .join(unid_ref_auto, on="id_agrupado", how="left")
-        .with_columns(pl.coalesce([pl.col("unid_ref_manual"), pl.col("unid_ref_auto")]).alias("unid_ref"))
+        .join(df_unid_override, on="id_agrupado", how="left")
+        .with_columns(
+            pl.coalesce([pl.col("unid_ref_override"), pl.col("unid_ref_manual"), pl.col("unid_ref_auto")]).alias("unid_ref")
+        )
     )
 
     df_ref_price = (
@@ -222,11 +324,21 @@ def calcular_fatores_conversao(cnpj: str, pasta_cnpj: Path | None = None) -> boo
     df_fatores = (
         df_full
         .join(df_ref_price, on="id_agrupado", how="left")
+        .join(df_fator_override, on=["id_agrupado", "unid"], how="left")
         .with_columns(
-            pl.when(pl.col("preco_unid_ref") > 0)
-            .then(pl.col("preco_medio_base") / pl.col("preco_unid_ref"))
-            .otherwise(1.0)
-            .alias("fator")
+            [
+                pl.when(pl.col("preco_unid_ref") > 0)
+                .then(pl.col("preco_medio_base") / pl.col("preco_unid_ref"))
+                .otherwise(1.0)
+                .alias("fator"),
+                pl.col("unid_ref_override").is_not_null().fill_null(False).alias("unid_ref_manual"),
+            ]
+        )
+        .with_columns(
+            [
+                pl.coalesce([pl.col("fator_override"), pl.col("fator")]).alias("fator"),
+                pl.col("fator_override").is_not_null().fill_null(False).alias("fator_manual"),
+            ]
         )
         .select(
             [
@@ -236,6 +348,8 @@ def calcular_fatores_conversao(cnpj: str, pasta_cnpj: Path | None = None) -> boo
                 "unid",
                 "unid_ref",
                 "fator",
+                "fator_manual",
+                "unid_ref_manual",
                 pl.col("preco_medio_base").alias("preco_medio"),
                 "origem_preco",
             ]

@@ -12,7 +12,7 @@ class SelectionPersistenceService:
 
     def __init__(self, file_path: Path = SELECTIONS_FILE) -> None:
         self.file_path = file_path
-        self._cache: dict[str, list[str]] = {}
+        self._cache: dict[str, Any] = {}
         self._load()
 
     def _load(self) -> None:
@@ -33,9 +33,19 @@ class SelectionPersistenceService:
 
     def get_selections(self, category: str) -> list[str]:
         """Retorna a lista de itens selecionados para uma categoria."""
-        return self._cache.get(category, [])
+        value = self._cache.get(category, [])
+        return value if isinstance(value, list) else []
 
     def set_selections(self, category: str, items: list[str]) -> None:
         """Salva a lista de itens selecionados para uma categoria."""
         self._cache[category] = items
+        self._save()
+
+    def get_value(self, category: str, default: Any = None) -> Any:
+        """Retorna qualquer valor JSON-serializavel persistido para a chave."""
+        return self._cache.get(category, default)
+
+    def set_value(self, category: str, value: Any) -> None:
+        """Salva qualquer valor JSON-serializavel para a chave."""
+        self._cache[category] = value
         self._save()

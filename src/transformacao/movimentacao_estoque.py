@@ -389,6 +389,137 @@ def _gerar_eventos_estoque(df_mov: pl.DataFrame) -> pl.DataFrame:
     return df_result.drop(["__data_ref__", "__tipo_op__"], strict=False)
 
 
+def _valor_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    texto = str(value).strip().upper()
+    return texto in {"1", "TRUE", "T", "S", "SIM", "Y", "YES"}
+
+
+def _calcular_saldo_estoque_anual(df: pl.DataFrame) -> pl.DataFrame:
+    if df.is_empty():
+        return df
+
+    registros = df.to_dicts()
+    saldo_qtd = 0.0
+    saldo_valor = 0.0
+    custo_medio = 0.0
+
+    saldos = []
+    entradas_desacob = []
+    custos = []
+
+    for row in registros:
+        tipo = str(row.get("Tipo_operacao") or "")
+        q_conv = float(row.get("q_conv") or 0.0)
+        q_sinal = float(row.get("__q_conv_sinal__") or 0.0)
+        preco_item = float(row.get("preco_item") or 0.0)
+        qtd_decl_final = float(row.get("__qtd_decl_final_audit__") or 0.0)
+
+        entr_desac = 0.0
+
+        if tipo.startswith("0 - ESTOQUE INICIAL") or tipo == "1 - ENTRADA":
+            if q_sinal > 0:
+                saldo_qtd += q_sinal
+                saldo_valor += preco_item
+                custo_medio = (saldo_valor / saldo_qtd) if saldo_qtd > 0 else 0.0
+
+        elif tipo == "2 - SAIDAS":
+            if q_conv > 0:
+                saldo_qtd += q_sinal
+                if saldo_qtd < 0:
+                    entr_desac = abs(saldo_qtd)
+                    saldo_qtd = 0.0
+                    saldo_valor = 0.0
+                    custo_medio = 0.0
+                else:
+                    saldo_valor -= q_conv * custo_medio
+                    if saldo_qtd <= 0:
+                        saldo_qtd = 0.0
+                        saldo_valor = 0.0
+                        custo_medio = 0.0
+                    else:
+                        saldo_valor = max(saldo_valor, 0.0)
+                        custo_medio = saldo_valor / saldo_qtd
+
+        elif tipo.startswith("3 - ESTOQUE FINAL"):
+            if qtd_decl_final > saldo_qtd:
+                entr_desac = qtd_decl_final - saldo_qtd
+
+        saldos.append(round(saldo_qtd, 6))
+        entradas_desacob.append(round(entr_desac, 6))
+        custos.append(round(custo_medio, 6))
+
+    return df.with_columns(
+        [
+            pl.Series("saldo_estoque_anual", saldos),
+            pl.Series("entr_desac_anual", entradas_desacob),
+            pl.Series("custo_medio_anual", custos),
+        ]
+    )
+
+
+def _carregar_flags_cfop() -> pl.DataFrame:
+    arq_cfop = DADOS_DIR / "referencias" / "referencias" / "cfop" / "cfop.parquet"
+    arq_cfop_bi = DADOS_DIR / "referencias" / "referencias" / "cfop" / "cfop_bi.parquet"
+
+    df_cfop = pl.DataFrame(schema={"Cfop": pl.Utf8})
+    if arq_cfop.exists():
+        df_cfop_raw = pl.read_parquet(arq_cfop)
+        exprs = [
+            pl.col("co_cfop").cast(pl.Utf8, strict=False).str.replace_all(r"\D", "").alias("Cfop"),
+        ]
+        for col in ["excluir_estoque", "dev_simples"]:
+            if col in df_cfop_raw.columns:
+                exprs.append(pl.col(col).alias(col))
+            else:
+                exprs.append(pl.lit(None).alias(col))
+        df_cfop = (
+            df_cfop_raw
+            .select(exprs)
+            .filter(pl.col("Cfop").is_not_null() & (pl.col("Cfop") != ""))
+            .unique(subset=["Cfop"], keep="first")
+        )
+
+    df_cfop_bi = pl.DataFrame(schema={"Cfop": pl.Utf8})
+    if arq_cfop_bi.exists():
+        df_cfop_bi_raw = pl.read_parquet(arq_cfop_bi)
+        exprs = [
+            pl.col("co_cfop").cast(pl.Utf8, strict=False).str.replace_all(r"\D", "").alias("Cfop"),
+        ]
+        for col in ["dev_venda", "dev_compra", "dev_ent_simples"]:
+            if col in df_cfop_bi_raw.columns:
+                exprs.append(pl.col(col).alias(col))
+            else:
+                exprs.append(pl.lit(None).alias(col))
+        df_cfop_bi = (
+            df_cfop_bi_raw
+            .select(exprs)
+            .filter(pl.col("Cfop").is_not_null() & (pl.col("Cfop") != ""))
+            .unique(subset=["Cfop"], keep="first")
+        )
+
+    if df_cfop.is_empty() and df_cfop_bi.is_empty():
+        return pl.DataFrame(
+            schema={
+                "Cfop": pl.Utf8,
+                "excluir_estoque": pl.Boolean,
+                "dev_simples": pl.Boolean,
+                "dev_venda": pl.Utf8,
+                "dev_compra": pl.Utf8,
+                "dev_ent_simples": pl.Utf8,
+            }
+        )
+
+    if df_cfop.is_empty():
+        return df_cfop_bi
+    if df_cfop_bi.is_empty():
+        return df_cfop
+    return df_cfop.join(df_cfop_bi, on="Cfop", how="full", coalesce=True)
+
+
 def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
     cnpj = re.sub(r"\D", "", cnpj)
     if pasta_cnpj is None:
@@ -443,20 +574,33 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
         .rename({"unid": "__unid_fator__"})
         .unique(subset=["id_agrupado", "__unid_fator__"])
     )
+    df_flags_cfop = _carregar_flags_cfop()
 
-    df_ref_por_chave = pl.DataFrame(schema={"chv_nfe": pl.Utf8, "nsu_ref": pl.Int64, "finnfe_ref": pl.Utf8})
+    df_ref_por_chave = pl.DataFrame(
+        schema={
+            "chv_nfe": pl.Utf8,
+            "nsu_ref": pl.Int64,
+            "finnfe_ref": pl.Utf8,
+            "infprot_cstat_ref": pl.Utf8,
+            "co_uf_emit_ref": pl.Utf8,
+            "co_uf_dest_ref": pl.Utf8,
+        }
+    )
     for prefixo_nsu in ("nfe_agr", "nfce_agr", "nfe", "nfce"):
         arq_nsu = pasta_brutos / f"{prefixo_nsu}_{cnpj}.parquet"
         if not arq_nsu.exists():
             continue
         try:
+            df_nsu_bruto = pl.read_parquet(arq_nsu)
             df_tmp_nsu = (
-                pl.read_parquet(arq_nsu)
-                .select(
+                df_nsu_bruto.select(
                     [
                         pl.col("chave_acesso").cast(pl.Utf8, strict=False).alias("chv_nfe"),
-                        pl.col("nsu").cast(pl.Int64, strict=False).alias("nsu_ref"),
-                        pl.col("co_finnfe").cast(pl.Utf8, strict=False).alias("finnfe_ref"),
+                        (pl.col("nsu").cast(pl.Int64, strict=False) if "nsu" in df_nsu_bruto.columns else pl.lit(None, pl.Int64)).alias("nsu_ref"),
+                        (pl.col("co_finnfe").cast(pl.Utf8, strict=False) if "co_finnfe" in df_nsu_bruto.columns else pl.lit(None, pl.Utf8)).alias("finnfe_ref"),
+                        (pl.col("infprot_cstat").cast(pl.Utf8, strict=False) if "infprot_cstat" in df_nsu_bruto.columns else pl.lit(None, pl.Utf8)).alias("infprot_cstat_ref"),
+                        (pl.col("co_uf_emit").cast(pl.Utf8, strict=False) if "co_uf_emit" in df_nsu_bruto.columns else pl.lit(None, pl.Utf8)).alias("co_uf_emit_ref"),
+                        (pl.col("co_uf_dest").cast(pl.Utf8, strict=False) if "co_uf_dest" in df_nsu_bruto.columns else pl.lit(None, pl.Utf8)).alias("co_uf_dest_ref"),
                     ]
                 )
                 .filter(pl.col("chv_nfe").is_not_null())
@@ -522,6 +666,9 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
         if prefix_sys == "c170" and "chv_nfe" in df_raw.columns and not df_ref_por_chave.is_empty():
             nsu_atual = pl.col("nsu").cast(pl.Int64, strict=False) if "nsu" in df_raw.columns else pl.lit(None, pl.Int64)
             finnfe_atual = pl.col("finnfe").cast(pl.Utf8, strict=False) if "finnfe" in df_raw.columns else pl.lit(None, pl.Utf8)
+            infprot_cstat_atual = pl.col("infprot_cstat").cast(pl.Utf8, strict=False) if "infprot_cstat" in df_raw.columns else pl.lit(None, pl.Utf8)
+            co_uf_emit_atual = pl.col("co_uf_emit").cast(pl.Utf8, strict=False) if "co_uf_emit" in df_raw.columns else pl.lit(None, pl.Utf8)
+            co_uf_dest_atual = pl.col("co_uf_dest").cast(pl.Utf8, strict=False) if "co_uf_dest" in df_raw.columns else pl.lit(None, pl.Utf8)
             df_raw = (
                 df_raw
                 .with_columns(pl.col("chv_nfe").cast(pl.Utf8, strict=False).alias("chv_nfe"))
@@ -530,9 +677,18 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
                     [
                         pl.coalesce([pl.col("nsu_ref"), nsu_atual]).alias("nsu"),
                         pl.coalesce([pl.col("finnfe_ref"), finnfe_atual]).alias("finnfe"),
+                        pl.coalesce([pl.col("infprot_cstat_ref"), infprot_cstat_atual]).alias("infprot_cstat"),
+                        pl.coalesce(
+                            [
+                                pl.col("co_uf_emit_ref"),
+                                co_uf_emit_atual,
+                                pl.col("chv_nfe").cast(pl.Utf8, strict=False).str.slice(0, 2),
+                            ]
+                        ).alias("co_uf_emit"),
+                        pl.coalesce([pl.col("co_uf_dest_ref"), co_uf_dest_atual]).alias("co_uf_dest"),
                     ]
                 )
-                .drop(["nsu_ref", "finnfe_ref"], strict=False)
+                .drop(["nsu_ref", "finnfe_ref", "infprot_cstat_ref", "co_uf_emit_ref", "co_uf_dest_ref"], strict=False)
             )
 
         # Select apenas os que vao mapear pra evitar excesso, mas as expressoes referenciam colunas q devem existir!
@@ -585,6 +741,13 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
             else:
                 df_selecionado = df_selecionado.with_columns(pl.lit(None).alias(c))
 
+        if prefix_sys == "c170":
+            for c in ["finnfe", "infprot_cstat", "co_uf_emit", "co_uf_dest"]:
+                if c in df_raw.columns:
+                    df_selecionado = df_selecionado.with_columns(df_raw[c])
+                else:
+                    df_selecionado = df_selecionado.with_columns(pl.lit(None).alias(c))
+
         df_parts.append(df_selecionado)
 
     # Sources mapeadas
@@ -598,6 +761,37 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
         return False
         
     df_mov = pl.concat(df_parts, how="diagonal_relaxed")
+    if not df_ref_por_chave.is_empty() and "Chv_nfe" in df_mov.columns:
+        nsu_atual = pl.col("nsu").cast(pl.Int64, strict=False) if "nsu" in df_mov.columns else pl.lit(None, pl.Int64)
+        finnfe_atual = pl.col("finnfe").cast(pl.Utf8, strict=False) if "finnfe" in df_mov.columns else pl.lit(None, pl.Utf8)
+        infprot_cstat_atual = pl.col("infprot_cstat").cast(pl.Utf8, strict=False) if "infprot_cstat" in df_mov.columns else pl.lit(None, pl.Utf8)
+        co_uf_emit_atual = pl.col("co_uf_emit").cast(pl.Utf8, strict=False) if "co_uf_emit" in df_mov.columns else pl.lit(None, pl.Utf8)
+        co_uf_dest_atual = pl.col("co_uf_dest").cast(pl.Utf8, strict=False) if "co_uf_dest" in df_mov.columns else pl.lit(None, pl.Utf8)
+        df_mov = (
+            df_mov
+            .with_columns(pl.col("Chv_nfe").cast(pl.Utf8, strict=False).alias("Chv_nfe"))
+            .join(
+                df_ref_por_chave.rename({"chv_nfe": "Chv_nfe"}),
+                on="Chv_nfe",
+                how="left",
+            )
+            .with_columns(
+                [
+                    pl.coalesce([pl.col("nsu_ref"), nsu_atual]).alias("nsu"),
+                    pl.coalesce([pl.col("finnfe_ref"), finnfe_atual]).alias("finnfe"),
+                    pl.coalesce([pl.col("infprot_cstat_ref"), infprot_cstat_atual]).alias("infprot_cstat"),
+                    pl.coalesce(
+                        [
+                            pl.col("co_uf_emit_ref"),
+                            co_uf_emit_atual,
+                            pl.col("Chv_nfe").cast(pl.Utf8, strict=False).str.slice(0, 2),
+                        ]
+                    ).alias("co_uf_emit"),
+                    pl.coalesce([pl.col("co_uf_dest_ref"), co_uf_dest_atual]).alias("co_uf_dest"),
+                ]
+            )
+            .drop(["nsu_ref", "finnfe_ref", "infprot_cstat_ref", "co_uf_emit_ref", "co_uf_dest_ref"], strict=False)
+        )
     df_mov = df_mov.with_columns(_padronizar_tipo_operacao_expr("Tipo_operacao"))
     
     # 2. Ajustar eventos de estoque final/inicial
@@ -606,6 +800,16 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
     # 3. Enriquecer com campos da co_sefin_class
     rprint("[cyan]Enriquecendo campos co_sefin...[/cyan]")
     df_final = enriquecer_co_sefin_class(df_mov, cnpj)
+    if not df_flags_cfop.is_empty() and "Cfop" in df_final.columns:
+        df_final = (
+            df_final
+            .with_columns(pl.col("Cfop").cast(pl.Utf8, strict=False).str.replace_all(r"\D", "").alias("Cfop"))
+            .join(df_flags_cfop, on="Cfop", how="left")
+        )
+    else:
+        for col in ["excluir_estoque", "dev_simples", "dev_venda", "dev_compra", "dev_ent_simples"]:
+            if col not in df_final.columns:
+                df_final = df_final.with_columns(pl.lit(None).alias(col))
     
     # Ordenacao semantica:
     # - por id_agrupado
@@ -642,6 +846,7 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
             descending=[False, False, False, False, False, False],
             nulls_last=True,
         )
+        .with_row_index("ordem_operacoes", offset=1)
         .drop(["__data_ord__", "__nsu_ord__", "__ord_tipo__"], strict=False)
     )
 
@@ -654,6 +859,88 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
         cols.insert(idx + 1, "Descr_item")
         cols.insert(idx + 2, "Descr_compl")
         df_final = df_final.select(cols)
+
+    data_ref_expr = pl.coalesce(
+        [
+            pl.col("Dt_e_s").cast(pl.Date, strict=False),
+            pl.col("Dt_doc").cast(pl.Date, strict=False),
+        ]
+    )
+    qtd_bruta_expr = pl.col("Qtd").cast(pl.Float64, strict=False).fill_null(0.0).abs()
+    fator_expr = pl.col("fator").cast(pl.Float64, strict=False).fill_null(1.0).abs()
+    q_conv_base_expr = (qtd_bruta_expr * fator_expr)
+    infprot_valido_expr = (
+        pl.col("infprot_cstat")
+        .cast(pl.Utf8, strict=False)
+        .fill_null("")
+        .str.strip_chars()
+        .is_in(["", "100", "150"])
+    )
+    q_conv_valido_expr = pl.when(infprot_valido_expr).then(q_conv_base_expr).otherwise(pl.lit(0.0))
+
+    df_final = (
+        df_final
+        .with_columns(
+            [
+                data_ref_expr.alias("__data_ref_calc__"),
+                data_ref_expr.dt.year().alias("__ano_saldo__"),
+                q_conv_base_expr.alias("__q_conv_base__"),
+            ]
+        )
+        .with_columns(
+            [
+                pl.when(
+                    pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("3 - ESTOQUE FINAL")
+                    & (pl.col("__data_ref_calc__").dt.month() == 12)
+                    & (pl.col("__data_ref_calc__").dt.day() == 31)
+                )
+                .then(q_conv_valido_expr)
+                .otherwise(pl.lit(0.0))
+                .alias("__qtd_decl_final_audit__"),
+                pl.when(
+                    pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("0 - ESTOQUE INICIAL")
+                    & (pl.col("__data_ref_calc__").dt.month() == 1)
+                    & (pl.col("__data_ref_calc__").dt.day() == 1)
+                )
+                .then(q_conv_valido_expr)
+                .when(pl.col("Tipo_operacao") == "1 - ENTRADA")
+                .then(q_conv_valido_expr)
+                .when(pl.col("Tipo_operacao") == "2 - SAIDAS")
+                .then(q_conv_valido_expr)
+                .otherwise(pl.lit(0.0))
+                .alias("q_conv"),
+                pl.when(
+                    pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("0 - ESTOQUE INICIAL")
+                    & (pl.col("__data_ref_calc__").dt.month() == 1)
+                    & (pl.col("__data_ref_calc__").dt.day() == 1)
+                )
+                .then(q_conv_valido_expr)
+                .when(pl.col("Tipo_operacao") == "1 - ENTRADA")
+                .then(q_conv_valido_expr)
+                .when(pl.col("Tipo_operacao") == "2 - SAIDAS")
+                .then(-q_conv_valido_expr)
+                .otherwise(pl.lit(0.0))
+                .alias("__q_conv_sinal__"),
+            ]
+        )
+        .with_columns(
+            pl.when(pl.col("q_conv") > 0)
+            .then(pl.col("preco_item").cast(pl.Float64, strict=False).fill_null(0.0) / pl.col("q_conv"))
+            .otherwise(pl.lit(0.0))
+            .alias("preco_unit")
+        )
+        .group_by("id_agrupado", "__ano_saldo__", maintain_order=True)
+        .map_groups(_calcular_saldo_estoque_anual)
+        .drop(["__data_ref_calc__", "__q_conv_base__"], strict=False)
+    )
+
+    for coluna, referencia in [("q_conv", "Qtd"), ("preco_unit", "preco_item")]:
+        cols = list(df_final.columns)
+        if coluna in cols and referencia in cols:
+            cols.remove(coluna)
+            idx_ref = cols.index(referencia)
+            cols.insert(idx_ref + 1, coluna)
+            df_final = df_final.select(cols)
 
     # Salvar
     saida = pasta_analises / f"mov_estoque_{cnpj}.parquet"

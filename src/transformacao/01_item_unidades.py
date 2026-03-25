@@ -433,8 +433,8 @@ def _ler_nfe_ou_nfce(path: Path | None, cnpj: str, nome_fonte: str, cfop_mercant
 
 def item_unidades(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
     cnpj = re.sub(r"\D", "", cnpj or "")
-    if len(cnpj) != 14:
-        raise ValueError("CNPJ invalido.")
+    if len(cnpj) not in {11, 14}:
+        raise ValueError("CPF/CNPJ invalido.")
 
     if pasta_cnpj is None:
         pasta_cnpj = CNPJ_ROOT / cnpj

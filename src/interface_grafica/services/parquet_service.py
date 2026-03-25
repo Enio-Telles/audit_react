@@ -1,12 +1,15 @@
 ﻿from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import Iterable
 
 import polars as pl
 
 from interface_grafica.config import CNPJ_ROOT as CONSULTAS_ROOT, DEFAULT_PAGE_SIZE
+from utilitarios.perf_monitor import registrar_evento_performance
 
 
 @dataclass
@@ -47,6 +50,29 @@ class ParquetService:
     def __init__(self, root: Path = CONSULTAS_ROOT) -> None:
         self.root = root
         self.root.mkdir(parents=True, exist_ok=True)
+        self._schema_cache: dict[tuple[str, int, int], list[str]] = {}
+        self._count_cache: dict[tuple[str, int, int, tuple[tuple[str, str, str], ...]], int] = {}
+        self._page_cache: OrderedDict[
+            tuple[str, int, int, tuple[tuple[str, str, str], ...], tuple[str, ...], int, int],
+            PageResult,
+        ] = OrderedDict()
+        self._page_cache_limit = 10
+        self._dataset_cache: OrderedDict[
+            tuple[str, int, int, tuple[tuple[str, str, str], ...], tuple[str, ...]],
+            pl.DataFrame,
+        ] = OrderedDict()
+        self._dataset_cache_limit = 6
+
+    @staticmethod
+    def _path_signature(parquet_path: Path) -> tuple[str, int, int]:
+        stat = parquet_path.stat()
+        return (str(parquet_path.resolve()), stat.st_mtime_ns, stat.st_size)
+
+    @staticmethod
+    def _conditions_key(conditions: Iterable[FilterCondition] | None) -> tuple[tuple[str, str, str], ...]:
+        if not conditions:
+            return ()
+        return tuple((c.column or "", c.operator or "", c.value or "") for c in conditions)
 
     def list_cnpjs(self) -> list[str]:
         if not self.root.exists():
@@ -96,7 +122,32 @@ class ParquetService:
         return sorted(filtrados, key=lambda p: (str(p.parent), p.name))
 
     def get_schema(self, parquet_path: Path) -> list[str]:
-        return list(pl.scan_parquet(parquet_path).collect_schema().names())
+        inicio = perf_counter()
+        key = self._path_signature(parquet_path)
+        cached = self._schema_cache.get(key)
+        if cached is not None:
+            registrar_evento_performance(
+                "parquet_service.get_schema",
+                perf_counter() - inicio,
+                {
+                    "parquet_path": parquet_path,
+                    "cache_hit": True,
+                    "colunas": len(cached),
+                },
+            )
+            return cached[:]
+        schema = list(pl.scan_parquet(parquet_path).collect_schema().names())
+        self._schema_cache[key] = schema[:]
+        registrar_evento_performance(
+            "parquet_service.get_schema",
+            perf_counter() - inicio,
+            {
+                "parquet_path": parquet_path,
+                "cache_hit": False,
+                "colunas": len(schema),
+            },
+        )
+        return schema
 
     @staticmethod
     def _normalize_operator(op: str) -> str:
@@ -165,12 +216,18 @@ class ParquetService:
 
         return col.cast(pl.Utf8, strict=False).fill_null("") == value
 
-    def apply_filters(self, lf: pl.LazyFrame, conditions: Iterable[FilterCondition]) -> pl.LazyFrame:
+    def apply_filters(
+        self,
+        lf: pl.LazyFrame,
+        conditions: Iterable[FilterCondition],
+        available_columns: set[str] | None = None,
+    ) -> pl.LazyFrame:
         filtered = lf
-        try:
-            available_columns = set(filtered.collect_schema().names())
-        except Exception:
-            available_columns = set()
+        if available_columns is None:
+            try:
+                available_columns = set(filtered.collect_schema().names())
+            except Exception:
+                available_columns = set()
 
         for cond in conditions:
             if not cond.column:
@@ -187,7 +244,7 @@ class ParquetService:
     def build_lazyframe(self, parquet_path: Path, conditions: Iterable[FilterCondition] | None = None) -> pl.LazyFrame:
         lf = pl.scan_parquet(parquet_path)
         if conditions:
-            lf = self.apply_filters(lf, conditions)
+            lf = self.apply_filters(lf, conditions, available_columns=set(self.get_schema(parquet_path)))
         return lf
 
     def get_page(
@@ -198,30 +255,168 @@ class ParquetService:
         page: int,
         page_size: int = DEFAULT_PAGE_SIZE,
     ) -> PageResult:
+        inicio_total = perf_counter()
         page = max(page, 1)
+        path_signature = self._path_signature(parquet_path)
+        page_cache_key = (
+            *path_signature,
+            self._conditions_key(conditions),
+            tuple(visible_columns or ()),
+            page,
+            page_size,
+        )
+        cached_page = self._page_cache.get(page_cache_key)
+        if cached_page is not None:
+            self._page_cache.move_to_end(page_cache_key)
+            registrar_evento_performance(
+                "parquet_service.get_page.total",
+                perf_counter() - inicio_total,
+                {
+                    "parquet_path": parquet_path,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_rows": cached_page.total_rows,
+                    "linhas_pagina": cached_page.df_all_columns.height,
+                    "colunas_visiveis": len(cached_page.df_visible.columns),
+                    "cache_hit": True,
+                },
+            )
+            return cached_page
+        inicio_lf = perf_counter()
         lf_all = self.build_lazyframe(parquet_path, conditions)
-        total_rows = int(lf_all.select(pl.len().alias("n")).collect().item())
+        registrar_evento_performance(
+            "parquet_service.get_page.build_lazyframe",
+            perf_counter() - inicio_lf,
+            {
+                "parquet_path": parquet_path,
+                "page": page,
+                "page_size": page_size,
+                "quantidade_filtros": len(conditions or []),
+            },
+        )
+        count_key = (*path_signature, self._conditions_key(conditions))
+        total_rows = self._count_cache.get(count_key)
+        count_cache_hit = total_rows is not None
+        if total_rows is None:
+            inicio_count = perf_counter()
+            total_rows = int(lf_all.select(pl.len().alias("n")).collect().item())
+            self._count_cache[count_key] = total_rows
+            registrar_evento_performance(
+                "parquet_service.get_page.count_rows",
+                perf_counter() - inicio_count,
+                {
+                    "parquet_path": parquet_path,
+                    "cache_hit": False,
+                    "total_rows": total_rows,
+                    "quantidade_filtros": len(conditions or []),
+                },
+            )
+        else:
+            registrar_evento_performance(
+                "parquet_service.get_page.count_rows",
+                0.0,
+                {
+                    "parquet_path": parquet_path,
+                    "cache_hit": True,
+                    "total_rows": total_rows,
+                    "quantidade_filtros": len(conditions or []),
+                },
+            )
         all_columns = self.get_schema(parquet_path)
         if not visible_columns:
             visible_columns = all_columns[:]
         offset = (page - 1) * page_size
+        inicio_collect = perf_counter()
         df_all = lf_all.slice(offset, page_size).collect()
+        registrar_evento_performance(
+            "parquet_service.get_page.collect_page",
+            perf_counter() - inicio_collect,
+            {
+                "parquet_path": parquet_path,
+                "page": page,
+                "page_size": page_size,
+                "linhas_pagina": df_all.height,
+                "cache_hit_count": count_cache_hit,
+            },
+        )
         df_visible = df_all.select([c for c in visible_columns if c in df_all.columns])
-        return PageResult(
+        registrar_evento_performance(
+            "parquet_service.get_page.total",
+            perf_counter() - inicio_total,
+            {
+                "parquet_path": parquet_path,
+                "page": page,
+                "page_size": page_size,
+                "total_rows": total_rows,
+                "linhas_pagina": df_all.height,
+                "colunas_visiveis": len(df_visible.columns),
+                "cache_hit": False,
+            },
+        )
+        result = PageResult(
             total_rows=total_rows,
             df_all_columns=df_all,
             df_visible=df_visible,
             columns=all_columns,
             visible_columns=visible_columns,
         )
+        self._page_cache[page_cache_key] = result
+        self._page_cache.move_to_end(page_cache_key)
+        while len(self._page_cache) > self._page_cache_limit:
+            self._page_cache.popitem(last=False)
+        return result
 
     def load_dataset(self, parquet_path: Path, conditions: list[FilterCondition] | None = None, columns: list[str] | None = None) -> pl.DataFrame:
+        inicio = perf_counter()
+        cache_key = (
+            *self._path_signature(parquet_path),
+            self._conditions_key(conditions),
+            tuple(columns or ()),
+        )
+        cached = self._dataset_cache.get(cache_key)
+        if cached is not None:
+            self._dataset_cache.move_to_end(cache_key)
+            registrar_evento_performance(
+                "parquet_service.load_dataset",
+                perf_counter() - inicio,
+                {
+                    "parquet_path": parquet_path,
+                    "quantidade_filtros": len(conditions or []),
+                    "colunas_solicitadas": len(columns or []),
+                    "linhas": cached.height,
+                    "colunas": cached.width,
+                    "cache_hit": True,
+                },
+            )
+            return cached
         lf = self.build_lazyframe(parquet_path, conditions or [])
         if columns:
             lf = lf.select(columns)
-        return lf.collect()
+        df = lf.collect()
+        self._dataset_cache[cache_key] = df
+        self._dataset_cache.move_to_end(cache_key)
+        while len(self._dataset_cache) > self._dataset_cache_limit:
+            self._dataset_cache.popitem(last=False)
+        registrar_evento_performance(
+            "parquet_service.load_dataset",
+            perf_counter() - inicio,
+            {
+                "parquet_path": parquet_path,
+                "quantidade_filtros": len(conditions or []),
+                "colunas_solicitadas": len(columns or []),
+                "linhas": df.height,
+                "colunas": df.width,
+                "cache_hit": False,
+            },
+        )
+        return df
 
     def save_dataset(self, parquet_path: Path, df: pl.DataFrame) -> None:
         parquet_path.parent.mkdir(parents=True, exist_ok=True)
         df.write_parquet(parquet_path, compression="snappy")
+        target = str(parquet_path.resolve())
+        self._schema_cache = {k: v for k, v in self._schema_cache.items() if k[0] != target}
+        self._count_cache = {k: v for k, v in self._count_cache.items() if k[0] != target}
+        self._page_cache = OrderedDict((k, v) for k, v in self._page_cache.items() if k[0] != target)
+        self._dataset_cache = OrderedDict((k, v) for k, v in self._dataset_cache.items() if k[0] != target)
 

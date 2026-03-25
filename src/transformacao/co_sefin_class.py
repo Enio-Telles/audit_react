@@ -132,6 +132,7 @@ def enriquecer_co_sefin_class(df_movimentacao: pl.DataFrame, cnpj: str = None) -
         "it_pc_mva",
         "it_in_mva_ajustado",
         "it_in_isento_icms",
+        "it_in_reducao",
         "it_pc_reducao",
         "it_in_combustivel",
         "it_in_pmpf",

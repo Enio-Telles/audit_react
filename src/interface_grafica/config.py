@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 APP_NAME = "Fiscal Parquet Analyzer"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+FUNCOES_ROOT = Path(r"c:\funcoes - Copia")
 
 # Load environment variables from .env file in the project root
 env_path = PROJECT_ROOT / ".env"
@@ -17,12 +18,11 @@ REGISTRY_FILE = APP_STATE_ROOT / "cnpjs.json"
 AGGREGATION_LOG_FILE = APP_STATE_ROOT / "operacoes_agregacao.jsonl"
 SELECTIONS_FILE = APP_STATE_ROOT / "selections.json"
 PIPELINE_SCRIPT = PROJECT_ROOT / "pipeline_oracle_parquet.py"
-SQL_DIR = PROJECT_ROOT / "sql"
-FUNCOES_ROOT = Path(r"c:\funcoes - Copia")
+SQL_DIR = FUNCOES_ROOT / "sql"
 DADOS_ROOT = FUNCOES_ROOT / "dados"
 EXTRA_SQL_DIRS = [
     FUNCOES_ROOT / "consultas_fonte",
-    PROJECT_ROOT / "src" / "sql",
+    PROJECT_ROOT / "sql",
 ]
 DEFAULT_PAGE_SIZE = 200
 MAX_DOCX_ROWS = 500

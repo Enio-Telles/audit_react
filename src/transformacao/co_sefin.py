@@ -1,8 +1,8 @@
 """
 co_sefin.py
 
-Script para inferir o código co_sefin_inferido com base no NCM e CEST
-utilizando tabelas de referência sitafe.
+Script para inferir o codigo co_sefin_inferido com base no NCM e CEST
+utilizando tabelas de referencia sitafe.
 """
 
 import sys
@@ -11,12 +11,12 @@ from pathlib import Path
 import polars as pl
 from rich import print as rprint
 
-ROOT_DIR        = Path(r"c:\funcoes - Copia")
-SRC_DIR         = ROOT_DIR / "src"
+ROOT_DIR = Path(r"c:\funcoes - Copia")
+SRC_DIR = ROOT_DIR / "src"
 UTILITARIOS_DIR = SRC_DIR / "utilitarios"
-DADOS_DIR       = ROOT_DIR / "dados"
-CNPJ_ROOT       = DADOS_DIR / "CNPJ"
-REFS_DIR        = DADOS_DIR / "referencias" / "CO_SEFIN"
+DADOS_DIR = ROOT_DIR / "dados"
+CNPJ_ROOT = DADOS_DIR / "CNPJ"
+REFS_DIR = DADOS_DIR / "referencias" / "CO_SEFIN"
 
 if str(UTILITARIOS_DIR) not in sys.path:
     sys.path.insert(0, str(UTILITARIOS_DIR))
@@ -25,130 +25,143 @@ try:
     from salvar_para_parquet import salvar_para_parquet
     from validar_cnpj import validar_cnpj
 except ImportError as e:
-    rprint(f"[red]Erro ao importar módulos utilitários:[/red] {e}")
+    rprint(f"[red]Erro ao importar modulos utilitarios:[/red] {e}")
     sys.exit(1)
 
 
-def co_sefin(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
-    import re
-    cnpj = re.sub(r"[^0-9]", "", cnpj)
-
-    if pasta_cnpj is None:
-        pasta_cnpj = CNPJ_ROOT / cnpj
+def _limpar_expr(coluna: str) -> pl.Expr:
+    return pl.col(coluna).cast(pl.String, strict=False).str.replace_all(r"\.", "").str.strip_chars()
 
 
-    pasta_produtos = pasta_cnpj / "analises" / "produtos"
-    
-    arquivos_alvo = [
-        pasta_produtos / f"tabela_itens_caracteristicas_{cnpj}.parquet",
-        pasta_produtos / f"tab_itens_caract_normalizada_{cnpj}.parquet"
+def _resolver_ref(nome_arquivo: str) -> Path:
+    candidatos = [
+        DADOS_DIR / "referencias" / "referencias" / "CO_SEFIN",
+        DADOS_DIR / "referencias" / "CO_SEFIN",
+        ROOT_DIR / "referencias" / "CO_SEFIN",
     ]
+    for base in candidatos:
+        caminho = base / nome_arquivo
+        if caminho.exists():
+            return caminho
+    return REFS_DIR / nome_arquivo
 
-    rprint(f"\n[bold cyan]Inferindo co_sefin_inferido para CNPJ: {cnpj}[/bold cyan]")
 
-    # 1. Carregar tabelas de referência
-    ref_cest_ncm_path = REFS_DIR / "sitafe_cest_ncm.parquet"
-    ref_cest_path = REFS_DIR / "sitafe_cest.parquet"
-    ref_ncm_path = REFS_DIR / "sitafe_ncm.parquet"
+def inferir_co_sefin_dataframe(
+    df: pl.DataFrame,
+    col_ncm: str = "ncm",
+    col_cest: str = "cest",
+    output_col: str = "co_sefin_inferido",
+) -> pl.DataFrame:
+    """Infere co_sefin em um DataFrame com a mesma prioridade do pipeline.
+
+    Ordem de fallback:
+    1. CEST + NCM
+    2. CEST
+    3. NCM
+    """
+    if df.is_empty():
+        return df.with_columns(pl.lit(None, dtype=pl.String).alias(output_col))
+
+    ref_cest_ncm_path = _resolver_ref("sitafe_cest_ncm.parquet")
+    ref_cest_path = _resolver_ref("sitafe_cest.parquet")
+    ref_ncm_path = _resolver_ref("sitafe_ncm.parquet")
 
     for p in [ref_cest_ncm_path, ref_cest_path, ref_ncm_path]:
         if not p.exists():
-            rprint(f"[red]ERRO: Tabela de referência não encontrada: {p}[/red]")
-            return False
+            raise FileNotFoundError(f"Tabela de referencia nao encontrada: {p}")
 
-    def _limpar_str(col):
-        return pl.col(col).cast(pl.String).str.replace_all(r"\.", "").str.strip_chars()
+    df_base = df
+    if col_ncm not in df_base.columns:
+        df_base = df_base.with_columns(pl.lit(None, dtype=pl.String).alias(col_ncm))
+    if col_cest not in df_base.columns:
+        df_base = df_base.with_columns(pl.lit(None, dtype=pl.String).alias(col_cest))
 
-    # Prepara referencias (lazy para joins eficientes)
-    # sitafe_cest_ncm: it_nu_cest, it_nu_ncm, it_co_sefin
     ref_cn = (
-        pl.scan_parquet(ref_cest_ncm_path)
+        pl.read_parquet(ref_cest_ncm_path)
         .select(["it_nu_cest", "it_nu_ncm", "it_co_sefin"])
-        .with_columns([
-            _limpar_str("it_nu_cest").alias("ref_cest"),
-            _limpar_str("it_nu_ncm").alias("ref_ncm")
-        ])
+        .with_columns(
+            [
+                _limpar_expr("it_nu_cest").alias("ref_cest"),
+                _limpar_expr("it_nu_ncm").alias("ref_ncm"),
+                pl.col("it_co_sefin").cast(pl.String, strict=False),
+            ]
+        )
         .drop(["it_nu_cest", "it_nu_ncm"])
     )
 
-    # sitafe_cest: cest, co-sefin
     ref_c = (
-        pl.scan_parquet(ref_cest_path)
+        pl.read_parquet(ref_cest_path)
         .select(["cest", "co-sefin"])
-        .with_columns([
-            _limpar_str("cest").alias("ref_cest")
-        ])
+        .with_columns(_limpar_expr("cest").alias("ref_cest"))
         .drop("cest")
         .rename({"co-sefin": "co_sefin_cest"})
     )
 
-    # sitafe_ncm: ncm, co-sefin
     ref_n = (
-        pl.scan_parquet(ref_ncm_path)
+        pl.read_parquet(ref_ncm_path)
         .select(["ncm", "co-sefin"])
-        .with_columns([
-            _limpar_str("ncm").alias("ref_ncm")
-        ])
+        .with_columns(_limpar_expr("ncm").alias("ref_ncm"))
         .drop("ncm")
         .rename({"co-sefin": "co_sefin_ncm"})
     )
 
-    sucesso_total = True
+    df_join = df_base.with_columns(
+        [
+            _limpar_expr(col_ncm).alias("_ncm_join"),
+            _limpar_expr(col_cest).alias("_cest_join"),
+        ]
+    )
+    df_join = df_join.join(
+        ref_cn,
+        left_on=["_cest_join", "_ncm_join"],
+        right_on=["ref_cest", "ref_ncm"],
+        how="left",
+    )
+    df_join = df_join.join(ref_c, left_on="_cest_join", right_on="ref_cest", how="left")
+    df_join = df_join.join(ref_n, left_on="_ncm_join", right_on="ref_ncm", how="left")
 
+    return (
+        df_join.with_columns(
+            pl.coalesce(["it_co_sefin", "co_sefin_cest", "co_sefin_ncm"])
+            .cast(pl.String, strict=False)
+            .alias(output_col)
+        )
+        .drop(["_ncm_join", "_cest_join", "it_co_sefin", "co_sefin_cest", "co_sefin_ncm"], strict=False)
+    )
+
+
+def co_sefin(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
+    import re
+
+    cnpj = re.sub(r"[^0-9]", "", cnpj)
+    if pasta_cnpj is None:
+        pasta_cnpj = CNPJ_ROOT / cnpj
+
+    pasta_produtos = pasta_cnpj / "analises" / "produtos"
+    arquivos_alvo = [
+        pasta_produtos / f"tabela_itens_caracteristicas_{cnpj}.parquet",
+        pasta_produtos / f"tab_itens_caract_normalizada_{cnpj}.parquet",
+    ]
+
+    rprint(f"\n[bold cyan]Inferindo co_sefin_inferido para CNPJ: {cnpj}[/bold cyan]")
+
+    sucesso_total = True
     encontrado_qualquer = False
     for arq in arquivos_alvo:
         if not arq.exists():
-            rprint(f"[yellow]Aviso: Arquivo não encontrado: {arq.resolve()}[/yellow]")
+            rprint(f"[yellow]Aviso: Arquivo nao encontrado: {arq.resolve()}[/yellow]")
             continue
 
         encontrado_qualquer = True
         rprint(f"[cyan]Processando {arq.name}...[/cyan]")
-        
-        df_alvo = pl.scan_parquet(arq)
-        
-        # Garante que NCM e CEST estejam limpos para o join
-        # Na tabela normalizada eles já devem estar limpos de pontos conforme regra anterior
-        # mas na original podem não estar. Vamos limpar aqui para o join sem alterar a coluna original.
-        df_join = df_alvo.with_columns([
-            _limpar_str("ncm").alias("_ncm_join"),
-            _limpar_str("cest").alias("_cest_join")
-        ])
 
-        # Sequencia de Joins por prioridade
-        # 1. CEST + NCM
-        df_join = df_join.join(
-            ref_cn, 
-            left_on=["_cest_join", "_ncm_join"], 
-            right_on=["ref_cest", "ref_ncm"], 
-            how="left"
-        )
-        
-        # 2. CEST
-        df_join = df_join.join(
-            ref_c,
-            left_on="_cest_join",
-            right_on="ref_cest",
-            how="left"
-        )
-        
-        # 3. NCM
-        df_join = df_join.join(
-            ref_n,
-            left_on="_ncm_join",
-            right_on="ref_ncm",
-            how="left"
-        )
+        try:
+            df_result = inferir_co_sefin_dataframe(pl.read_parquet(arq), col_ncm="ncm", col_cest="cest")
+        except Exception as exc:
+            rprint(f"[red]Erro ao inferir co_sefin em {arq.name}:[/red] {exc}")
+            sucesso_total = False
+            continue
 
-        # Coalesce para pegar o primeiro valor não nulo na ordem de prioridade
-        df_final = df_join.with_columns(
-            pl.coalesce(["it_co_sefin", "co_sefin_cest", "co_sefin_ncm"]).alias("co_sefin_inferido")
-        ).drop(["_ncm_join", "_cest_join", "it_co_sefin", "co_sefin_cest", "co_sefin_ncm"])
-
-        # Coleta e salva
-        df_result = df_final.collect()
-        
-        # Salva o arquivo atualizado
-        # Usamos salvar_para_parquet que lida com a criação da pasta e log
         ok = salvar_para_parquet(df_result, arq.parent, arq.name)
         if not ok:
             sucesso_total = False
@@ -171,7 +184,7 @@ if __name__ == "__main__":
     cnpj_arg = re.sub(r"[^0-9]", "", cnpj_arg)
 
     if not validar_cnpj(cnpj_arg):
-        rprint(f"[red]CNPJ inválido: {cnpj_arg}[/red]")
+        rprint(f"[red]CNPJ invalido: {cnpj_arg}[/red]")
         sys.exit(1)
 
     sucesso = co_sefin(cnpj_arg)
