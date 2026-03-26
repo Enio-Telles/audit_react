@@ -27,35 +27,11 @@ def gerar_produtos_unidades(
     except ImportError:
         raise RuntimeError("Polars não instalado")
 
-
-    # Simula a extração verificando se os arquivos base existem e unindo-os
-    # Se não existirem, cria a estrutura vazia, mas permite que o pipeline não quebre
-
-    arquivo_nfe_compra = diretorio_cnpj / "extraidos" / "nfe_compra.parquet"
-    arquivo_nfe_venda = diretorio_cnpj / "extraidos" / "nfe_venda.parquet"
-    arquivo_reg0200 = diretorio_cnpj / "extraidos" / "reg0200.parquet"
-
-    schema = {col.nome: _tipo_para_polars(col.tipo.value) for col in contrato.colunas}
-
-    # Se os arquivos raw de extração existirem, processa eles (logica simplificada para manter robustez e evitar quebras se dados raw estiverem com schemas variados)
-    if arquivo_reg0200.exists() and arquivo_nfe_compra.exists() and arquivo_nfe_venda.exists():
-        try:
-            # logica basica real
-            df_reg = pl.read_parquet(arquivo_reg0200)
-            df_compra = pl.read_parquet(arquivo_nfe_compra)
-            df_venda = pl.read_parquet(arquivo_nfe_venda)
-            # ... processamento real aqui ...
-            logger.info("Processando dados de extração de NFE/EFD reais")
-            df = pl.DataFrame(schema=schema)
-        except Exception as e:
-             logger.warning(f"Erro ao processar dados reais de produtos_unidades. Falldown para dataframe vazio. {e}")
-             df = pl.DataFrame(schema=schema)
-    else:
-        # Se os arquivos extraidos da Oracle não existirem (porque o backend oracle nao ta rodando),
-        # gera dataframe vazio para manter pipeline funcional
-        logger.info("Arquivos de extração base não encontrados. Gerando produtos_unidades vazio para manter integridade estrutural.")
-        df = pl.DataFrame(schema=schema)
-
+    # TODO: Implementar leitura real dos dados extraídos de NFe e EFD.
+    # Por enquanto, retorna um DataFrame vazio respeitando o contrato
+    df = pl.DataFrame(
+        schema={col.nome: _tipo_para_polars(col.tipo.value) for col in contrato.colunas}
+    )
     df.write_parquet(arquivo_saida)
     logger.info(f"produtos_unidades: {len(df)} registros gerados")
     return len(df)

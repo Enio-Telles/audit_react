@@ -55,13 +55,10 @@ export interface ExecucaoExtracao {
 }
 
 export interface EtapaPipeline {
-  etapa?: string;
-  tabela?: string;
-  status: "pendente" | "executando" | "concluida" | "erro" | "pulada";
+  etapa: string;
+  status: "pendente" | "executando" | "concluida" | "erro";
   mensagem?: string;
   duracao_ms?: number;
-  registros?: number;
-  registros_gerados?: number;
 }
 
 // === Produtos e Agregação ===
@@ -171,15 +168,13 @@ export interface ParquetReadResponse {
 
 export interface StatusPipeline {
   cnpj: string;
-  status: "idle" | "executando" | "concluido" | "erro" | "concluido_com_erros";
+  status: "idle" | "executando" | "concluido" | "erro";
   etapa_atual?: string;
-  progresso?: number;
+  progresso: number;
   etapas: EtapaPipeline[];
   erros: string[];
   inicio?: string;
   fim?: string;
-  duracao_ms?: number;
-  tabelas_geradas?: string[];
 }
 
 export interface DependenciaTabela {

@@ -8,6 +8,8 @@ function Checkbox({
   className,
   ...props
 }: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
+  // If the parent passes aria-label, ensure it's applied correctly to Root component
+  // Radix UI automatically forwards aria attributes to the underlying <button> element.
   return (
     <CheckboxPrimitive.Root
       data-slot="checkbox"

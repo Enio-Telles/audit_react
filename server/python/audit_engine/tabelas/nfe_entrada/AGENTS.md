@@ -1,11 +1,9 @@
 # Contexto da Tabela: nfe_entrada
 
 ## Objetivos
-
 Esta pasta contém o contrato e gerador exclusivo para a tabela `nfe_entrada`.
 
 ## Regras Específicas
-
 1. Alterações no contrato desta tabela devem ser feitas apenas no arquivo `contrato.py` desta pasta.
 2. A lógica de processamento deve ser contida em `gerador.py` e dividida em funções menores em português.
 3. Não importe lógica de outras tabelas diretamente, utilize o orquestrador para garantir a sequência correta.

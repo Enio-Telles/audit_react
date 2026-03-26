@@ -1,6 +1,4 @@
 import logging
-import json
-from typing import Dict, List, Set
 from pathlib import Path
 from typing import Optional
 
@@ -97,16 +95,6 @@ def gerar_produtos_agrupados(
     return len(df)
 
 
-
-def _criar_grupo(id_grupo: str, membros, descricao_padrao: str, origem: str):
-    return {
-        "id_agrupado": id_grupo,
-        "descricao_padrao": descricao_padrao,
-        "ncm_padrao": membros["ncm"][0] if len(membros) > 0 else "",
-        "cest_padrao": membros["cest"][0] if len(membros) > 0 else "",
-        "qtd_membros": len(membros),
-        "origem_agrupamento": origem,
-    }
 
 def _tipo_para_polars(tipo: str):
     import polars as pl

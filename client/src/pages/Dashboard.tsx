@@ -19,15 +19,9 @@ import {
   Activity,
 } from "lucide-react";
 
-const PIPELINE_IMG =
-  "https://d2xsxph8kpxj0f.cloudfront.net/310419663026769585/Mc4oB7aYbzdrCVUYiRatje/pipeline-illustration-o2UtNHnKpPDRk2Y9DD9XvR.webp";
+const PIPELINE_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310419663026769585/Mc4oB7aYbzdrCVUYiRatje/pipeline-illustration-o2UtNHnKpPDRk2Y9DD9XvR.webp";
 
-function KpiCard({
-  label,
-  value,
-  icon: Icon,
-  accent = false,
-}: {
+function KpiCard({ label, value, icon: Icon, accent = false }: {
   label: string;
   value: string;
   icon: typeof Database;
@@ -41,18 +35,12 @@ function KpiCard({
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
               {label}
             </p>
-            <p
-              className={`text-2xl font-bold tracking-tight ${accent ? "text-primary" : "text-foreground"}`}
-            >
+            <p className={`text-2xl font-bold tracking-tight ${accent ? "text-primary" : "text-foreground"}`}>
               {value}
             </p>
           </div>
-          <div
-            className={`flex items-center justify-center w-10 h-10 rounded-lg ${accent ? "bg-primary/10" : "bg-muted"}`}
-          >
-            <Icon
-              className={`h-5 w-5 ${accent ? "text-primary" : "text-muted-foreground"}`}
-            />
+          <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${accent ? "bg-primary/10" : "bg-muted"}`}>
+            <Icon className={`h-5 w-5 ${accent ? "text-primary" : "text-muted-foreground"}`} />
           </div>
         </div>
       </CardContent>
@@ -60,12 +48,7 @@ function KpiCard({
   );
 }
 
-function QuickAction({
-  href,
-  label,
-  description,
-  icon: Icon,
-}: {
+function QuickAction({ href, label, description, icon: Icon }: {
   href: string;
   label: string;
   description: string;
@@ -94,11 +77,7 @@ export default function Dashboard() {
       <div className="relative rounded-xl overflow-hidden border border-border">
         <div
           className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: `url(${PIPELINE_IMG})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
+          style={{ backgroundImage: `url(${PIPELINE_IMG})`, backgroundSize: "cover", backgroundPosition: "center" }}
         />
         <div className="relative px-6 py-8 bg-gradient-to-r from-background/95 via-background/80 to-background/60">
           <div className="flex items-center gap-3 mb-3">
@@ -115,9 +94,9 @@ export default function Dashboard() {
             </div>
           </div>
           <p className="text-sm text-muted-foreground max-w-xl leading-relaxed">
-            Pipeline completo de auditoria fiscal: extração Oracle, geração de
-            tabelas analíticas, agregação de produtos, conversão de unidades e
-            cálculos de estoque. Selecione um CNPJ para iniciar.
+            Pipeline completo de auditoria fiscal: extração Oracle, geração de tabelas analíticas,
+            agregação de produtos, conversão de unidades e cálculos de estoque. Selecione um CNPJ
+            para iniciar.
           </p>
         </div>
       </div>
@@ -198,28 +177,20 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">
-                Status do Sistema
-              </CardTitle>
+              <CardTitle className="text-sm font-semibold">Status do Sistema</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Backend Python</span>
-                <Badge variant="outline" className="text-xs font-mono">
-                  Aguardando
-                </Badge>
+                <Badge variant="outline" className="text-xs font-mono">Aguardando</Badge>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Oracle</span>
-                <Badge variant="outline" className="text-xs font-mono">
-                  Desconectado
-                </Badge>
+                <Badge variant="outline" className="text-xs font-mono">Desconectado</Badge>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Parquets</span>
-                <Badge variant="outline" className="text-xs font-mono">
-                  0 arquivos
-                </Badge>
+                <Badge variant="outline" className="text-xs font-mono">0 arquivos</Badge>
               </div>
             </CardContent>
           </Card>

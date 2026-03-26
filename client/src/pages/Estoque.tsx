@@ -30,12 +30,7 @@ import { toast } from "sonner";
 const MOV_ESTOQUE = Array.from({ length: 12 }).map((_, i) => ({
   id: i + 1,
   id_agrupado: `G${String(Math.floor(i / 3) + 1).padStart(3, "0")}`,
-  descricao: [
-    "CERVEJA PILSEN 350ML",
-    "REFRIGERANTE COLA 2L",
-    "AGUA MINERAL 500ML",
-    "LEITE INTEGRAL 1L",
-  ][Math.floor(i / 3)],
+  descricao: ["CERVEJA PILSEN 350ML", "REFRIGERANTE COLA 2L", "AGUA MINERAL 500ML", "LEITE INTEGRAL 1L"][Math.floor(i / 3)],
   tipo: i % 3 === 0 ? "ENTRADA" : i % 3 === 1 ? "SAIDA" : "INVENTARIO",
   data: `2026-${String(Math.floor(i / 2) + 1).padStart(2, "0")}-15`,
   quantidade: Math.floor(Math.random() * 500) + 50,
@@ -54,15 +49,7 @@ const ABA_MENSAL = Array.from({ length: 6 }).map((_, i) => ({
   valor_estoque: (Math.random() * 50000 + 5000).toFixed(2),
 }));
 
-function SubTabContent({
-  title,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  icon: typeof Package;
-  children: React.ReactNode;
-}) {
+function SubTabContent({ title, icon: Icon, children }: { title: string; icon: typeof Package; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -75,12 +62,7 @@ function SubTabContent({
             <RefreshCw className="h-3.5 w-3.5" />
             Atualizar
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs"
-            onClick={() => toast.info("Funcionalidade em desenvolvimento")}
-          >
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => toast.info("Funcionalidade em desenvolvimento")}>
             <Download className="h-3.5 w-3.5" />
             Exportar
           </Button>
@@ -100,36 +82,14 @@ export default function Estoque() {
       {/* KPI summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          {
-            label: "Total Entradas",
-            value: "R$ 245.320,00",
-            icon: TrendingUp,
-            color: "text-green-600",
-          },
-          {
-            label: "Total Saídas",
-            value: "R$ 198.450,00",
-            icon: TrendingDown,
-            color: "text-red-500",
-          },
-          {
-            label: "Saldo Atual",
-            value: "R$ 46.870,00",
-            icon: Package,
-            color: "text-primary",
-          },
-          {
-            label: "Produtos Ativos",
-            value: "142",
-            icon: Layers,
-            color: "text-muted-foreground",
-          },
-        ].map(kpi => (
+          { label: "Total Entradas", value: "R$ 245.320,00", icon: TrendingUp, color: "text-green-600" },
+          { label: "Total Saídas", value: "R$ 198.450,00", icon: TrendingDown, color: "text-red-500" },
+          { label: "Saldo Atual", value: "R$ 46.870,00", icon: Package, color: "text-primary" },
+          { label: "Produtos Ativos", value: "142", icon: Layers, color: "text-muted-foreground" },
+        ].map((kpi) => (
           <Card key={kpi.label}>
             <CardContent className="py-3 px-4">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                {kpi.label}
-              </p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{kpi.label}</p>
               <div className="flex items-center gap-2 mt-1.5">
                 <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
                 <span className="text-lg font-bold font-mono">{kpi.value}</span>
@@ -145,7 +105,7 @@ export default function Estoque() {
         <Input
           placeholder="Filtrar por descrição ou ID agrupado..."
           value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
+          onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-8 h-9 text-xs"
         />
       </div>
@@ -165,10 +125,7 @@ export default function Estoque() {
             <CalendarDays className="h-3 w-3" />
             Anual
           </TabsTrigger>
-          <TabsTrigger
-            value="produtos_selecionados"
-            className="gap-1.5 text-xs"
-          >
+          <TabsTrigger value="produtos_selecionados" className="gap-1.5 text-xs">
             <ShoppingCart className="h-3 w-3" />
             Prod. Selecionados
           </TabsTrigger>
@@ -191,37 +148,18 @@ export default function Estoque() {
                   <table className="w-full text-xs">
                     <thead className="bg-muted/50 sticky top-0">
                       <tr>
-                        {[
-                          "ID Agrupado",
-                          "Descrição",
-                          "Tipo",
-                          "Data",
-                          "Quantidade",
-                          "Vlr Unit",
-                          "Vlr Total",
-                          "Saldo",
-                        ].map(col => (
-                          <th
-                            key={col}
-                            className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-b border-border"
-                          >
+                        {["ID Agrupado", "Descrição", "Tipo", "Data", "Quantidade", "Vlr Unit", "Vlr Total", "Saldo"].map((col) => (
+                          <th key={col} className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-b border-border">
                             {col}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {MOV_ESTOQUE.map(mov => (
-                        <tr
-                          key={mov.id}
-                          className="border-b border-border/50 hover:bg-accent/30 transition-colors"
-                        >
-                          <td className="px-3 py-2 font-mono font-medium">
-                            {mov.id_agrupado}
-                          </td>
-                          <td className="px-3 py-2 max-w-xs truncate">
-                            {mov.descricao}
-                          </td>
+                      {MOV_ESTOQUE.map((mov) => (
+                        <tr key={mov.id} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
+                          <td className="px-3 py-2 font-mono font-medium">{mov.id_agrupado}</td>
+                          <td className="px-3 py-2 max-w-xs truncate">{mov.descricao}</td>
                           <td className="px-3 py-2">
                             <Badge
                               variant="outline"
@@ -229,26 +167,18 @@ export default function Estoque() {
                                 mov.tipo === "ENTRADA"
                                   ? "text-green-700 border-green-200 bg-green-50"
                                   : mov.tipo === "SAIDA"
-                                    ? "text-red-600 border-red-200 bg-red-50"
-                                    : "text-blue-600 border-blue-200 bg-blue-50"
+                                  ? "text-red-600 border-red-200 bg-red-50"
+                                  : "text-blue-600 border-blue-200 bg-blue-50"
                               }`}
                             >
                               {mov.tipo}
                             </Badge>
                           </td>
                           <td className="px-3 py-2 font-mono">{mov.data}</td>
-                          <td className="px-3 py-2 font-mono text-right">
-                            {mov.quantidade}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-right">
-                            R$ {mov.valor_unitario}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-right">
-                            R$ {mov.valor_total}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-right font-medium">
-                            {mov.saldo}
-                          </td>
+                          <td className="px-3 py-2 font-mono text-right">{mov.quantidade}</td>
+                          <td className="px-3 py-2 font-mono text-right">R$ {mov.valor_unitario}</td>
+                          <td className="px-3 py-2 font-mono text-right">R$ {mov.valor_total}</td>
+                          <td className="px-3 py-2 font-mono text-right font-medium">{mov.saldo}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -268,51 +198,23 @@ export default function Estoque() {
                   <table className="w-full text-xs">
                     <thead className="bg-muted/50 sticky top-0">
                       <tr>
-                        {[
-                          "Mês",
-                          "Entradas",
-                          "Saídas",
-                          "Saldo Inicial",
-                          "Saldo Final",
-                          "Custo Médio",
-                          "Valor Estoque",
-                        ].map(col => (
-                          <th
-                            key={col}
-                            className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-b border-border"
-                          >
+                        {["Mês", "Entradas", "Saídas", "Saldo Inicial", "Saldo Final", "Custo Médio", "Valor Estoque"].map((col) => (
+                          <th key={col} className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-b border-border">
                             {col}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {ABA_MENSAL.map(mes => (
-                        <tr
-                          key={mes.mes}
-                          className="border-b border-border/50 hover:bg-accent/30 transition-colors"
-                        >
-                          <td className="px-3 py-2 font-mono font-medium">
-                            {mes.mes}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-right text-green-700">
-                            {mes.entradas.toLocaleString("pt-BR")}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-right text-red-600">
-                            {mes.saidas.toLocaleString("pt-BR")}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-right">
-                            {mes.saldo_inicial.toLocaleString("pt-BR")}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-right font-medium">
-                            {mes.saldo_final.toLocaleString("pt-BR")}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-right">
-                            R$ {mes.custo_medio}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-right font-medium">
-                            R$ {mes.valor_estoque}
-                          </td>
+                      {ABA_MENSAL.map((mes) => (
+                        <tr key={mes.mes} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
+                          <td className="px-3 py-2 font-mono font-medium">{mes.mes}</td>
+                          <td className="px-3 py-2 font-mono text-right text-green-700">{mes.entradas.toLocaleString("pt-BR")}</td>
+                          <td className="px-3 py-2 font-mono text-right text-red-600">{mes.saidas.toLocaleString("pt-BR")}</td>
+                          <td className="px-3 py-2 font-mono text-right">{mes.saldo_inicial.toLocaleString("pt-BR")}</td>
+                          <td className="px-3 py-2 font-mono text-right font-medium">{mes.saldo_final.toLocaleString("pt-BR")}</td>
+                          <td className="px-3 py-2 font-mono text-right">R$ {mes.custo_medio}</td>
+                          <td className="px-3 py-2 font-mono text-right font-medium">R$ {mes.valor_estoque}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -330,12 +232,8 @@ export default function Estoque() {
               <CardContent className="pt-6">
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <CalendarDays className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Dados anuais serão exibidos aqui
-                  </p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">
-                    Execute o pipeline para gerar a consolidação anual
-                  </p>
+                  <p className="text-sm font-medium text-muted-foreground">Dados anuais serão exibidos aqui</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Execute o pipeline para gerar a consolidação anual</p>
                 </div>
               </CardContent>
             </Card>
@@ -349,13 +247,8 @@ export default function Estoque() {
               <CardContent className="pt-6">
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <ShoppingCart className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Produtos selecionados para análise
-                  </p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">
-                    Selecione produtos na aba de Agregação para análise
-                    detalhada
-                  </p>
+                  <p className="text-sm font-medium text-muted-foreground">Produtos selecionados para análise</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Selecione produtos na aba de Agregação para análise detalhada</p>
                 </div>
               </CardContent>
             </Card>
@@ -369,12 +262,8 @@ export default function Estoque() {
               <CardContent className="pt-6">
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <Layers className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Mapeamento de IDs agrupados
-                  </p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">
-                    Gerado automaticamente após a agregação de produtos
-                  </p>
+                  <p className="text-sm font-medium text-muted-foreground">Mapeamento de IDs agrupados</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Gerado automaticamente após a agregação de produtos</p>
                 </div>
               </CardContent>
             </Card>
@@ -388,13 +277,8 @@ export default function Estoque() {
               <CardContent className="pt-6">
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <FileInput className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Notas fiscais de entrada
-                  </p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">
-                    Dados de NFe de entrada enriquecidos com classificação CO
-                    SEFIN
-                  </p>
+                  <p className="text-sm font-medium text-muted-foreground">Notas fiscais de entrada</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Dados de NFe de entrada enriquecidos com classificação CO SEFIN</p>
                 </div>
               </CardContent>
             </Card>

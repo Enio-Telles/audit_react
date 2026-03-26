@@ -3,7 +3,7 @@
  * Listar, abrir, filtrar e exportar tabelas Parquet
  * Baseado em Tabelas.tsx do sefin_audit_5
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,9 +101,11 @@ export default function Consulta() {
   const [filterText, setFilterText] = useState("");
   const [page, setPage] = useState(1);
 
-  const filteredTables = TABELAS_EXEMPLO.filter(t =>
-    t.nome.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // ⚡ Bolt: Memoized array filtering and hoisted toLowerCase to prevent O(N) recalculations and redundant string operations on every re-render
+  const filteredTables = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return TABELAS_EXEMPLO.filter(t => t.nome.toLowerCase().includes(term));
+  }, [searchTerm]);
 
   const handleExport = () => {
     toast.info("Funcionalidade em desenvolvimento", {

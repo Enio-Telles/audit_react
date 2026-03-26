@@ -81,15 +81,15 @@ produtos_unidades  ──►  produtos  ──►  produtos_agrupados  ──►
 
 ## Módulos do Frontend
 
-| Página            | Descrição               | Funcionalidades                                        |
-| ----------------- | ----------------------- | ------------------------------------------------------ |
-| **Dashboard**     | Visão geral do sistema  | KPIs, status do pipeline, atalhos rápidos              |
-| **Extração**      | Entrada de dados        | Seleção de CNPJ, consultas SQL, execução do pipeline   |
-| **Consulta**      | Visualização de dados   | Browser de tabelas Parquet com filtros e paginação     |
-| **Agregação**     | Agrupamento de produtos | Seleção múltipla, merge, desfazer, sugestão automática |
-| **Conversão**     | Fatores de conversão    | Edição inline, importar/exportar Excel, recalcular     |
-| **Estoque**       | Análise de estoque      | Movimentação, consolidação mensal/anual, omissões      |
-| **Configurações** | Preferências            | Conexão Oracle, caminhos, status do backend            |
+| Página | Descrição | Funcionalidades |
+|--------|-----------|-----------------|
+| **Dashboard** | Visão geral do sistema | KPIs, status do pipeline, atalhos rápidos |
+| **Extração** | Entrada de dados | Seleção de CNPJ, consultas SQL, execução do pipeline |
+| **Consulta** | Visualização de dados | Browser de tabelas Parquet com filtros e paginação |
+| **Agregação** | Agrupamento de produtos | Seleção múltipla, merge, desfazer, sugestão automática |
+| **Conversão** | Fatores de conversão | Edição inline, importar/exportar Excel, recalcular |
+| **Estoque** | Análise de estoque | Movimentação, consolidação mensal/anual, omissões |
+| **Configurações** | Preferências | Conexão Oracle, caminhos, status do backend |
 
 ## Contratos de Tabelas
 
@@ -105,7 +105,6 @@ O orquestrador resolve a ordem topológica e executa os geradores automaticament
 ## Tecnologias
 
 ### Frontend
-
 - React 19 + TypeScript
 - Tailwind CSS 4 + shadcn/ui
 - Wouter (roteamento)
@@ -113,14 +112,12 @@ O orquestrador resolve a ordem topológica e executa os geradores automaticament
 - Lucide React (ícones)
 
 ### Backend
-
 - FastAPI (API REST)
 - Polars (processamento de dados)
 - Parquet (armazenamento)
 - Oracle DB (extração via oracledb)
 
 ### Design
-
 - **Tema**: "Institutional Precision" — Swiss Design Fiscal
 - **Tipografia**: DM Sans + JetBrains Mono
 - **Paleta**: Sidebar escura (#0f172a) + workspace off-white (#f8fafc)
