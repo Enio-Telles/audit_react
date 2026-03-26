@@ -216,6 +216,7 @@ export default function Agregacao() {
                     <tr>
                       <th className="px-3 py-2.5 w-10 border-b border-border">
                         <Checkbox
+                          aria-label="Selecionar todos os produtos"
                           checked={
                             selectedRows.length === filteredProdutos.length &&
                             filteredProdutos.length > 0
@@ -261,6 +262,7 @@ export default function Agregacao() {
                       >
                         <td className="px-3 py-2">
                           <Checkbox
+                            aria-label={`Selecionar produto ${produto.descricao}`}
                             checked={selectedRows.includes(produto.id)}
                             onCheckedChange={() => toggleRow(produto.id)}
                           />
