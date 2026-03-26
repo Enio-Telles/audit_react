@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from audit_engine.contratos.tabelas import (
+from audit_engine.contratos.base import (
     CONTRATOS,
     listar_contratos,
     obter_contrato,

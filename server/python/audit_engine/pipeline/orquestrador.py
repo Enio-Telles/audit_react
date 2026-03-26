@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set
 
-from ..contratos.tabelas import (
+from ..contratos.base import (
     CONTRATOS,
     ContratoTabela,
     obter_contrato,
