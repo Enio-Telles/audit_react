@@ -1,0 +1,3 @@
+## 2024-03-27 - [Memoize expensive derived state]
+**Learning:** Arrays derived from large static collections in React function components (like filtering `PRODUTOS_EXEMPLO` based on `searchTerm`) are recalculated on every render (e.g., when a user clicks a row or toggles a tab) if they are not wrapped in `useMemo`. This creates O(n) overhead on interactions completely unrelated to the data itself.
+**Action:** Use `useMemo` for derived lists that perform filtering, mapping, or reducing operations to prevent unnecessary garbage collection and main thread blocking, ensuring the dependency array only includes the state that controls the output (like `searchTerm`).
