@@ -75,7 +75,7 @@ produtos_unidades  ──►  produtos  ──►  produtos_agrupados  ──►
                                                                        │
                                                                        ▼
                                                                aba_anual
-                                                               
+
                                         produtos_selecionados (derivado de produtos_final)
 ```
 
