@@ -4,6 +4,7 @@ Endpoints REST para comunicação entre frontend React e audit_engine Python.
 """
 import json
 import logging
+import os
 from pathlib import Path
 from typing import List, Optional
 
@@ -29,9 +30,16 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Restrict CORS to specific origins instead of ["*"] for security
+# This prevents Cross-Site Request Forgery (CSRF) and data theft from malicious domains
+allowed_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,http://localhost:8000"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
