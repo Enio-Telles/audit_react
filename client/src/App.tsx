@@ -4,32 +4,37 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
-
+import DashboardLayout from "./components/layout/DashboardLayout";
+import Dashboard from "./pages/Dashboard";
+import Extracao from "./pages/Extracao";
+import Consulta from "./pages/Consulta";
+import Agregacao from "./pages/Agregacao";
+import Conversao from "./pages/Conversao";
+import Estoque from "./pages/Estoque";
+import Configuracoes from "./pages/Configuracoes";
 
 function Router() {
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+    <DashboardLayout>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/extracao" component={Extracao} />
+        <Route path="/consulta" component={Consulta} />
+        <Route path="/agregacao" component={Agregacao} />
+        <Route path="/conversao" component={Conversao} />
+        <Route path="/estoque" component={Estoque} />
+        <Route path="/configuracoes" component={Configuracoes} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </DashboardLayout>
   );
 }
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
           <Router />
