@@ -117,7 +117,9 @@ export function usePipeline() {
 
 export function useTabelas() {
   const [tabelas, setTabelas] = useState<ParquetFileInfo[]>([]);
-  const [dadosTabela, setDadosTabela] = useState<ParquetReadResponse | null>(null);
+  const [dadosTabela, setDadosTabela] = useState<ParquetReadResponse | null>(
+    null
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -205,24 +207,21 @@ export function useAgregacao() {
     []
   );
 
-  const desagregar = useCallback(
-    async (cnpj: string, idGrupo: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        return await fetchApi(`/agregacao/desagregar?cnpj=${cnpj}`, {
-          method: "POST",
-          body: JSON.stringify({ id_grupo: idGrupo }),
-        });
-      } catch (e) {
-        setError((e as Error).message);
-        throw e;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+  const desagregar = useCallback(async (cnpj: string, idGrupo: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      return await fetchApi(`/agregacao/desagregar?cnpj=${cnpj}`, {
+        method: "POST",
+        body: JSON.stringify({ id_grupo: idGrupo }),
+      });
+    } catch (e) {
+      setError((e as Error).message);
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   return { loading, error, agregar, desagregar };
 }

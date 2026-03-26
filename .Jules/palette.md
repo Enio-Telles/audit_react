@@ -1,3 +1,4 @@
 ## 2024-05-18 - Radix Checkbox and Label Associations
+
 **Learning:** Radix UI components like Checkbox are often wrapped in `<label>` elements for layout purposes, but they may lack explicit `htmlFor` and `id` associations. Screen readers and programmatic access rely on these explicit attributes, even if visually the layout appears to "contain" the interaction correctly.
 **Action:** Always ensure custom inputs, even when nested inside labels or custom components, have a generated or static `id` that matches the `htmlFor` of their descriptive label text to guarantee proper accessible name computation.

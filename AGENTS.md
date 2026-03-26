@@ -53,13 +53,13 @@ Quando houver dúvida sobre o que melhorar primeiro, siga esta ordem:
 
 ### Frontend — `client/`
 
-| Tecnologia | Uso |
-|---|---|
-| React 19 + TypeScript | Componentes e lógica |
+| Tecnologia                 | Uso                          |
+| -------------------------- | ---------------------------- |
+| React 19 + TypeScript      | Componentes e lógica         |
 | Tailwind CSS 4 + shadcn/ui | Estilização e componentes UI |
-| Wouter | Roteamento client-side |
-| Recharts | Gráficos e visualizações |
-| Lucide React | Ícones |
+| Wouter                     | Roteamento client-side       |
+| Recharts                   | Gráficos e visualizações     |
+| Lucide React               | Ícones                       |
 
 Responsável por fluxo de navegação, telas de extração, consulta, agregação, conversão e estoque, visualização de tabelas e interação com a API.
 
@@ -69,12 +69,12 @@ Responsável por servir o frontend compilado e atuar como ponto de integração 
 
 ### Backend analítico — `server/python/`
 
-| Tecnologia | Uso |
-|---|---|
-| FastAPI | API REST |
-| Polars | Processamento de DataFrames |
-| Parquet | Armazenamento de tabelas |
-| Oracle DB (oracledb) | Extração de dados fiscais |
+| Tecnologia           | Uso                         |
+| -------------------- | --------------------------- |
+| FastAPI              | API REST                    |
+| Polars               | Processamento de DataFrames |
+| Parquet              | Armazenamento de tabelas    |
+| Oracle DB (oracledb) | Extração de dados fiscais   |
 
 Responsável por endpoints da API, orquestração do pipeline, leitura/escrita de parquets, processamento de dados fiscais e geração de tabelas derivadas.
 
@@ -173,11 +173,11 @@ server/python/audit_engine/
 
 Cada pasta de tabela **deve** conter:
 
-| Arquivo | Responsabilidade |
-|---|---|
-| `contrato.py` | Instância de `ContratoTabela` com nome, schema (colunas + tipos), dependências, módulo, função e arquivo de saída. Deve chamar `registrar_contrato()` ao ser importado. |
-| `gerador.py` | Função decorada com `@registrar_gerador("nome_tabela")`. Recebe `diretorio_cnpj`, `diretorio_parquets`, `arquivo_saida` e `contrato`. Retorna número de registros gerados. |
-| `tests/` | Testes unitários que validam o gerador com dados sintéticos mínimos. |
+| Arquivo       | Responsabilidade                                                                                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contrato.py` | Instância de `ContratoTabela` com nome, schema (colunas + tipos), dependências, módulo, função e arquivo de saída. Deve chamar `registrar_contrato()` ao ser importado.    |
+| `gerador.py`  | Função decorada com `@registrar_gerador("nome_tabela")`. Recebe `diretorio_cnpj`, `diretorio_parquets`, `arquivo_saida` e `contrato`. Retorna número de registros gerados. |
+| `tests/`      | Testes unitários que validam o gerador com dados sintéticos mínimos.                                                                                                       |
 
 Ao criar uma nova tabela, siga exatamente esse padrão. Ao modificar uma tabela existente, mantenha a alteração contida dentro da pasta correspondente. Nunca espalhe lógica de uma tabela por múltiplos diretórios.
 
@@ -210,19 +210,19 @@ produtos_unidades ──► produtos ──► produtos_agrupados ──► fato
 
 ### Referência rápida de dependências
 
-| Tabela | Depende de | Gera |
-|---|---|---|
-| `produtos_unidades` | (nenhuma — dados extraídos do Oracle) | `produtos_unidades.parquet` |
-| `produtos` | `produtos_unidades` | `produtos.parquet` |
-| `produtos_agrupados` | `produtos` | `produtos_agrupados.parquet` |
-| `id_agrupados` | `produtos_agrupados` | `id_agrupados.parquet` |
-| `fatores_conversao` | `produtos_agrupados` | `fatores_conversao.parquet` |
-| `produtos_final` | `produtos_agrupados`, `fatores_conversao` | `produtos_final.parquet` |
-| `nfe_entrada` | `produtos_final` | `nfe_entrada.parquet` |
-| `mov_estoque` | `nfe_entrada`, `produtos_final` | `mov_estoque.parquet` |
-| `aba_mensal` | `mov_estoque` | `aba_mensal.parquet` |
-| `aba_anual` | `aba_mensal` | `aba_anual.parquet` |
-| `produtos_selecionados` | `produtos_final` | `produtos_selecionados.parquet` |
+| Tabela                  | Depende de                                | Gera                            |
+| ----------------------- | ----------------------------------------- | ------------------------------- |
+| `produtos_unidades`     | (nenhuma — dados extraídos do Oracle)     | `produtos_unidades.parquet`     |
+| `produtos`              | `produtos_unidades`                       | `produtos.parquet`              |
+| `produtos_agrupados`    | `produtos`                                | `produtos_agrupados.parquet`    |
+| `id_agrupados`          | `produtos_agrupados`                      | `id_agrupados.parquet`          |
+| `fatores_conversao`     | `produtos_agrupados`                      | `fatores_conversao.parquet`     |
+| `produtos_final`        | `produtos_agrupados`, `fatores_conversao` | `produtos_final.parquet`        |
+| `nfe_entrada`           | `produtos_final`                          | `nfe_entrada.parquet`           |
+| `mov_estoque`           | `nfe_entrada`, `produtos_final`           | `mov_estoque.parquet`           |
+| `aba_mensal`            | `mov_estoque`                             | `aba_mensal.parquet`            |
+| `aba_anual`             | `aba_mensal`                              | `aba_anual.parquet`             |
+| `produtos_selecionados` | `produtos_final`                          | `produtos_selecionados.parquet` |
 
 ### Reprocessamento em cascata
 
@@ -262,21 +262,21 @@ Cada CNPJ é uma unidade isolada. Nunca misture dados entre CNPJs. As análises 
 
 A API em `server/python/api.py` expõe os seguintes grupos de endpoints:
 
-| Grupo | Método | Endpoint | Descrição |
-|---|---|---|---|
-| Sistema | GET | `/api/health` | Health check |
-| Sistema | GET | `/api/contratos` | Lista contratos de tabelas |
-| Sistema | GET | `/api/contratos/ordem` | Ordem topológica |
-| Pipeline | POST | `/api/pipeline/executar` | Executa pipeline completo ou parcial |
-| Pipeline | POST | `/api/pipeline/reprocessar` | Reprocessa dependentes de tabela editada |
-| Pipeline | GET | `/api/pipeline/status/{cnpj}` | Verifica integridade dos parquets |
-| Tabelas | GET | `/api/tabelas/{cnpj}` | Lista parquets disponíveis |
-| Tabelas | GET | `/api/tabelas/{cnpj}/{nome}` | Lê tabela com paginação e filtros |
-| Agregação | POST | `/api/agregacao/agregar` | Agrupa produtos |
-| Agregação | POST | `/api/agregacao/desagregar` | Remove grupo |
-| Conversão | PUT | `/api/conversao/fator` | Edita fator de conversão |
-| Conversão | POST | `/api/conversao/recalcular` | Recalcula tabelas derivadas |
-| Exportação | GET | `/api/exportar/{cnpj}/{nome}` | Exporta tabela (xlsx/csv/parquet) |
+| Grupo      | Método | Endpoint                      | Descrição                                |
+| ---------- | ------ | ----------------------------- | ---------------------------------------- |
+| Sistema    | GET    | `/api/health`                 | Health check                             |
+| Sistema    | GET    | `/api/contratos`              | Lista contratos de tabelas               |
+| Sistema    | GET    | `/api/contratos/ordem`        | Ordem topológica                         |
+| Pipeline   | POST   | `/api/pipeline/executar`      | Executa pipeline completo ou parcial     |
+| Pipeline   | POST   | `/api/pipeline/reprocessar`   | Reprocessa dependentes de tabela editada |
+| Pipeline   | GET    | `/api/pipeline/status/{cnpj}` | Verifica integridade dos parquets        |
+| Tabelas    | GET    | `/api/tabelas/{cnpj}`         | Lista parquets disponíveis               |
+| Tabelas    | GET    | `/api/tabelas/{cnpj}/{nome}`  | Lê tabela com paginação e filtros        |
+| Agregação  | POST   | `/api/agregacao/agregar`      | Agrupa produtos                          |
+| Agregação  | POST   | `/api/agregacao/desagregar`   | Remove grupo                             |
+| Conversão  | PUT    | `/api/conversao/fator`        | Edita fator de conversão                 |
+| Conversão  | POST   | `/api/conversao/recalcular`   | Recalcula tabelas derivadas              |
+| Exportação | GET    | `/api/exportar/{cnpj}/{nome}` | Exporta tabela (xlsx/csv/parquet)        |
 
 Ao adicionar novos endpoints, siga o padrão existente: prefixo `/api/`, parâmetro `cnpj` quando aplicável, retorno JSON com campo `status`.
 
@@ -284,15 +284,15 @@ Ao adicionar novos endpoints, siga o padrão existente: prefixo `/api/`, parâme
 
 ## Rotas do frontend
 
-| Rota | Componente | Descrição |
-|---|---|---|
-| `/` | `Dashboard.tsx` | Visão geral, KPIs, atalhos |
-| `/extracao` | `Extracao.tsx` | Seleção de CNPJ, consultas SQL, pipeline |
-| `/consulta` | `Consulta.tsx` | Browser de tabelas Parquet |
-| `/agregacao` | `Agregacao.tsx` | Agrupamento De/Para |
-| `/conversao` | `Conversao.tsx` | Fatores de conversão |
-| `/estoque` | `Estoque.tsx` | Movimentação, mensal, anual |
-| `/configuracoes` | `Configuracoes.tsx` | Conexão Oracle, preferências |
+| Rota             | Componente          | Descrição                                |
+| ---------------- | ------------------- | ---------------------------------------- |
+| `/`              | `Dashboard.tsx`     | Visão geral, KPIs, atalhos               |
+| `/extracao`      | `Extracao.tsx`      | Seleção de CNPJ, consultas SQL, pipeline |
+| `/consulta`      | `Consulta.tsx`      | Browser de tabelas Parquet               |
+| `/agregacao`     | `Agregacao.tsx`     | Agrupamento De/Para                      |
+| `/conversao`     | `Conversao.tsx`     | Fatores de conversão                     |
+| `/estoque`       | `Estoque.tsx`       | Movimentação, mensal, anual              |
+| `/configuracoes` | `Configuracoes.tsx` | Conexão Oracle, preferências             |
 
 ---
 
@@ -353,18 +353,18 @@ Toda lógica de construção de tabelas Polars — tanto nos geradores do pipeli
 
 **Prefixos padrão para funções:**
 
-| Prefixo | Uso | Exemplo |
-|---|---|---|
-| `filtrar_` | Remover linhas por critério | `filtrar_nfe_por_periodo` |
-| `calcular_` | Derivar valores numéricos | `calcular_quantidade_na_unidade_referencia` |
-| `agrupar_` | Agregar linhas por chave | `agrupar_produtos_por_ncm` |
-| `consolidar_` | Unir múltiplas fontes | `consolidar_entradas_e_saidas` |
-| `classificar_` | Atribuir categorias | `classificar_omissao_por_tipo` |
-| `cruzar_` | Join entre tabelas | `cruzar_nfe_com_fatores` |
-| `enriquecer_` | Adicionar colunas derivadas | `enriquecer_com_descricao_produto` |
-| `validar_` | Verificar integridade | `validar_schema_contra_contrato` |
-| `totalizar_` | Somar/acumular valores | `totalizar_estoque_mensal` |
-| `separar_` | Dividir DataFrame | `separar_compras_e_vendas` |
+| Prefixo        | Uso                         | Exemplo                                     |
+| -------------- | --------------------------- | ------------------------------------------- |
+| `filtrar_`     | Remover linhas por critério | `filtrar_nfe_por_periodo`                   |
+| `calcular_`    | Derivar valores numéricos   | `calcular_quantidade_na_unidade_referencia` |
+| `agrupar_`     | Agregar linhas por chave    | `agrupar_produtos_por_ncm`                  |
+| `consolidar_`  | Unir múltiplas fontes       | `consolidar_entradas_e_saidas`              |
+| `classificar_` | Atribuir categorias         | `classificar_omissao_por_tipo`              |
+| `cruzar_`      | Join entre tabelas          | `cruzar_nfe_com_fatores`                    |
+| `enriquecer_`  | Adicionar colunas derivadas | `enriquecer_com_descricao_produto`          |
+| `validar_`     | Verificar integridade       | `validar_schema_contra_contrato`            |
+| `totalizar_`   | Somar/acumular valores      | `totalizar_estoque_mensal`                  |
+| `separar_`     | Dividir DataFrame           | `separar_compras_e_vendas`                  |
 
 **Exemplo correto de gerador:**
 
@@ -487,17 +487,17 @@ Não usar estado global complexo. Cada página gerencia seu próprio estado via 
 
 ### Nomeação
 
-| Elemento | Convenção | Exemplo |
-|---|---|---|
-| Tabela do pipeline | snake_case | `produtos_agrupados` |
-| Arquivo Parquet | snake_case + `.parquet` | `fatores_conversao.parquet` |
-| Pasta de tabela | snake_case | `tabelas/mov_estoque/` |
-| Endpoint API | snake_case com `/api/` | `/api/pipeline/executar` |
-| Componente React | PascalCase | `Agregacao.tsx` |
-| Hook React | camelCase com `use` | `useAuditApi` |
-| Variável Python | snake_case em português | `diretorio_cnpj`, `df_nfe_filtradas` |
+| Elemento                | Convenção                                | Exemplo                                                                |
+| ----------------------- | ---------------------------------------- | ---------------------------------------------------------------------- |
+| Tabela do pipeline      | snake_case                               | `produtos_agrupados`                                                   |
+| Arquivo Parquet         | snake_case + `.parquet`                  | `fatores_conversao.parquet`                                            |
+| Pasta de tabela         | snake_case                               | `tabelas/mov_estoque/`                                                 |
+| Endpoint API            | snake_case com `/api/`                   | `/api/pipeline/executar`                                               |
+| Componente React        | PascalCase                               | `Agregacao.tsx`                                                        |
+| Hook React              | camelCase com `use`                      | `useAuditApi`                                                          |
+| Variável Python         | snake_case em português                  | `diretorio_cnpj`, `df_nfe_filtradas`                                   |
 | Função Python (gerador) | verbo_infinitivo + contexto em português | `filtrar_nfe_por_periodo`, `calcular_quantidade_na_unidade_referencia` |
-| Variável TypeScript | camelCase | `filtroColuna` |
+| Variável TypeScript     | camelCase                                | `filtroColuna`                                                         |
 
 ### Commits
 
@@ -546,15 +546,15 @@ Todo código Python do `audit_engine` deve usar **português** para nomes de fun
 
 ## Arquivos-chave por tipo de tarefa
 
-| Tarefa | Arquivos a consultar |
-|---|---|
-| Adicionar nova tabela ao pipeline | `contratos/base.py`, qualquer `tabelas/*/contrato.py` como referência, `pipeline/orquestrador.py`, `tabelas/__init__.py` |
-| Modificar schema de tabela existente | `tabelas/{nome}/contrato.py`, `tabelas/{nome}/gerador.py`, `client/src/types/audit.ts` |
-| Adicionar endpoint à API | `server/python/api.py`, `client/src/hooks/useAuditApi.ts` |
-| Alterar página do frontend | `client/src/pages/{Pagina}.tsx`, `client/src/components/layout/DashboardLayout.tsx` |
-| Corrigir lógica de processamento | `tabelas/{nome}/gerador.py`, `utils/parquet_io.py` |
-| Alterar fluxo do pipeline | `pipeline/orquestrador.py`, contratos das tabelas envolvidas |
-| Adicionar rota no frontend | `client/src/App.tsx`, `client/src/components/layout/DashboardLayout.tsx` |
+| Tarefa                               | Arquivos a consultar                                                                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Adicionar nova tabela ao pipeline    | `contratos/base.py`, qualquer `tabelas/*/contrato.py` como referência, `pipeline/orquestrador.py`, `tabelas/__init__.py` |
+| Modificar schema de tabela existente | `tabelas/{nome}/contrato.py`, `tabelas/{nome}/gerador.py`, `client/src/types/audit.ts`                                   |
+| Adicionar endpoint à API             | `server/python/api.py`, `client/src/hooks/useAuditApi.ts`                                                                |
+| Alterar página do frontend           | `client/src/pages/{Pagina}.tsx`, `client/src/components/layout/DashboardLayout.tsx`                                      |
+| Corrigir lógica de processamento     | `tabelas/{nome}/gerador.py`, `utils/parquet_io.py`                                                                       |
+| Alterar fluxo do pipeline            | `pipeline/orquestrador.py`, contratos das tabelas envolvidas                                                             |
+| Adicionar rota no frontend           | `client/src/App.tsx`, `client/src/components/layout/DashboardLayout.tsx`                                                 |
 
 ---
 
@@ -572,11 +572,11 @@ A estrutura atual em `server/python/audit_engine/modulos/` ainda agrupa múltipl
 
 Geradores que ainda precisam de implementação real (atualmente retornam DataFrame vazio):
 
-| Gerador | Status | O que falta |
-|---|---|---|
-| `produtos_unidades` | Stub | Leitura de `extraidos/nfe_compra.parquet` + `nfe_venda.parquet` + `reg0200.parquet` |
-| `nfe_entrada` | Stub | Leitura de NFe extraídas + aplicação de fatores de conversão |
-| `mov_estoque` | Stub | Consolidação de entradas + saídas + inventário (Bloco H) |
-| Endpoints de agregação | Stub | Integração real com `agregacao.json` e reprocessamento |
-| Endpoints de conversão | Stub | Integração real com `fatores.json` e reprocessamento |
-| Endpoints de exportação | Stub | Geração de Excel/CSV formatado |
+| Gerador                 | Status | O que falta                                                                         |
+| ----------------------- | ------ | ----------------------------------------------------------------------------------- |
+| `produtos_unidades`     | Stub   | Leitura de `extraidos/nfe_compra.parquet` + `nfe_venda.parquet` + `reg0200.parquet` |
+| `nfe_entrada`           | Stub   | Leitura de NFe extraídas + aplicação de fatores de conversão                        |
+| `mov_estoque`           | Stub   | Consolidação de entradas + saídas + inventário (Bloco H)                            |
+| Endpoints de agregação  | Stub   | Integração real com `agregacao.json` e reprocessamento                              |
+| Endpoints de conversão  | Stub   | Integração real com `fatores.json` e reprocessamento                                |
+| Endpoints de exportação | Stub   | Geração de Excel/CSV formatado                                                      |

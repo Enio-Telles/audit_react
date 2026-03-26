@@ -19,6 +19,9 @@ from audit_engine.contratos.base import (
 )
 from audit_engine.pipeline.orquestrador import OrquestradorPipeline
 
+# Força o registro dos contratos e geradores
+import audit_engine
+
 # Configuração
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,7 +41,9 @@ app.add_middleware(
 )
 
 # Diretório base para CNPJs
-BASE_DIR = Path("/storage/CNPJ")
+import os
+# Diretório base configurável com fallback local seguro
+BASE_DIR = Path(os.environ.get("STORAGE_DIR", Path(__file__).parent.parent.parent / "storage" / "CNPJ")).resolve()
 
 
 # === Modelos Pydantic ===
