@@ -1,64 +1,11 @@
-"""
-Módulo de Produtos — audit_engine
-Gera tabelas: produtos_unidades, produtos
-Baseado nos módulos do audit_pyside.
-"""
 import logging
 from pathlib import Path
 from typing import Optional
 
-from ..contratos.tabelas import ContratoTabela
-from ..pipeline.orquestrador import registrar_gerador
+from ...contratos.base import ContratoTabela
+from ...pipeline.orquestrador import registrar_gerador
 
 logger = logging.getLogger(__name__)
-
-
-@registrar_gerador("produtos_unidades")
-def gerar_produtos_unidades(
-    diretorio_cnpj: Path,
-    diretorio_parquets: Path,
-    arquivo_saida: Path,
-    contrato: ContratoTabela,
-) -> int:
-    """
-    Gera tabela produtos_unidades a partir dos dados extraídos.
-    
-    Processo:
-    1. Lê dados de NFe (compra e venda) extraídos do Oracle
-    2. Cruza com registros EFD (C170, Reg0200)
-    3. Consolida por produto + unidade
-    4. Calcula totais de NFe e valores
-    
-    Returns:
-        Número de registros gerados
-    """
-    try:
-        import polars as pl
-    except ImportError:
-        raise RuntimeError("Polars não instalado")
-
-    # Verificar se existem dados extraídos
-    dir_extraidos = diretorio_cnpj / "extraidos"
-    
-    if not dir_extraidos.exists():
-        logger.warning("Diretório de dados extraídos não encontrado")
-        # Criar DataFrame vazio com schema correto
-        df = pl.DataFrame(
-            schema={col.nome: _tipo_para_polars(col.tipo.value) for col in contrato.colunas}
-        )
-        df.write_parquet(arquivo_saida)
-        return 0
-
-    # TODO: Implementar leitura real dos dados extraídos
-    # Por enquanto, cria tabela vazia com schema correto
-    df = pl.DataFrame(
-        schema={col.nome: _tipo_para_polars(col.tipo.value) for col in contrato.colunas}
-    )
-    df.write_parquet(arquivo_saida)
-    
-    logger.info(f"produtos_unidades: {len(df)} registros gerados")
-    return len(df)
-
 
 @registrar_gerador("produtos")
 def gerar_produtos(
@@ -121,6 +68,7 @@ def gerar_produtos(
     df.write_parquet(arquivo_saida)
     logger.info(f"produtos: {len(df)} registros gerados")
     return len(df)
+
 
 
 def _tipo_para_polars(tipo: str):

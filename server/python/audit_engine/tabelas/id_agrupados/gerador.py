@@ -1,0 +1,77 @@
+import logging
+from pathlib import Path
+from typing import Optional
+
+from ...contratos.base import ContratoTabela
+from ...pipeline.orquestrador import registrar_gerador
+
+logger = logging.getLogger(__name__)
+
+@registrar_gerador("id_agrupados")
+def gerar_id_agrupados(
+    diretorio_cnpj: Path,
+    diretorio_parquets: Path,
+    arquivo_saida: Path,
+    contrato: ContratoTabela,
+) -> int:
+    """
+    Gera tabela de mapeamento id_produto → id_agrupado.
+    """
+    try:
+        import polars as pl
+    except ImportError:
+        raise RuntimeError("Polars não instalado")
+
+    arquivo_agrupados = diretorio_parquets / "produtos_agrupados.parquet"
+    arquivo_produtos = diretorio_parquets / "produtos.parquet"
+
+    if not arquivo_agrupados.exists():
+        raise FileNotFoundError("produtos_agrupados.parquet não encontrado")
+
+    df_agrupados = pl.read_parquet(arquivo_agrupados)
+    df_produtos = pl.read_parquet(arquivo_produtos)
+
+    if len(df_agrupados) == 0:
+        df = pl.DataFrame(
+            schema={col.nome: _tipo_para_polars(col.tipo.value) for col in contrato.colunas}
+        )
+        df.write_parquet(arquivo_saida)
+        return 0
+
+    # Expandir mapeamento
+    registros = []
+    for row in df_agrupados.iter_rows(named=True):
+        ids_membros = json.loads(row["ids_membros"]) if isinstance(row["ids_membros"], str) else []
+        for id_prod in ids_membros:
+            produto = df_produtos.filter(pl.col("id_produto") == id_prod)
+            desc_original = produto["descricao"][0] if len(produto) > 0 else ""
+            registros.append({
+                "id_produto": id_prod,
+                "id_agrupado": row["id_agrupado"],
+                "descricao_original": desc_original,
+                "descricao_padrao": row["descricao_padrao"],
+            })
+
+    if registros:
+        df = pl.DataFrame(registros)
+    else:
+        df = pl.DataFrame(
+            schema={col.nome: _tipo_para_polars(col.tipo.value) for col in contrato.colunas}
+        )
+
+    df.write_parquet(arquivo_saida)
+    logger.info(f"id_agrupados: {len(df)} mapeamentos gerados")
+    return len(df)
+
+
+
+def _tipo_para_polars(tipo: str):
+    import polars as pl
+    mapa = {
+        "string": pl.Utf8,
+        "int": pl.Int64,
+        "float": pl.Float64,
+        "date": pl.Utf8,
+        "bool": pl.Boolean,
+    }
+    return mapa.get(tipo, pl.Utf8)
