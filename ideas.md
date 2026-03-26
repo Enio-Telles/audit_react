@@ -31,7 +31,7 @@ Sistema de auditoria fiscal profissional para uso interno (SEFIN). Interface de 
 
 **Animation**: Transições de fade-in (200ms ease-out) para troca de páginas. Skeleton loading para tabelas. Progress bars lineares para pipeline. Sem bouncing, sem spring physics.
 
-**Typography System**: 
+**Typography System**:
 - Display: "DM Sans" 700 para títulos de página
 - Body: "DM Sans" 400/500 para texto corrido e labels
 - Mono: "JetBrains Mono" para CNPJs, valores numéricos, nomes de arquivos

@@ -133,3 +133,5 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+pycache/
+*.pyc
