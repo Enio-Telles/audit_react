@@ -27,14 +27,34 @@ import {
 import { toast } from "sonner";
 
 const CONSULTAS_DISPONIVEIS = [
-  { id: "nfe", nome: "NFe - Notas Fiscais Eletrônicas", categoria: "Documentos" },
-  { id: "nfce", nome: "NFCe - Notas Fiscais Consumidor", categoria: "Documentos" },
-  { id: "c100", nome: "C100 - Registro de Documentos Fiscais", categoria: "EFD" },
+  {
+    id: "nfe",
+    nome: "NFe - Notas Fiscais Eletrônicas",
+    categoria: "Documentos",
+  },
+  {
+    id: "nfce",
+    nome: "NFCe - Notas Fiscais Consumidor",
+    categoria: "Documentos",
+  },
+  {
+    id: "c100",
+    nome: "C100 - Registro de Documentos Fiscais",
+    categoria: "EFD",
+  },
   { id: "c170", nome: "C170 - Itens dos Documentos Fiscais", categoria: "EFD" },
   { id: "bloco_h", nome: "Bloco H - Inventário Físico", categoria: "EFD" },
   { id: "reg0000", nome: "Reg 0000 - Abertura do Arquivo", categoria: "EFD" },
-  { id: "reg0200", nome: "Reg 0200 - Tabela de Identificação do Item", categoria: "EFD" },
-  { id: "reg0220", nome: "Reg 0220 - Fatores de Conversão de Unidades", categoria: "EFD" },
+  {
+    id: "reg0200",
+    nome: "Reg 0200 - Tabela de Identificação do Item",
+    categoria: "EFD",
+  },
+  {
+    id: "reg0220",
+    nome: "Reg 0220 - Fatores de Conversão de Unidades",
+    categoria: "EFD",
+  },
 ];
 
 const ETAPAS_PIPELINE = [
@@ -49,8 +69,10 @@ function formatCnpj(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 14);
   if (digits.length <= 2) return digits;
   if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
-  if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
-  if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+  if (digits.length <= 8)
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+  if (digits.length <= 12)
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
   return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
 }
 
@@ -58,13 +80,13 @@ export default function Extracao() {
   const [cnpj, setCnpj] = useState("");
   const [dataLimite, setDataLimite] = useState("");
   const [consultasSelecionadas, setConsultasSelecionadas] = useState<string[]>(
-    CONSULTAS_DISPONIVEIS.map((c) => c.id)
+    CONSULTAS_DISPONIVEIS.map(c => c.id)
   );
   const [activeTab, setActiveTab] = useState("nova");
 
   const toggleConsulta = (id: string) => {
-    setConsultasSelecionadas((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    setConsultasSelecionadas(prev =>
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
     );
   };
 
@@ -79,11 +101,14 @@ export default function Extracao() {
       return;
     }
     toast.info("Funcionalidade em desenvolvimento", {
-      description: "O backend Python (audit_engine) precisa ser configurado para executar extrações.",
+      description:
+        "O backend Python (audit_engine) precisa ser configurado para executar extrações.",
     });
   };
 
-  const categorias = Array.from(new Set(CONSULTAS_DISPONIVEIS.map((c) => c.categoria)));
+  const categorias = Array.from(
+    new Set(CONSULTAS_DISPONIVEIS.map(c => c.categoria))
+  );
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -111,24 +136,32 @@ export default function Extracao() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Label
+                    htmlFor="cnpj-input"
+                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                  >
                     CNPJ do Contribuinte
                   </Label>
                   <Input
+                    id="cnpj-input"
                     placeholder="00.000.000/0000-00"
                     value={cnpj}
-                    onChange={(e) => setCnpj(formatCnpj(e.target.value))}
+                    onChange={e => setCnpj(formatCnpj(e.target.value))}
                     className="font-mono text-base h-11"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Label
+                    htmlFor="data-limite-input"
+                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                  >
                     Data Limite EFD (opcional)
                   </Label>
                   <Input
+                    id="data-limite-input"
                     placeholder="DD/MM/AAAA"
                     value={dataLimite}
-                    onChange={(e) => setDataLimite(e.target.value)}
+                    onChange={e => setDataLimite(e.target.value)}
                     className="font-mono text-base h-11"
                   />
                 </div>
@@ -149,7 +182,11 @@ export default function Extracao() {
                     variant="ghost"
                     size="sm"
                     className="text-xs h-7"
-                    onClick={() => setConsultasSelecionadas(CONSULTAS_DISPONIVEIS.map((c) => c.id))}
+                    onClick={() =>
+                      setConsultasSelecionadas(
+                        CONSULTAS_DISPONIVEIS.map(c => c.id)
+                      )
+                    }
                   >
                     Selecionar Todas
                   </Button>
@@ -167,23 +204,34 @@ export default function Extracao() {
             <CardContent>
               <ScrollArea className="h-64">
                 <div className="space-y-4">
-                  {categorias.map((cat) => (
+                  {categorias.map(cat => (
                     <div key={cat}>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
                         {cat}
                       </p>
                       <div className="space-y-1">
-                        {CONSULTAS_DISPONIVEIS.filter((c) => c.categoria === cat).map((consulta) => (
+                        {CONSULTAS_DISPONIVEIS.filter(
+                          c => c.categoria === cat
+                        ).map(consulta => (
                           <label
                             key={consulta.id}
+                            htmlFor={`checkbox-${consulta.id}`}
                             className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent/50 transition-colors cursor-pointer"
                           >
                             <Checkbox
-                              checked={consultasSelecionadas.includes(consulta.id)}
-                              onCheckedChange={() => toggleConsulta(consulta.id)}
+                              id={`checkbox-${consulta.id}`}
+                              checked={consultasSelecionadas.includes(
+                                consulta.id
+                              )}
+                              onCheckedChange={() =>
+                                toggleConsulta(consulta.id)
+                              }
                             />
                             <span className="text-sm">{consulta.nome}</span>
-                            <Badge variant="outline" className="ml-auto text-[10px] font-mono">
+                            <Badge
+                              variant="outline"
+                              className="ml-auto text-[10px] font-mono"
+                            >
                               {consulta.id}
                             </Badge>
                           </label>
@@ -210,7 +258,9 @@ export default function Extracao() {
                   <div key={etapa.id} className="flex items-center gap-2">
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted">
                       <Circle className="h-3 w-3 text-muted-foreground/40" />
-                      <span className="text-xs font-medium text-muted-foreground">{etapa.label}</span>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {etapa.label}
+                      </span>
                     </div>
                     {idx < ETAPAS_PIPELINE.length - 1 && (
                       <div className="w-4 h-px bg-border" />
