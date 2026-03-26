@@ -3,7 +3,7 @@
  * Tabela agrupável, seleção de linhas, agregação manual, reprocessamento
  * Baseado na aba Agregação do audit_pyside
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,12 +79,20 @@ export default function Agregacao() {
     });
   };
 
-  const filteredProdutos = PRODUTOS_EXEMPLO.filter((p) =>
-    p.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.ncm.includes(searchTerm)
-  );
+  // ⚡ Bolt: Memoize filtered products to prevent O(n) filtering on every render
+  // Reduces unnecessary re-calculations when other states (like selectedRows) change
+  const filteredProdutos = useMemo(() => {
+    return PRODUTOS_EXEMPLO.filter((p) =>
+      p.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.ncm.includes(searchTerm)
+    );
+  }, [searchTerm]);
 
-  const grupos = Array.from(new Set(PRODUTOS_EXEMPLO.filter((p) => p.grupo).map((p) => p.grupo)));
+  // ⚡ Bolt: Memoize static unique group calculation to run only once
+  // Prevents expensive Set and map operations on every render
+  const grupos = useMemo(() => {
+    return Array.from(new Set(PRODUTOS_EXEMPLO.filter((p) => p.grupo).map((p) => p.grupo)));
+  }, []);
 
   return (
     <div className="space-y-4 max-w-full">

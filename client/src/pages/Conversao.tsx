@@ -3,7 +3,7 @@
  * Editar fatores de conversão, unid_ref, importar/exportar Excel
  * Baseado na aba Conversão do audit_pyside
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,12 +58,16 @@ export default function Conversao() {
   const [editFator, setEditFator] = useState("");
   const [editUnidRef, setEditUnidRef] = useState("");
 
-  const filteredFatores = FATORES_EXEMPLO.filter((f) => {
-    const matchSearch = f.descricao_padrao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      f.id_agrupado.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatus = filterStatus === "todos" || f.status === filterStatus;
-    return matchSearch && matchStatus;
-  });
+  // ⚡ Bolt: Memoize filtered list to skip redundant multi-condition filtering
+  // Only re-calculates when search text or status filter specifically changes, avoiding O(n) updates on general re-renders
+  const filteredFatores = useMemo(() => {
+    return FATORES_EXEMPLO.filter((f) => {
+      const matchSearch = f.descricao_padrao.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        f.id_agrupado.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchStatus = filterStatus === "todos" || f.status === filterStatus;
+      return matchSearch && matchStatus;
+    });
+  }, [searchTerm, filterStatus]);
 
   const handleEdit = (id: number) => {
     const fator = FATORES_EXEMPLO.find((f) => f.id === id);
@@ -93,7 +97,10 @@ export default function Conversao() {
     });
   };
 
-  const pendentes = FATORES_EXEMPLO.filter((f) => f.status === "pendente").length;
+  // ⚡ Bolt: Cache static count calculation to avoid iterating array on every re-render
+  const pendentes = useMemo(() => {
+    return FATORES_EXEMPLO.filter((f) => f.status === "pendente").length;
+  }, []);
 
   return (
     <div className="space-y-4 max-w-6xl">
