@@ -209,7 +209,14 @@ async def ler_tabela(
 ):
     """Lê dados de uma tabela Parquet com paginação e filtros."""
     cnpj_limpo = cnpj.replace(".", "").replace("/", "").replace("-", "")
-    arquivo = BASE_DIR / cnpj_limpo / "parquets" / f"{nome_tabela}.parquet"
+    diretorio_parquets = BASE_DIR / cnpj_limpo / "parquets"
+    arquivo = diretorio_parquets / f"{nome_tabela}.parquet"
+
+    # Prevenir path traversal vulnerabilidade (ex: ../../../etc/passwd)
+    try:
+        arquivo.resolve().relative_to(diretorio_parquets.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Caminho de tabela inválido")
 
     if not arquivo.exists():
         raise HTTPException(status_code=404, detail=f"Tabela {nome_tabela} não encontrada")
