@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 from typing import Optional
@@ -39,13 +40,16 @@ def gerar_id_agrupados(
         df.write_parquet(arquivo_saida)
         return 0
 
+    # ⚡ Bolt: Optimize product description lookup
+    # Converting DataFrame to dictionary for O(1) lookups instead of O(N) filtering inside nested loops.
+    prod_desc_map = dict(zip(df_produtos["id_produto"], df_produtos["descricao"]))
+
     # Expandir mapeamento
     registros = []
     for row in df_agrupados.iter_rows(named=True):
         ids_membros = json.loads(row["ids_membros"]) if isinstance(row["ids_membros"], str) else []
         for id_prod in ids_membros:
-            produto = df_produtos.filter(pl.col("id_produto") == id_prod)
-            desc_original = produto["descricao"][0] if len(produto) > 0 else ""
+            desc_original = prod_desc_map.get(id_prod, "")
             registros.append({
                 "id_produto": id_prod,
                 "id_agrupado": row["id_agrupado"],
