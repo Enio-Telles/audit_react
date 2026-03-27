@@ -410,6 +410,8 @@ class MainWindow(QMainWindow):
         self._aggregation_file_path: Path | None = None
         self._aggregation_filters: list[FilterCondition] = []
         self._aggregation_results_filters: list[FilterCondition] = []
+        self._aggregation_relational_mode: str | None = None
+        self._aggregation_results_relational_mode: str | None = None
         self._debounce_timers: dict[str, QTimer] = {}
         self._debounce_callbacks: dict[str, Callable[[], None]] = {}
         self._auto_resized_tables: set[str] = set()
@@ -2226,9 +2228,13 @@ class MainWindow(QMainWindow):
         pasta_analises = CNPJ_ROOT / self.state.current_cnpj / "analises" / "produtos"
         arquivos = list(pasta_analises.glob(f"*_enriquecido_{self.state.current_cnpj}.parquet"))
         dfs = []
+        filtro_id = [FilterCondition(column="id_agrupado", operator="igual", value=id_agrupado)]
         for arq in arquivos:
             try:
-                df = pl.read_parquet(arq).filter(pl.col("id_agrupado") == id_agrupado)
+                schema = self.parquet_service.get_schema(arq)
+                if "id_agrupado" not in schema:
+                    continue
+                df = self.parquet_service.load_dataset(arq, filtro_id)
                 if not df.is_empty():
                     df = df.with_columns(pl.lit(arq.name.split("_enriquecido")[0].upper()).alias("origem_fio_ouro"))
                     dfs.append(df)
@@ -3219,6 +3225,47 @@ class MainWindow(QMainWindow):
                 "estoque": ["ordem_operacoes", "Tipo_operacao", "id_agrupado", "descr_padrao", "Dt_doc", "q_conv", "saldo_estoque_anual", "unid_ref", "fator"],
                 "custos": ["ordem_operacoes", "Tipo_operacao", "id_agrupado", "descr_padrao", "Dt_doc", "q_conv", "preco_item", "preco_unit", "custo_medio_anual", "saldo_estoque_anual"],
             }
+        elif contexto in {"agregacao_top", "agregacao_bottom"}:
+            mapa = {
+                "padrao": [
+                    "id_agrupado", "descr_padrao",
+                    "preco_medio_compra", "preco_medio_venda",
+                    "total_entradas", "total_saidas", "total_movimentacao",
+                    "total_compras", "qtd_compras_total",
+                    "total_vendas", "qtd_vendas_total",
+                    "ncm_padrao", "cest_padrao", "gtin_padrao",
+                    "lista_ncm", "lista_cest", "lista_gtin", "lista_descricoes",
+                    "co_sefin_padrao", "co_sefin_agr", "lista_unidades", "fontes",
+                ],
+                "auditoria": [
+                    "id_agrupado", "descr_padrao",
+                    "ncm_padrao", "cest_padrao", "gtin_padrao",
+                    "lista_ncm", "lista_cest", "lista_gtin", "lista_descricoes",
+                    "co_sefin_padrao", "co_sefin_agr", "lista_co_sefin",
+                    "co_sefin_divergentes", "lista_unidades", "fontes",
+                    "total_entradas", "total_saidas", "total_movimentacao",
+                    "total_compras", "qtd_compras_total", "preco_medio_compra",
+                    "total_vendas", "qtd_vendas_total", "preco_medio_venda",
+                    "lista_chave_produto",
+                ],
+                "estoque": [
+                    "id_agrupado", "descr_padrao",
+                    "total_entradas", "total_saidas", "total_movimentacao",
+                    "total_compras", "qtd_compras_total",
+                    "total_vendas", "qtd_vendas_total",
+                    "lista_unidades", "lista_descricoes", "fontes",
+                    "ncm_padrao", "cest_padrao",
+                ],
+                "custos": [
+                    "id_agrupado", "descr_padrao",
+                    "preco_medio_compra", "preco_medio_venda",
+                    "total_entradas", "total_saidas", "total_movimentacao",
+                    "total_compras", "qtd_compras_total",
+                    "total_vendas", "qtd_vendas_total",
+                    "lista_ncm", "lista_cest", "lista_gtin", "lista_descricoes",
+                    "lista_unidades", "fontes",
+                ],
+            }
         elif nome in {"", "padrao"}:
             return colunas
         elif contexto == "conversao":
@@ -3261,14 +3308,48 @@ class MainWindow(QMainWindow):
             }
         else:
             mapa = {
-                "auditoria": ["cnpj", "periodo", "id_agrupado", "id_agregado", "descr_padrao", "descricao", "descr", "Descr_item", "Ncm", "ncm_padrao", "cest_padrao", "Cfop", "valor_item", "preco_item", "q_conv", "Qtd", "saldo_final", "entradas_desacob"],
-                "estoque": ["id_agrupado", "id_agregado", "descr_padrao", "descricao", "Descr_item", "ncm_padrao", "Ncm", "unid_ref", "q_conv", "Qtd", "saldo_final", "estoque_final"],
-                "custos": ["id_agrupado", "id_agregado", "descr_padrao", "descricao", "Descr_item", "preco_item", "preco_unit", "valor_item", "q_conv", "Qtd", "pme", "pms", "custo_medio_anual"],
+                "auditoria": ["cnpj", "periodo", "id_agrupado", "id_agregado", "descr_padrao", "descricao", "descr", "Descr_item", "Ncm", "ncm_padrao", "cest_padrao", "Cfop", "valor_item", "preco_item", "q_conv", "Qtd", "total_compras", "qtd_compras_total", "preco_medio_compra", "total_vendas", "qtd_vendas_total", "preco_medio_venda", "saldo_final", "entradas_desacob"],
+                "estoque": ["id_agrupado", "id_agregado", "descr_padrao", "descricao", "Descr_item", "ncm_padrao", "Ncm", "unid_ref", "q_conv", "Qtd", "total_entradas", "total_saidas", "total_movimentacao", "total_compras", "total_vendas", "saldo_final", "estoque_final"],
+                "custos": ["id_agrupado", "id_agregado", "descr_padrao", "descricao", "Descr_item", "total_entradas", "total_saidas", "total_movimentacao", "total_compras", "qtd_compras_total", "preco_medio_compra", "total_vendas", "qtd_vendas_total", "preco_medio_venda", "preco_item", "preco_unit", "valor_item", "q_conv", "Qtd", "pme", "pms", "custo_medio_anual"],
             }
 
         desejadas = mapa.get(nome, colunas)
         selecionadas = [c for c in desejadas if c in colunas]
         return selecionadas or colunas
+
+    def _aplicar_layout_padrao_agregacao(
+        self,
+        contexto: str,
+        table: QTableView,
+        model: PolarsTableModel,
+        perfil: str,
+    ) -> None:
+        if contexto not in {"agregacao_top", "agregacao_bottom"} or model.dataframe.is_empty():
+            return
+        ordem = self._obter_colunas_preset_perfil(perfil, model.dataframe.columns, contexto)
+        self._aplicar_ordem_colunas(table, ordem)
+        colunas = model.dataframe.columns
+        offset = 1 if getattr(model, "_checkable", False) else 0
+        larguras = {
+            "id_agrupado": 150,
+            "descr_padrao": 320,
+            "preco_medio_compra": 150,
+            "preco_medio_venda": 150,
+            "total_entradas": 145,
+            "total_saidas": 145,
+            "total_movimentacao": 155,
+            "total_compras": 140,
+            "qtd_compras_total": 140,
+            "total_vendas": 140,
+            "qtd_vendas_total": 140,
+            "lista_ncm": 180,
+            "lista_cest": 180,
+            "lista_gtin": 180,
+            "lista_descricoes": 340,
+        }
+        for nome, largura in larguras.items():
+            if nome in colunas:
+                table.setColumnWidth(colunas.index(nome) + offset, largura)
 
     def _abrir_menu_colunas_tabela(self, aba: str, table: QTableView, pos=None, scope: str | None = None) -> None:
         model = table.model()
@@ -3317,6 +3398,7 @@ class MainWindow(QMainWindow):
             return
         visiveis = self._obter_colunas_preset_perfil(perfil, model.dataframe.columns, contexto)
         self._aplicar_preset_colunas(table, model.dataframe.columns, visiveis)
+        self._aplicar_layout_padrao_agregacao(contexto, table, model, perfil)
         self._salvar_preferencias_tabela(aba, table, model, scope)
 
     def _salvar_perfil_tabela_com_dialogo(
@@ -3495,6 +3577,20 @@ class MainWindow(QMainWindow):
             return
         self._aplicar_perfil_tabela(aba, table, model, perfil, aba)
 
+    def _carregar_dataset_ui(
+        self,
+        path: Path,
+        conditions: list[FilterCondition] | None = None,
+        columns: list[str] | None = None,
+    ) -> pl.DataFrame:
+        colunas_solicitadas = columns
+        if columns is not None:
+            schema = set(self.parquet_service.get_schema(path))
+            colunas_solicitadas = [coluna for coluna in columns if coluna in schema]
+            if not colunas_solicitadas:
+                return pl.DataFrame()
+        return self.parquet_service.load_dataset(path, conditions or [], colunas_solicitadas)
+
     def atualizar_aba_anual(self) -> None:
         cnpj = self.state.current_cnpj
         if not cnpj:
@@ -3511,7 +3607,7 @@ class MainWindow(QMainWindow):
             return
             
         try:
-            self._aba_anual_df = pl.read_parquet(path)
+            self._aba_anual_df = self._carregar_dataset_ui(path)
             self._aba_anual_file_path = path
             self._reset_table_resize_flag("aba_anual")
 
@@ -3544,7 +3640,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            self._aba_mensal_df = pl.read_parquet(path)
+            self._aba_mensal_df = self._carregar_dataset_ui(path)
             self._aba_mensal_file_path = path
             self._reset_table_resize_flag("aba_mensal")
 
@@ -5035,6 +5131,8 @@ class MainWindow(QMainWindow):
             self._aggregation_file_path = target
             self._aggregation_filters = []
             self._aggregation_results_filters = []
+            self._aggregation_relational_mode = None
+            self._aggregation_results_relational_mode = None
             self._load_aggregation_table()
             self.recarregar_historico_agregacao(self.state.current_cnpj)
         except Exception as exc:
@@ -5051,12 +5149,23 @@ class MainWindow(QMainWindow):
         self.status.showMessage("Selecao de agregacao limpa.")
 
     def _load_aggregation_table(self) -> None:
+        cnpj = self.state.current_cnpj
+        if not cnpj:
+            return
         if self._aggregation_file_path is None:
             return
+        self._aggregation_file_path = self.servico_agregacao.carregar_tabela_editavel(cnpj)
         df = self.parquet_service.load_dataset(self._aggregation_file_path, self._aggregation_filters or [])
+        df = self._aplicar_modo_relacional_agregacao_df(df, self._aggregation_relational_mode)
         self.aggregation_table_model.set_dataframe(df)
         self._resize_table_once(self.aggregation_table_view, "agregacao_top")
-        self._aplicar_preferencias_tabela("agregacao_top", self.aggregation_table, self.aggregation_table_model)
+        if not self._aplicar_preferencias_tabela("agregacao_top", self.aggregation_table, self.aggregation_table_model):
+            self._aplicar_perfil_agregacao(
+                "agregacao_top",
+                self.aggregation_table,
+                self.aggregation_table_model,
+                self.top_profile.currentText(),
+            )
 
     def execute_aggregation(self) -> None:
         if not self.state.current_cnpj:
@@ -5337,48 +5446,9 @@ class MainWindow(QMainWindow):
                 return normalizadas[chave]
         return None
 
-    def _aplicar_filtro_relacional_agregacao(self, destino: str, include_gtin: bool) -> None:
-        if self.tabs.currentIndex() != 2:
-            return
-
-        if destino == "top":
-            table = self.aggregation_table
-            model = self.aggregation_table_model
-            row = self._obter_linha_selecionada_tabela(table, model)
-            if not row:
-                self.show_error("Selecao necessaria", "Selecione uma linha da tabela superior para aplicar o filtro.")
-                return
-
-            df_atual = model.get_dataframe()
-            available_columns = list(df_atual.columns)
-            self.aqf_ncm.setText(str(row.get("ncm_padrao") or ""))
-            self.aqf_cest.setText(str(row.get("cest_padrao") or ""))
-            self.aqf_norm.clear()
-            self.aqf_desc.clear()
-            self._aggregation_filters = []
-        else:
-            table = self.results_table
-            model = self.results_table_model
-            row = self._obter_linha_selecionada_tabela(table, model)
-            if not row:
-                self.show_error("Selecao necessaria", "Selecione uma linha da tabela inferior para aplicar o filtro.")
-                return
-
-            cnpj = self.state.current_cnpj
-            if not cnpj:
-                self.show_error("CNPJ nao selecionado", "Selecione um CNPJ antes de aplicar o filtro.")
-                return
-
-            path = self.servico_agregacao.caminho_tabela_agregadas(cnpj)
-            try:
-                available_columns = self.parquet_service.get_schema(path) if path.exists() else list(model.get_dataframe().columns)
-            except Exception:
-                available_columns = list(model.get_dataframe().columns)
-            self.bqf_ncm.setText(str(row.get("ncm_padrao") or ""))
-            self.bqf_cest.setText(str(row.get("cest_padrao") or ""))
-            self.bqf_norm.clear()
-            self.bqf_desc.clear()
-            self._aggregation_results_filters = []
+    def _aplicar_modo_relacional_agregacao_df(self, df: pl.DataFrame, modo: str | None) -> pl.DataFrame:
+        if df.is_empty() or not modo:
+            return df
 
         aliases_map = {
             "ncm": ["ncm_padrao", "NCM_padrao", "lista_ncm", "ncm_final", "ncm"],
@@ -5386,51 +5456,89 @@ class MainWindow(QMainWindow):
             "gtin": ["gtin_padrao", "GTIN_padrao", "gtin", "cod_barra", "cod_barras"],
         }
 
-        filtros: list[FilterCondition] = []
-        ncm = str(row.get("ncm_padrao") or "").strip()
-        cest = str(row.get("cest_padrao") or "").strip()
-        gtin = str(row.get("gtin_padrao") or "").strip()
-
-        if not ncm or not cest:
-            self.show_error("Dados insuficientes", "A linha selecionada nao possui NCM e CEST preenchidos.")
-            return
-
+        available_columns = list(df.columns)
         col_ncm = self._resolver_coluna_agregacao(aliases_map["ncm"], available_columns)
         col_cest = self._resolver_coluna_agregacao(aliases_map["cest"], available_columns)
         if not col_ncm or not col_cest:
-            self.show_error("Colunas nao encontradas", "Nao foi possivel localizar as colunas de NCM/CEST na tabela.")
-            return
+            return df
 
-        filtros.append(FilterCondition(column=col_ncm, operator="igual", value=ncm))
-        filtros.append(FilterCondition(column=col_cest, operator="igual", value=cest))
-
-        if include_gtin:
-            if not gtin:
-                self.show_error("GTIN ausente", "A linha selecionada nao possui GTIN preenchido.")
-                return
+        chaves: list[tuple[str, str]] = [("ncm", col_ncm), ("cest", col_cest)]
+        if modo == "ncm_cest_gtin":
             col_gtin = self._resolver_coluna_agregacao(aliases_map["gtin"], available_columns)
             if not col_gtin:
-                self.show_error("Coluna nao encontrada", "Nao foi possivel localizar a coluna de GTIN na tabela.")
-                return
-            filtros.append(FilterCondition(column=col_gtin, operator="igual", value=gtin))
+                return df.head(0)
+            chaves.append(("gtin", col_gtin))
+
+        temporarias = [f"__rel_{nome}" for nome, _col in chaves]
+        df_rel = df.with_row_index("__row_pos").with_columns(
+            [
+                pl.col(col)
+                .cast(pl.Utf8, strict=False)
+                .fill_null("")
+                .str.strip_chars()
+                .alias(f"__rel_{nome}")
+                for nome, col in chaves
+            ]
+        )
+
+        for coluna_tmp in temporarias:
+            df_rel = df_rel.filter(pl.col(coluna_tmp) != "")
+
+        if df_rel.is_empty():
+            return df.head(0)
+
+        df_repetidos = (
+            df_rel
+            .group_by(temporarias)
+            .agg(pl.len().alias("__match_count"))
+            .filter(pl.col("__match_count") >= 2)
+        )
+
+        if df_repetidos.is_empty():
+            return df.head(0)
+
+        return (
+            df_rel
+            .join(df_repetidos, on=temporarias, how="inner")
+            .sort("__row_pos")
+            .drop(["__row_pos", "__match_count", *temporarias], strict=False)
+        )
+
+    def _aplicar_filtro_relacional_agregacao(self, destino: str, include_gtin: bool) -> None:
+        if self.tabs.currentIndex() != 2:
+            return
+
+        modo = "ncm_cest_gtin" if include_gtin else "ncm_cest"
 
         if destino == "top":
-            self._aggregation_filters = filtros
+            if self._aggregation_file_path is None:
+                self.show_error("Tabela indisponivel", "Abra a tabela de agregacao antes de aplicar o filtro.")
+                return
+            self._aggregation_relational_mode = modo
             self._load_aggregation_table()
         else:
-            self._aggregation_results_filters = filtros
-            self.recarregar_historico_agregacao(self.state.current_cnpj or "")
+            cnpj = self.state.current_cnpj
+            if not cnpj:
+                self.show_error("CNPJ nao selecionado", "Selecione um CNPJ antes de aplicar o filtro.")
+                return
+            self._aggregation_results_relational_mode = modo
+            self.recarregar_historico_agregacao(cnpj)
+
+        rotulo = "NCM+CEST+GTIN iguais" if include_gtin else "NCM+CEST iguais"
+        self.status.showMessage(f"Filtro relacional ativo: {rotulo}.")
 
     def clear_top_aggregation_filters(self) -> None:
         for widget in [self.aqf_norm, self.aqf_desc, self.aqf_ncm, self.aqf_cest]:
             widget.clear()
         self._aggregation_filters = []
+        self._aggregation_relational_mode = None
         self._load_aggregation_table()
 
     def clear_bottom_aggregation_filters(self) -> None:
         for widget in [self.bqf_norm, self.bqf_desc, self.bqf_ncm, self.bqf_cest]:
             widget.clear()
         self._aggregation_results_filters = []
+        self._aggregation_results_relational_mode = None
         cnpj = self.state.current_cnpj or ""
         self.recarregar_historico_agregacao(cnpj)
 
@@ -5659,29 +5767,50 @@ class MainWindow(QMainWindow):
             return df
 
         try:
-            df_prod = pl.read_parquet(arq_prod_final).select(
-                [
-                    pl.col("id_agrupado").cast(pl.Utf8, strict=False),
-                    pl.col("descricao").cast(pl.Utf8, strict=False),
-                    pl.col("descricao_final").cast(pl.Utf8, strict=False),
-                    pl.col("lista_desc_compl").cast(pl.List(pl.Utf8), strict=False),
-                ]
+            df_prod = self._carregar_dataset_ui(
+                arq_prod_final,
+                columns=["id_agrupado", "descricao", "descricao_final", "lista_desc_compl"],
             )
         except Exception:
             return df
 
-        if df_prod.is_empty():
+        if df_prod.is_empty() or "id_agrupado" not in df_prod.columns:
+            return df
+
+        partes_descricoes: list[pl.DataFrame] = []
+        if "descricao" in df_prod.columns:
+            partes_descricoes.append(
+                df_prod.select(
+                    [
+                        pl.col("id_agrupado").cast(pl.Utf8, strict=False),
+                        pl.col("descricao").cast(pl.Utf8, strict=False).alias("descricao_item"),
+                    ]
+                )
+            )
+        if "descricao_final" in df_prod.columns:
+            partes_descricoes.append(
+                df_prod.select(
+                    [
+                        pl.col("id_agrupado").cast(pl.Utf8, strict=False),
+                        pl.col("descricao_final").cast(pl.Utf8, strict=False).alias("descricao_item"),
+                    ]
+                )
+            )
+        if "lista_desc_compl" in df_prod.columns:
+            partes_descricoes.append(
+                df_prod.select(
+                    [
+                        pl.col("id_agrupado").cast(pl.Utf8, strict=False),
+                        pl.col("lista_desc_compl").cast(pl.List(pl.Utf8), strict=False).alias("descricao_item"),
+                    ]
+                ).explode("descricao_item")
+            )
+
+        if not partes_descricoes:
             return df
 
         df_descricoes_base = (
-            pl.concat(
-                [
-                    df_prod.select(["id_agrupado", pl.col("descricao").alias("descricao_item")]),
-                    df_prod.select(["id_agrupado", pl.col("descricao_final").alias("descricao_item")]),
-                    df_prod.select(["id_agrupado", pl.col("lista_desc_compl").alias("descricao_item")]).explode("descricao_item"),
-                ],
-                how="vertical_relaxed",
-            )
+            pl.concat(partes_descricoes, how="vertical_relaxed")
             .with_columns(
                 pl.col("descricao_item").cast(pl.Utf8, strict=False).fill_null("").str.strip_chars().alias("descricao_item")
             )
@@ -5732,7 +5861,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            df = pl.read_parquet(arq_conversao)
+            df = self._carregar_dataset_ui(arq_conversao)
             if "fator_manual" not in df.columns:
                 df = df.with_columns(pl.lit(False).alias("fator_manual"))
             if "unid_ref_manual" not in df.columns:
@@ -6031,14 +6160,21 @@ class MainWindow(QMainWindow):
     def recarregar_historico_agregacao(self, cnpj: str) -> None:
         """Carrega a tabela de descricoes agregadas no painel inferior."""
         try:
-            path = self.servico_agregacao.caminho_tabela_agregadas(cnpj)
+            path = self.servico_agregacao.carregar_tabela_editavel(cnpj)
             if path.exists():
                 df_agregadas = self.parquet_service.load_dataset(path, self._aggregation_results_filters or [])
+                df_agregadas = self._aplicar_modo_relacional_agregacao_df(df_agregadas, self._aggregation_results_relational_mode)
             else:
                 df_agregadas = pl.DataFrame()
             self.results_table_model.set_dataframe(df_agregadas)
             self._resize_table_once(self.results_table_view, "agregacao_bottom")
-            self._aplicar_preferencias_tabela("agregacao_bottom", self.results_table, self.results_table_model)
+            if not self._aplicar_preferencias_tabela("agregacao_bottom", self.results_table, self.results_table_model):
+                self._aplicar_perfil_agregacao(
+                    "agregacao_bottom",
+                    self.results_table,
+                    self.results_table_model,
+                    self.bottom_profile.currentText(),
+                )
         except Exception:
             self.results_table_model.set_dataframe(pl.DataFrame())
 
@@ -6046,7 +6182,7 @@ class MainWindow(QMainWindow):
         """Atualiza os modelos das tabelas de agregacao."""
         cnpj = self.state.current_cnpj
         if not cnpj: return
-        self._aggregation_file_path = self.servico_agregacao.caminho_tabela_editavel(cnpj)
+        self._aggregation_file_path = self.servico_agregacao.carregar_tabela_editavel(cnpj)
         if self._aggregation_file_path.exists():
             self._load_aggregation_table()
             

@@ -28,6 +28,10 @@ CNPJ_ROOT = DADOS_DIR / "CNPJ"
 
 try:
     from utilitarios.salvar_para_parquet import salvar_para_parquet
+    from utilitarios.validacao_schema import (
+        SchemaValidacaoError,
+        validar_parquet_essencial,
+    )
     from transformacao.descricao_produtos import descricao_produtos
     from transformacao.id_agrupados import gerar_id_agrupados
 except ImportError as e:
@@ -128,8 +132,27 @@ def produtos_agrupados(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
 
     rprint(f"[bold cyan]Gerando produtos_agrupados/final para CNPJ: {cnpj}[/bold cyan]")
 
-    df_descricoes = pl.read_parquet(arq_descricoes)
-    df_item_unid = pl.read_parquet(arq_item_unid)
+    try:
+        schema_descricoes = validar_parquet_essencial(
+            arq_descricoes,
+            ["id_descricao", "descricao_normalizada", "descricao"],
+            contexto="produtos_final/descricao_produtos",
+        )
+        validar_parquet_essencial(
+            arq_item_unid,
+            ["descricao", "ncm", "cest", "gtin", "co_sefin_item"],
+            contexto="produtos_final/item_unidades",
+        )
+    except SchemaValidacaoError as exc:
+        rprint(f"[red]{exc}[/red]")
+        return False
+
+    df_descricoes = pl.scan_parquet(arq_descricoes).select(schema_descricoes).collect()
+    df_item_unid = (
+        pl.scan_parquet(arq_item_unid)
+        .select(["descricao", "ncm", "cest", "gtin", "co_sefin_item"])
+        .collect()
+    )
 
     if df_descricoes.is_empty():
         rprint("[yellow]descricao_produtos esta vazio.[/yellow]")
@@ -139,6 +162,18 @@ def produtos_agrupados(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         if col not in df_descricoes.columns:
             df_descricoes = df_descricoes.with_columns(pl.lit([]).cast(pl.List(pl.String)).alias(col))
 
+    df_item_unid_norm = (
+        df_item_unid
+        .filter(pl.col("descricao").is_not_null())
+        .with_columns(
+            pl.col("descricao")
+            .cast(pl.Utf8, strict=False)
+            .str.to_uppercase()
+            .str.replace_all(r"\s+", " ")
+            .alias("__descricao_upper")
+        )
+    )
+
     registros_mestra: list[dict] = []
     registros_ponte: list[dict] = []
 
@@ -147,14 +182,11 @@ def produtos_agrupados(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         desc_norm = row.get("descricao_normalizada")
 
         if desc_norm:
-            df_base = df_item_unid.filter(pl.col("descricao").is_not_null()).with_columns(
-                pl.col("descricao")
-                .cast(pl.Utf8, strict=False)
-                .str.to_uppercase()
-                .str.replace_all(r"\s+", " ")
-                .alias("__descricao_upper")
+            df_base = (
+                df_item_unid_norm
+                .filter(pl.col("__descricao_upper") == desc_norm)
+                .drop("__descricao_upper")
             )
-            df_base = df_base.filter(pl.col("__descricao_upper") == desc_norm).drop("__descricao_upper")
         else:
             df_base = df_item_unid.filter(pl.lit(False))
 
@@ -162,6 +194,10 @@ def produtos_agrupados(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         lista_co_sefin = _serie_limpa_lista(row.get("lista_co_sefin"))
         lista_unidades = _serie_limpa_lista(row.get("lista_unid"))
         fontes = _serie_limpa_lista(row.get("fontes"))
+        lista_ncm = _serie_limpa_lista(row.get("lista_ncm"))
+        lista_cest = _serie_limpa_lista(row.get("lista_cest"))
+        lista_gtin = _serie_limpa_lista(row.get("lista_gtin"))
+        lista_descricoes = _serie_limpa_lista([row.get("descricao")] + list(row.get("lista_desc_compl") or []))
 
         registros_mestra.append(
             {
@@ -171,6 +207,10 @@ def produtos_agrupados(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
                 "ncm_padrao": padrao.get("ncm_padrao"),
                 "cest_padrao": padrao.get("cest_padrao"),
                 "gtin_padrao": padrao.get("gtin_padrao"),
+                "lista_ncm": lista_ncm,
+                "lista_cest": lista_cest,
+                "lista_gtin": lista_gtin,
+                "lista_descricoes": lista_descricoes,
                 "lista_co_sefin": lista_co_sefin,
                 "co_sefin_padrao": padrao.get("co_sefin_padrao"),
                 "lista_unidades": lista_unidades,

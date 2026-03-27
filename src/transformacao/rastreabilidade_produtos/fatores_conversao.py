@@ -24,6 +24,10 @@ CNPJ_ROOT = DADOS_DIR / "CNPJ"
 try:
     from utilitarios.salvar_para_parquet import salvar_para_parquet
     from utilitarios.text import remove_accents
+    from utilitarios.validacao_schema import (
+        SchemaValidacaoError,
+        validar_parquet_essencial,
+    )
 except ImportError as e:
     rprint(f"[red]Erro ao importar modulos utilitarios:[/red] {e}")
     sys.exit(1)
@@ -170,6 +174,21 @@ def calcular_fatores_conversao(cnpj: str, pasta_cnpj: Path | None = None) -> boo
             return False
 
     rprint(f"[bold cyan]Calculando fatores de conversao para CNPJ: {cnpj}[/bold cyan]")
+
+    try:
+        validar_parquet_essencial(
+            arq_unid,
+            ["descricao", "unid", "compras", "vendas", "qtd_compras", "qtd_vendas"],
+            contexto="fatores_conversao/item_unidades",
+        )
+        validar_parquet_essencial(
+            arq_final,
+            ["id_agrupado", "descricao_normalizada", "descricao_final", "descr_padrao", "unid_ref_sugerida"],
+            contexto="fatores_conversao/produtos_final",
+        )
+    except SchemaValidacaoError as exc:
+        rprint(f"[red]{exc}[/red]")
+        return False
 
     df_unid = pl.read_parquet(arq_unid)
     df_final = pl.read_parquet(arq_final)

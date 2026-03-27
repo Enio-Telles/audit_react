@@ -33,6 +33,10 @@ CNPJ_ROOT = DADOS_DIR / "CNPJ"
 try:
     from utilitarios.salvar_para_parquet import salvar_para_parquet
     from utilitarios.text import remove_accents
+    from utilitarios.validacao_schema import (
+        SchemaValidacaoError,
+        validar_parquet_essencial,
+    )
 except ImportError as e:
     rprint(f"[red]Erro ao importar modulos utilitarios:[/red] {e}")
     sys.exit(1)
@@ -92,6 +96,24 @@ def gerar_fontes_produtos(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         return False
     if not pasta_brutos.exists():
         rprint("[red]Pasta de arquivos_parquet nao encontrada.[/red]")
+        return False
+
+    try:
+        validar_parquet_essencial(
+            arq_prod_final,
+            [
+                "id_agrupado",
+                "descricao_normalizada",
+                "descr_padrao",
+                "ncm_padrao",
+                "cest_padrao",
+                "co_sefin_final",
+                "unid_ref_sugerida",
+            ],
+            contexto="fontes_produtos/produtos_final",
+        )
+    except SchemaValidacaoError as exc:
+        rprint(f"[red]{exc}[/red]")
         return False
 
     df_prod_final = (

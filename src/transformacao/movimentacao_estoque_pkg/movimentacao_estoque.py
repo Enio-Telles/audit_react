@@ -12,6 +12,10 @@ CNPJ_ROOT = DADOS_DIR / "CNPJ"
 
 try:
     from utilitarios.salvar_para_parquet import salvar_para_parquet
+    from utilitarios.validacao_schema import (
+        SchemaValidacaoError,
+        validar_parquet_essencial,
+    )
     from transformacao.co_sefin_class import enriquecer_co_sefin_class
     from utilitarios.text import remove_accents
     from transformacao.movimentacao_estoque_pkg.calculo_saldos import (
@@ -91,6 +95,30 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
         mapeamento = json.load(f)
 
     rprint(f"\n[bold cyan]Gerando movimentacao_estoque para CNPJ: {cnpj}[/bold cyan]")
+
+    try:
+        validar_parquet_essencial(
+            arq_prod_final,
+            [
+                "id_agrupado",
+                "descricao_normalizada",
+                "descr_padrao",
+                "ncm_padrao",
+                "cest_padrao",
+                "descricao_final",
+                "co_sefin_final",
+                "unid_ref_sugerida",
+            ],
+            contexto="movimentacao_estoque/produtos_final",
+        )
+        validar_parquet_essencial(
+            arq_fatores,
+            ["id_agrupado", "unid", "unid_ref", "fator"],
+            contexto="movimentacao_estoque/fatores_conversao",
+        )
+    except SchemaValidacaoError as exc:
+        rprint(f"[red]{exc}[/red]")
+        return False
 
     df_prod_final = (
         pl.read_parquet(arq_prod_final)

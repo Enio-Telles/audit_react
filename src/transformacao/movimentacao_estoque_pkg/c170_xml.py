@@ -27,6 +27,10 @@ CNPJ_ROOT = DADOS_DIR / "CNPJ"
 
 try:
     from utilitarios.salvar_para_parquet import salvar_para_parquet
+    from utilitarios.validacao_schema import (
+        SchemaValidacaoError,
+        validar_parquet_essencial,
+    )
     from transformacao.co_sefin_class import enriquecer_co_sefin_class
     from utilitarios.text import remove_accents
 except ImportError as e:
@@ -210,6 +214,31 @@ def gerar_c170_xml(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
             return False
 
     rprint(f"[bold cyan]Gerando c170_xml para CNPJ: {cnpj}[/bold cyan]")
+
+    try:
+        validar_parquet_essencial(
+            arq_c170,
+            ["chv_nfe", "num_item", "cod_item", "cod_ncm", "descr_item"],
+            contexto="c170_xml/c170",
+        )
+        validar_parquet_essencial(
+            arq_c170_agr,
+            ["chv_nfe", "num_item", "cod_item", "id_agrupado", "co_sefin_agr"],
+            contexto="c170_xml/c170_agr",
+        )
+        validar_parquet_essencial(
+            arq_nfe_agr,
+            ["chave_acesso", "id_agrupado"],
+            contexto="c170_xml/nfe_agr",
+        )
+        validar_parquet_essencial(
+            arq_nfce_agr,
+            ["chave_acesso", "id_agrupado"],
+            contexto="c170_xml/nfce_agr",
+        )
+    except SchemaValidacaoError as exc:
+        rprint(f"[red]{exc}[/red]")
+        return False
 
     df_c170 = pl.read_parquet(arq_c170)
     df_c170_agr = pl.read_parquet(arq_c170_agr)

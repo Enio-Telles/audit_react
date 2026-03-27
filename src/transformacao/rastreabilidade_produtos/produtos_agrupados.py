@@ -169,6 +169,15 @@ def inicializar_produtos_agrupados(cnpj: str, pasta_cnpj: Path | None = None) ->
 
         lista_sefin = list(set([item for r in g for item in (r.get("lista_co_sefin") or [])]))
         lista_unidades = list(set([item for r in g for item in (r.get("lista_unid") or [])]))
+        lista_ncm = sorted(set([item for r in g for item in (r.get("lista_ncm") or []) if item]))
+        lista_cest = sorted(set([item for r in g for item in (r.get("lista_cest") or []) if item]))
+        lista_gtin = sorted(set([item for r in g for item in (r.get("lista_gtin") or []) if item]))
+        lista_descricoes = sorted(
+            set(
+                [r.get("descricao") for r in g if r.get("descricao")]
+                + [item for r in g for item in (r.get("lista_desc_compl") or []) if item]
+            )
+        )
         divergentes = len(lista_sefin) > 1
 
         registros_mestra.append(
@@ -178,6 +187,10 @@ def inicializar_produtos_agrupados(cnpj: str, pasta_cnpj: Path | None = None) ->
                 "ncm_padrao": padrao.get("ncm_padrao"),
                 "cest_padrao": padrao.get("cest_padrao"),
                 "gtin_padrao": padrao.get("gtin_padrao"),
+                "lista_ncm": lista_ncm,
+                "lista_cest": lista_cest,
+                "lista_gtin": lista_gtin,
+                "lista_descricoes": lista_descricoes,
                 "lista_co_sefin": lista_sefin,
                 "co_sefin_padrao": padrao.get("co_sefin_padrao"),
                 "co_sefin_agr": ", ".join(sorted([str(s) for s in lista_sefin])),

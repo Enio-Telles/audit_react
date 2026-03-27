@@ -25,6 +25,10 @@ CNPJ_ROOT = DADOS_DIR / "CNPJ"
 try:
     from utilitarios.salvar_para_parquet import salvar_para_parquet
     from utilitarios.text import remove_accents
+    from utilitarios.validacao_schema import (
+        SchemaValidacaoError,
+        validar_parquet_essencial,
+    )
     from transformacao.item_unidades import item_unidades
     from transformacao.itens import itens
 except ImportError as e:
@@ -86,11 +90,19 @@ def descricao_produtos(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
 
     rprint(f"[bold cyan]Gerando descricao_produtos para CNPJ: {cnpj}[/bold cyan]")
 
-    df_item_unid = pl.read_parquet(arq_item_unid)
-    df_itens = pl.read_parquet(arq_itens)
-
-    if df_item_unid.is_empty():
-        rprint("[yellow]Arquivo item_unidades esta vazio.[/yellow]")
+    try:
+        schema_item_unid = validar_parquet_essencial(
+            arq_item_unid,
+            ["id_item_unid", "descricao"],
+            contexto="descricao_produtos/item_unidades",
+        )
+        validar_parquet_essencial(
+            arq_itens,
+            ["descricao_normalizada", "id_item"],
+            contexto="descricao_produtos/itens",
+        )
+    except SchemaValidacaoError as exc:
+        rprint(f"[red]{exc}[/red]")
         return False
 
     required_item_cols = [
@@ -106,6 +118,14 @@ def descricao_produtos(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         "unid",
         "fontes",
     ]
+    colunas_item_unid = [col for col in required_item_cols if col in schema_item_unid]
+
+    df_item_unid = pl.scan_parquet(arq_item_unid).select(colunas_item_unid).collect()
+
+    if df_item_unid.is_empty():
+        rprint("[yellow]Arquivo item_unidades esta vazio.[/yellow]")
+        return False
+
     for col in required_item_cols:
         if col not in df_item_unid.columns:
             if col == "fontes":
@@ -116,8 +136,9 @@ def descricao_produtos(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
     df_item_unid = df_item_unid.with_columns(_normalizar_descricao_expr("descricao"))
 
     df_lista_ids = (
-        df_itens
+        pl.scan_parquet(arq_itens)
         .select(["descricao_normalizada", "id_item"])
+        .collect()
         .group_by("descricao_normalizada")
         .agg(_agg_list("id_item", "lista_id_item"))
     )
