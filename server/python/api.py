@@ -232,17 +232,26 @@ async def ler_tabela(
     try:
         import polars as pl
 
-        df = pl.read_parquet(arquivo)
+        # ⚡ Bolt: Use scan_parquet for lazy evaluation to push down filters/sorts
+        # This significantly reduces memory and IO vs pl.read_parquet on large datasets
+        lf = pl.scan_parquet(arquivo)
+
+        # Get schema to check columns before applying filters/sorts
+        schema_dict = lf.collect_schema()
+        colunas = list(schema_dict.names())
 
         # Aplicar filtro
-        if filtro_coluna and filtro_valor and filtro_coluna in df.columns:
-            df = df.filter(
+        if filtro_coluna and filtro_valor and filtro_coluna in colunas:
+            lf = lf.filter(
                 pl.col(filtro_coluna).cast(pl.Utf8).str.contains(filtro_valor, literal=True)
             )
 
         # Ordenar
-        if ordenar_por and ordenar_por in df.columns:
-            df = df.sort(ordenar_por, descending=(ordem == "desc"))
+        if ordenar_por and ordenar_por in colunas:
+            lf = lf.sort(ordenar_por, descending=(ordem == "desc"))
+
+        # Evaluate the logical plan into memory
+        df = lf.collect()
 
         total = len(df)
         inicio = (pagina - 1) * por_pagina
