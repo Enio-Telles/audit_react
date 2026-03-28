@@ -5,3 +5,7 @@
 ## 2026-03-27 - Optimize O(N) DataFrame filtering in nested loop
 **Learning:** Performing `pl.col()` filtering on DataFrames inside a large nested `for` loop (like `df.filter(pl.col("id_produto") == id_prod)`) drastically hurts performance because the DataFrame has to be queried sequentially each iteration (causing O(N*M) time complexity).
 **Action:** When doing a look-up that only requires simple equivalence matching inside loops, convert the required DataFrame columns to a native Python dictionary beforehand (`dict(zip(keys, values))`). Using `dict.get()` reduces the time complexity to O(1) for lookups and speeds up processing significantly.
+
+## 2026-03-28 - Fast Parquet reads with Lazy API
+**Learning:** Eagerly reading Parquet files into Polars DataFrames using `pl.read_parquet` forces the engine to load all columns and rows into memory, making downstream filters and slices much slower and memory intensive.
+**Action:** Use `pl.scan_parquet` instead of `pl.read_parquet` to create a LazyFrame. This enables query pushdown (predicate and projection pushdowns), only loading into memory the exact rows and columns needed by `.collect()`. Use `lf.collect_schema()` when schema information is required without evaluating the frame.
