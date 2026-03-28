@@ -32,17 +32,21 @@ app = FastAPI(
 
 # Restrict CORS to specific origins instead of ["*"] for security
 # This prevents Cross-Site Request Forgery (CSRF) and data theft from malicious domains
-allowed_origins = os.getenv(
+# Also restrict allow_methods and allow_headers to explicitly required values
+raw_origins = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:5173,http://localhost:3000,http://localhost:8000"
 ).split(",")
+
+# Sanitize origin list (strip whitespace, filter out wildcards)
+allowed_origins = [o.strip() for o in raw_origins if o.strip() and o.strip() != "*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
 )
 
 # Diretório base para CNPJs
