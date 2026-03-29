@@ -74,8 +74,9 @@ def gerar_produtos_agrupados(
     # Depois: agrupar restantes por NCM
     restantes = df_produtos.filter(~pl.col("id_produto").is_in(list(ids_ja_agrupados)))
 
-    for ncm in restantes["ncm"].unique().to_list():
-        membros_ncm = restantes.filter(pl.col("ncm") == ncm)
+    # ⚡ Bolt: Use group_by instead of iterative filtering to prevent O(N*M) performance bottlenecks
+    for ncm_tuple, membros_ncm in restantes.group_by("ncm", maintain_order=True):
+        ncm = ncm_tuple[0] if isinstance(ncm_tuple, tuple) else ncm_tuple
         grupos.append(_criar_grupo(
             id_grupo=f"G{grupo_id:04d}",
             membros=membros_ncm,
