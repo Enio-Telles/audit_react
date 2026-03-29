@@ -222,6 +222,7 @@ export default function Consulta() {
                         variant="outline"
                         size="sm"
                         className="h-7 text-xs gap-1.5"
+                        aria-label="Atualizar dados"
                       >
                         <RefreshCw className="h-3 w-3" />
                       </Button>
@@ -328,6 +329,7 @@ export default function Consulta() {
                       className="h-7 w-7 p-0"
                       disabled={page === 1}
                       onClick={() => setPage(page - 1)}
+                      aria-label="Página anterior"
                     >
                       <ChevronLeft className="h-3.5 w-3.5" />
                     </Button>
@@ -339,6 +341,7 @@ export default function Consulta() {
                       size="sm"
                       className="h-7 w-7 p-0"
                       onClick={() => setPage(page + 1)}
+                      aria-label="Próxima página"
                     >
                       <ChevronRight className="h-3.5 w-3.5" />
                     </Button>
