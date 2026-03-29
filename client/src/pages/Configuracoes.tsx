@@ -51,32 +51,32 @@ export default function Configuracoes() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Host</Label>
-              <Input placeholder="oracle.sefin.local" className="font-mono text-sm" />
+              <Label htmlFor="host-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Host</Label>
+              <Input id="host-input" placeholder="oracle.sefin.local" className="font-mono text-sm" />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Porta</Label>
-              <Input placeholder="1521" className="font-mono text-sm" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Service Name</Label>
-              <Input placeholder="SEFIN" className="font-mono text-sm" />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Schema</Label>
-              <Input placeholder="AUDIT" className="font-mono text-sm" />
+              <Label htmlFor="porta-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Porta</Label>
+              <Input id="porta-input" placeholder="1521" className="font-mono text-sm" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Usuário</Label>
-              <Input placeholder="audit_user" className="font-mono text-sm" />
+              <Label htmlFor="service-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Service Name</Label>
+              <Input id="service-input" placeholder="SEFIN" className="font-mono text-sm" />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Senha</Label>
-              <Input type="password" placeholder="********" className="font-mono text-sm" />
+              <Label htmlFor="schema-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Schema</Label>
+              <Input id="schema-input" placeholder="AUDIT" className="font-mono text-sm" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="user-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Usuário</Label>
+              <Input id="user-input" placeholder="audit_user" className="font-mono text-sm" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="senha-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Senha</Label>
+              <Input id="senha-input" type="password" placeholder="********" className="font-mono text-sm" />
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -105,22 +105,22 @@ export default function Configuracoes() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label htmlFor="dir-cnpj-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Diretório de CNPJs
             </Label>
-            <Input placeholder="/storage/CNPJ" className="font-mono text-sm" />
+            <Input id="dir-cnpj-input" placeholder="/storage/CNPJ" className="font-mono text-sm" />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label htmlFor="dir-sql-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Diretório de Consultas SQL
             </Label>
-            <Input placeholder="/cruzamentos/consultas" className="font-mono text-sm" />
+            <Input id="dir-sql-input" placeholder="/cruzamentos/consultas" className="font-mono text-sm" />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label htmlFor="dir-exports-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Diretório de Exportações
             </Label>
-            <Input placeholder="/storage/exports" className="font-mono text-sm" />
+            <Input id="dir-exports-input" placeholder="/storage/exports" className="font-mono text-sm" />
           </div>
         </CardContent>
       </Card>
@@ -167,26 +167,26 @@ export default function Configuracoes() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">Reprocessamento automático</p>
-              <p className="text-xs text-muted-foreground">Recalcular tabelas derivadas automaticamente após edições</p>
+              <Label htmlFor="switch-reprocessamento" className="text-sm font-medium">Reprocessamento automático</Label>
+              <p id="desc-reprocessamento" className="text-xs text-muted-foreground">Recalcular tabelas derivadas automaticamente após edições</p>
             </div>
-            <Switch />
+            <Switch id="switch-reprocessamento" aria-describedby="desc-reprocessamento" />
           </div>
           <Separator />
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">Logs detalhados</p>
-              <p className="text-xs text-muted-foreground">Registrar todas as operações no log fiscal</p>
+              <Label htmlFor="switch-logs" className="text-sm font-medium">Logs detalhados</Label>
+              <p id="desc-logs" className="text-xs text-muted-foreground">Registrar todas as operações no log fiscal</p>
             </div>
-            <Switch defaultChecked />
+            <Switch id="switch-logs" aria-describedby="desc-logs" defaultChecked />
           </div>
           <Separator />
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">Exportação com formatação</p>
-              <p className="text-xs text-muted-foreground">Aplicar formatação de colunas ao exportar Excel</p>
+              <Label htmlFor="switch-exportacao" className="text-sm font-medium">Exportação com formatação</Label>
+              <p id="desc-exportacao" className="text-xs text-muted-foreground">Aplicar formatação de colunas ao exportar Excel</p>
             </div>
-            <Switch defaultChecked />
+            <Switch id="switch-exportacao" aria-describedby="desc-exportacao" defaultChecked />
           </div>
         </CardContent>
       </Card>
