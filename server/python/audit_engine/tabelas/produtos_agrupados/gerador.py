@@ -74,8 +74,10 @@ def gerar_produtos_agrupados(
     # Depois: agrupar restantes por NCM
     restantes = df_produtos.filter(~pl.col("id_produto").is_in(list(ids_ja_agrupados)))
 
-    for ncm in restantes["ncm"].unique().to_list():
-        membros_ncm = restantes.filter(pl.col("ncm") == ncm)
+    # ⚡ Otimização: Substituído O(N*M) unique+filter por O(N) group_by,
+    # evitando iteração no Python que degrada muito a performance com muitos NCMs
+    for key_tuple, membros_ncm in restantes.group_by("ncm", maintain_order=True):
+        ncm = key_tuple[0] if isinstance(key_tuple, tuple) else key_tuple
         grupos.append(_criar_grupo(
             id_grupo=f"G{grupo_id:04d}",
             membros=membros_ncm,
