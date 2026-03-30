@@ -7,3 +7,8 @@
 **Vulnerability:** Overly permissive CORS configuration (`allow_origins=["*"]`) combined with `allow_credentials=True`.
 **Learning:** This combination allows any domain to make cross-origin requests with credentials, which is insecure and invalid under strict browser specifications. It was likely left open during early development.
 **Prevention:** Always restrict CORS origins to trusted domains, ideally by reading them from an environment variable (e.g. `CORS_ORIGINS`) with safe localhost defaults for development. Ensure `allow_origins` does not use the wildcard `*` when `allow_credentials` is set to `True`.
+
+## 2025-02-27 - Insecure CORS Configuration
+**Vulnerability:** Overly permissive CORS configuration (`allow_origins=["*"]`) combined with `allow_credentials=True`. Also used `allow_methods=["*"]` and `allow_headers=["*"]`.
+**Learning:** This combination allows any domain to make cross-origin requests with credentials, which is insecure and invalid under strict browser specifications. It was likely left open during early development. Additionally, the `CORS_ORIGINS` environment variable can contain arbitrary whitespace or explicitly include the wildcard `*`, which would break the application startup or defeat origin security.
+**Prevention:** Always sanitize origin lists by stripping whitespace and filtering out the wildcard `*`. Restrict CORS origins to trusted domains, ideally by reading them from an environment variable (e.g. `CORS_ORIGINS`) with safe localhost defaults for development. Ensure `allow_origins` does not use the wildcard `*` when `allow_credentials` is set to `True`. Finally, always explicitly define `allow_methods` (e.g. `GET`, `POST`, `PUT`, `DELETE`, `OPTIONS`) and `allow_headers` instead of defaulting to `*`.
