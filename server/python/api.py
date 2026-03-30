@@ -32,17 +32,23 @@ app = FastAPI(
 
 # Restrict CORS to specific origins instead of ["*"] for security
 # This prevents Cross-Site Request Forgery (CSRF) and data theft from malicious domains
-allowed_origins = os.getenv(
+allowed_origins_raw = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:5173,http://localhost:3000,http://localhost:8000"
 ).split(",")
+
+# Sanitize origin lists by stripping whitespace and filtering out the wildcard
+allowed_origins = [
+    origin.strip() for origin in allowed_origins_raw
+    if origin.strip() and origin.strip() != "*"
+]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
 )
 
 # Diretório base para CNPJs
@@ -213,7 +219,7 @@ async def ler_tabela(
     filtro_coluna: Optional[str] = None,
     filtro_valor: Optional[str] = None,
     ordenar_por: Optional[str] = None,
-    ordem: str = Query("asc", regex="^(asc|desc)$"),
+    ordem: str = Query("asc", pattern="^(asc|desc)$"),
 ):
     """Lê dados de uma tabela Parquet com paginação e filtros."""
     cnpj_limpo = cnpj.replace(".", "").replace("/", "").replace("-", "")
@@ -316,7 +322,7 @@ async def recalcular_derivados(cnpj: str):
 async def exportar_tabela(
     cnpj: str,
     nome_tabela: str,
-    formato: str = Query("xlsx", regex="^(xlsx|csv|parquet)$"),
+    formato: str = Query("xlsx", pattern="^(xlsx|csv|parquet)$"),
 ):
     """Exporta uma tabela em formato Excel, CSV ou Parquet."""
     return {
