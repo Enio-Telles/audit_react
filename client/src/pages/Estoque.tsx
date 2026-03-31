@@ -2,6 +2,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/DataTable";
 import { toast } from "sonner";
 import { useTabelas } from "@/hooks/useAuditApi";
 import { formatarCnpj, useCnpj } from "@/contexts/CnpjContext";
@@ -113,36 +114,7 @@ export default function Estoque() {
                     Tabela sem dados para o CNPJ selecionado.
                   </p>
                 ) : (
-                  <div className="overflow-x-auto rounded border">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted/50">
-                        <tr>
-                          {colunas.map(coluna => (
-                            <th
-                              key={coluna}
-                              className="px-3 py-2 text-left font-semibold"
-                            >
-                              {coluna}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dados.map((linha, indice) => (
-                          <tr key={indice} className="border-t">
-                            {colunas.map(coluna => (
-                              <td
-                                key={`${indice}-${coluna}`}
-                                className="px-3 py-2 align-top"
-                              >
-                                {String(linha[coluna] ?? "")}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <DataTable dados={dados} colunas={colunas} />
                 )}
               </CardContent>
             </Card>

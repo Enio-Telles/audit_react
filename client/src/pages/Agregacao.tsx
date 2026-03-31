@@ -1,5 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable } from "@/components/DataTable";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +47,14 @@ export default function Agregacao() {
     const mensagensErro: string[] = [];
 
     try {
-      const respostaProdutos = await lerTodasPaginas(cnpjAtivo, "produtos", "parquets", undefined, undefined, "id_produto");
+      const respostaProdutos = await lerTodasPaginas(
+        cnpjAtivo,
+        "produtos",
+        "parquets",
+        undefined,
+        undefined,
+        "id_produto"
+      );
       setProdutos((respostaProdutos?.dados ?? []) as unknown as ProdutoLinha[]);
     } catch (erro) {
       const erroComParciais = erro as Error & { dadosParciais?: unknown[] };
@@ -60,7 +69,7 @@ export default function Agregacao() {
         "parquets",
         undefined,
         undefined,
-        "descricao_padrao",
+        "descricao_padrao"
       );
       setGrupos((respostaGrupos?.dados ?? []) as unknown as GrupoLinha[]);
     } catch (erro) {
@@ -84,16 +93,18 @@ export default function Agregacao() {
   const produtosFiltrados = useMemo(() => {
     const termo = filtro.toLowerCase();
     return produtos.filter(
-      (produto) =>
+      produto =>
         obterIdentificadorProduto(produto).toLowerCase().includes(termo) ||
         produto.descricao?.toLowerCase().includes(termo) ||
-        String(produto.ncm ?? "").toLowerCase().includes(termo),
+        String(produto.ncm ?? "")
+          .toLowerCase()
+          .includes(termo)
     );
   }, [filtro, produtos]);
 
   const alternarSelecionado = (id: string) => {
-    setSelecionados((atual) =>
-      atual.includes(id) ? atual.filter((item) => item !== id) : [...atual, id],
+    setSelecionados(atual =>
+      atual.includes(id) ? atual.filter(item => item !== id) : [...atual, id]
     );
   };
 
@@ -123,7 +134,9 @@ export default function Agregacao() {
       toast.success("Grupo desagregado com sucesso");
       await carregarDados();
     } catch (erro) {
-      toast.error("Falha ao desagregar", { description: (erro as Error).message });
+      toast.error("Falha ao desagregar", {
+        description: (erro as Error).message,
+      });
     }
   };
 
@@ -141,18 +154,27 @@ export default function Agregacao() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Agregacao manual - {formatarCnpj(cnpjAtivo)}</CardTitle>
+          <CardTitle className="text-sm font-semibold">
+            Agregacao manual - {formatarCnpj(cnpjAtivo)}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Input placeholder="Filtrar produtos" value={filtro} onChange={(event) => setFiltro(event.target.value)} />
+            <Input
+              placeholder="Filtrar produtos"
+              value={filtro}
+              onChange={event => setFiltro(event.target.value)}
+            />
             <Input
               placeholder="Descricao padrao do grupo (opcional)"
               value={descricaoPadrao}
-              onChange={(event) => setDescricaoPadrao(event.target.value)}
+              onChange={event => setDescricaoPadrao(event.target.value)}
             />
             <div className="flex items-center gap-2">
-              <Button onClick={executarAgregacao} disabled={loading || selecionados.length < 2}>
+              <Button
+                onClick={executarAgregacao}
+                disabled={loading || selecionados.length < 2}
+              >
                 Agregar selecionados ({selecionados.length})
               </Button>
               <Button variant="outline" onClick={() => setSelecionados([])}>
@@ -165,49 +187,40 @@ export default function Agregacao() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Produtos candidatos</CardTitle>
+          <CardTitle className="text-sm font-semibold">
+            Produtos candidatos
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto rounded border">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-3 py-2 text-left">Sel</th>
-                  <th className="px-3 py-2 text-left">ID</th>
-                  <th className="px-3 py-2 text-left">Descricao</th>
-                  <th className="px-3 py-2 text-left">NCM</th>
-                  <th className="px-3 py-2 text-left">CEST</th>
-                </tr>
-              </thead>
-              <tbody>
-                {produtosFiltrados.map((produto) => (
-                  <tr key={obterIdentificadorProduto(produto)} className="border-t">
-                    <td className="px-3 py-2">
-                      <Checkbox
-                        checked={selecionados.includes(obterIdentificadorProduto(produto))}
-                        onCheckedChange={() => alternarSelecionado(obterIdentificadorProduto(produto))}
-                      />
-                    </td>
-                    <td className="px-3 py-2 font-mono">{obterIdentificadorProduto(produto)}</td>
-                    <td className="px-3 py-2">{produto.descricao}</td>
-                    <td className="px-3 py-2 font-mono">{produto.ncm ?? ""}</td>
-                    <td className="px-3 py-2 font-mono">{produto.cest ?? ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            dados={produtos}
+            rowSelection="multiple"
+            onSelectionChanged={selected => setSelecionados(selected)}
+            customColumnDefs={[
+              { field: "id_item", headerName: "ID Item" },
+              { field: "id_produto", headerName: "ID Prod" },
+              { field: "descricao_produto", headerName: "Descricao" },
+              { field: "referencia", headerName: "Ref" },
+              { field: "unidade", headerName: "Unid" },
+              { field: "valor_unitario", headerName: "V. Unit" },
+            ]}
+          />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Grupos existentes</CardTitle>
+          <CardTitle className="text-sm font-semibold">
+            Grupos existentes
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {grupos.map((grupo) => (
-              <div key={grupo.id_agrupado} className="flex items-center justify-between rounded border p-3 text-sm">
+            {grupos.map(grupo => (
+              <div
+                key={grupo.id_agrupado}
+                className="flex items-center justify-between rounded border p-3 text-sm"
+              >
                 <div>
                   <p className="font-mono">{grupo.id_agrupado}</p>
                   <p>{grupo.descricao_padrao ?? grupo.descr_padrao ?? ""}</p>
@@ -215,13 +228,21 @@ export default function Agregacao() {
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{grupo.qtd_membros} membros</Badge>
                   <Badge variant="outline">{grupo.origem}</Badge>
-                  <Button variant="destructive" size="sm" onClick={() => executarDesagregacao(grupo.id_agrupado)}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => executarDesagregacao(grupo.id_agrupado)}
+                  >
                     Desagregar
                   </Button>
                 </div>
               </div>
             ))}
-            {grupos.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum grupo encontrado.</p> : null}
+            {grupos.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhum grupo encontrado.
+              </p>
+            ) : null}
           </div>
         </CardContent>
       </Card>
