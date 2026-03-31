@@ -1,12 +1,56 @@
+"""Gerador da tabela `id_agrupados`."""
+
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import Optional
+
+import polars as pl
 
 from ...contratos.base import ContratoTabela
 from ...pipeline.orquestrador import registrar_gerador
-from ...utils.polars_utils import tipo_para_polars
+from ...utils.pipeline_fiscal import criar_dataframe_vazio_contrato, escrever_dataframe_ao_contrato
 
 logger = logging.getLogger(__name__)
+
+
+def extrair_relacao_id_agrupado(df_agrupados: pl.DataFrame) -> pl.DataFrame:
+    """Extrai a relacao de cada id_produto para seu id_agrupado e descricao padrao."""
+    # 1. Analisa os ids_membros (que estao em formato JSON string) usando operacoes literais se necessario,
+    # Mas como o polars nao parseia JSON array para Int64 diretamente de forma trivial, 
+    # podemos usar uma funcao lambda ou expression para explodir e castar.
+    
+    # Extrair os ids do json, removendo colchetes e aspas, dividindo em lista, e explodindo
+    return df_agrupados.select(
+        pl.col("id_agrupado"),
+        pl.col("descricao_padrao"),
+        pl.col("ids_membros")
+          .str.replace_all(r"[\[\]\"']", "")
+          .str.split(",")
+          .alias("id_produto")
+    ).explode("id_produto").with_columns(
+        # Castar para inteiro ignorando eventuais espacos
+        pl.col("id_produto").str.strip_chars().cast(pl.Int64, strict=False)
+    ).drop_nulls("id_produto")
+
+
+def cruzar_agrupados_com_produtos(df_ponte: pl.DataFrame, df_produtos: pl.DataFrame) -> pl.DataFrame:
+    """Cruza a relacao inicial com a tabela de produtos para trazer a descricao original."""
+    # Join para enriquecer a ponte com a descricao que o item tinha isoladamente
+    return df_ponte.join(
+        df_produtos.select(
+            pl.col("id_produto").cast(pl.Int64, strict=False),
+            pl.col("descricao").alias("descricao_original")
+        ),
+        on="id_produto",
+        how="inner"
+    ).select(
+        "id_produto",
+        "id_agrupado",
+        "descricao_original",
+        "descricao_padrao"
+    ).sort("id_produto")
+
 
 @registrar_gerador("id_agrupados")
 def gerar_id_agrupados(
@@ -15,54 +59,29 @@ def gerar_id_agrupados(
     arquivo_saida: Path,
     contrato: ContratoTabela,
 ) -> int:
-    """
-    Gera tabela de mapeamento id_produto → id_agrupado.
-    """
-    try:
-        import polars as pl
-    except ImportError:
-        raise RuntimeError("Polars não instalado")
-
+    """Gera a ponte rastreavel entre produto publico (id_produto) e grupo mestre (id_agrupado)."""
     arquivo_agrupados = diretorio_parquets / "produtos_agrupados.parquet"
     arquivo_produtos = diretorio_parquets / "produtos.parquet"
 
-    if not arquivo_agrupados.exists():
-        raise FileNotFoundError("produtos_agrupados.parquet não encontrado")
+    if not arquivo_agrupados.exists() or not arquivo_produtos.exists():
+        logger.warning("Dependencias id_agrupados ausentes.")
+        return escrever_dataframe_ao_contrato(criar_dataframe_vazio_contrato(contrato), arquivo_saida, contrato)
 
     df_agrupados = pl.read_parquet(arquivo_agrupados)
     df_produtos = pl.read_parquet(arquivo_produtos)
 
-    if len(df_agrupados) == 0:
-        df = pl.DataFrame(
-            schema={col.nome: tipo_para_polars(col.tipo.value) for col in contrato.colunas}
-        )
-        df.write_parquet(arquivo_saida)
-        return 0
+    if df_agrupados.is_empty() or df_produtos.is_empty():
+        return escrever_dataframe_ao_contrato(criar_dataframe_vazio_contrato(contrato), arquivo_saida, contrato)
 
-    # Expandir mapeamento
-    registros = []
-    for row in df_agrupados.iter_rows(named=True):
-        ids_membros = json.loads(row["ids_membros"]) if isinstance(row["ids_membros"], str) else []
-        for id_prod in ids_membros:
-            produto = df_produtos.filter(pl.col("id_produto") == id_prod)
-            desc_original = produto["descricao"][0] if len(produto) > 0 else ""
-            registros.append({
-                "id_produto": id_prod,
-                "id_agrupado": row["id_agrupado"],
-                "descricao_original": desc_original,
-                "descricao_padrao": row["descricao_padrao"],
-            })
+    # 1. Transformar coluna consolidada em linhas de mapa De/Para
+    df_ponte = extrair_relacao_id_agrupado(df_agrupados)
 
-    if registros:
-        df = pl.DataFrame(registros)
-    else:
-        df = pl.DataFrame(
-            schema={col.nome: tipo_para_polars(col.tipo.value) for col in contrato.colunas}
-        )
+    # 2. Enriquecer com a descricao fiscal original garantindo a integridade
+    df_final = cruzar_agrupados_com_produtos(df_ponte, df_produtos)
 
-    df.write_parquet(arquivo_saida)
-    logger.info(f"id_agrupados: {len(df)} mapeamentos gerados")
-    return len(df)
+    if df_final.is_empty():
+        df_final = criar_dataframe_vazio_contrato(contrato)
 
-
-
+    total_registros = escrever_dataframe_ao_contrato(df_final, arquivo_saida, contrato)
+    logger.info("id_agrupados: %s registros gerados", total_registros)
+    return total_registros

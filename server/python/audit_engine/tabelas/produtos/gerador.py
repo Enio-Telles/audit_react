@@ -1,12 +1,21 @@
+"""Gerador da tabela `produtos`."""
+
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import Optional
+
+import polars as pl
 
 from ...contratos.base import ContratoTabela
 from ...pipeline.orquestrador import registrar_gerador
-from ...utils.polars_utils import tipo_para_polars
+from ...utils.pipeline_fiscal import (
+    criar_dataframe_vazio_contrato,
+    escrever_dataframe_ao_contrato,
+)
 
 logger = logging.getLogger(__name__)
+
 
 @registrar_gerador("produtos")
 def gerar_produtos(
@@ -15,60 +24,48 @@ def gerar_produtos(
     arquivo_saida: Path,
     contrato: ContratoTabela,
 ) -> int:
-    """
-    Gera tabela produtos a partir de produtos_unidades.
-    
-    Processo:
-    1. Lê produtos_unidades
-    2. Agrupa por id_produto (remove duplicatas de unidade)
-    3. Determina unidade principal (mais frequente)
-    4. Calcula totais consolidados
-    
-    Returns:
-        Número de registros gerados
-    """
-    try:
-        import polars as pl
-    except ImportError:
-        raise RuntimeError("Polars não instalado")
-
+    """Consolida a camada de produtos publicos a partir de `produtos_unidades`."""
     arquivo_entrada = diretorio_parquets / "produtos_unidades.parquet"
-    
     if not arquivo_entrada.exists():
-        raise FileNotFoundError("produtos_unidades.parquet não encontrado")
+        raise FileNotFoundError("produtos_unidades.parquet nao encontrado")
 
     df_entrada = pl.read_parquet(arquivo_entrada)
-    
-    if len(df_entrada) == 0:
-        df = pl.DataFrame(
-            schema={col.nome: tipo_para_polars(col.tipo.value) for col in contrato.colunas}
-        )
-        df.write_parquet(arquivo_saida)
-        return 0
+    if df_entrada.is_empty():
+        return escrever_dataframe_ao_contrato(criar_dataframe_vazio_contrato(contrato), arquivo_saida, contrato)
 
-    # Agrupar por id_produto
-    df = (
+    # Determina a unidade principal preservando a unidade de venda quando existir.
+    df_produtos = (
         df_entrada
-        .group_by("id_produto")
-        .agg([
-            pl.col("descricao").first(),
-            pl.col("ncm").first(),
-            pl.col("cest").first(),
-            pl.col("unid_venda").first().alias("unidade_principal"),
-            (pl.col("qtd_nfe_compra").sum() + pl.col("qtd_nfe_venda").sum()).alias("qtd_total_nfe"),
-            (pl.col("valor_total_compra").sum() + pl.col("valor_total_venda").sum()).alias("valor_total"),
-        ])
         .with_columns(
-            pl.when(pl.col("qtd_total_nfe") > 0)
-            .then(pl.lit("ambos"))
-            .otherwise(pl.lit("venda"))
-            .alias("tipo")
+            [
+                pl.when(pl.col("unid_venda").is_not_null() & (pl.col("unid_venda") != ""))
+                .then(pl.col("unid_venda"))
+                .otherwise(pl.col("unid_compra"))
+                .alias("unidade_principal"),
+                (pl.col("qtd_nfe_compra") + pl.col("qtd_nfe_venda")).alias("qtd_total_nfe"),
+                (pl.col("valor_total_compra") + pl.col("valor_total_venda")).alias("valor_total"),
+                pl.when((pl.col("qtd_nfe_compra") > 0) & (pl.col("qtd_nfe_venda") > 0))
+                .then(pl.lit("ambos"))
+                .when(pl.col("qtd_nfe_compra") > 0)
+                .then(pl.lit("compra"))
+                .otherwise(pl.lit("venda"))
+                .alias("tipo"),
+            ]
+        )
+        .select(
+            [
+                "id_produto",
+                "descricao",
+                "ncm",
+                "cest",
+                "unidade_principal",
+                "qtd_total_nfe",
+                "valor_total",
+                "tipo",
+            ]
         )
     )
-    
-    df.write_parquet(arquivo_saida)
-    logger.info(f"produtos: {len(df)} registros gerados")
-    return len(df)
 
-
-
+    total_registros = escrever_dataframe_ao_contrato(df_produtos, arquivo_saida, contrato)
+    logger.info("produtos: %s registros gerados", total_registros)
+    return total_registros

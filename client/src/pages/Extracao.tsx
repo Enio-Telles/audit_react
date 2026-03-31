@@ -1,306 +1,310 @@
-/*
- * Extração — Swiss Design Fiscal
- * Selecionar CNPJ, consultas SQL, data limite, executar pipeline
- * Baseado em AuditarCNPJ.tsx do sefin_audit_5
- */
-import { useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import {
-  Play,
-  History,
-  Database,
-  FileText,
-  CheckCircle2,
-  Circle,
-  Clock,
-  AlertCircle,
-  FolderOpen,
-} from "lucide-react";
+import { Loader2, Play, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { usePipeline, useSistema } from "@/hooks/useAuditApi";
+import { formatarCnpj, useCnpj } from "@/contexts/CnpjContext";
+import { contarErrosTotais, listarConsultasComErro, montarResumoErrosExecucao } from "@/lib/pipeline";
+import { classificarStatusOracle, identificarDicaOperacionalOracle } from "@/lib/oracle";
+import type { SistemaStatus } from "@/types/audit";
 
-const CONSULTAS_DISPONIVEIS = [
-  {
-    id: "nfe",
-    nome: "NFe - Notas Fiscais Eletrônicas",
-    categoria: "Documentos",
-  },
-  {
-    id: "nfce",
-    nome: "NFCe - Notas Fiscais Consumidor",
-    categoria: "Documentos",
-  },
-  {
-    id: "c100",
-    nome: "C100 - Registro de Documentos Fiscais",
-    categoria: "EFD",
-  },
-  { id: "c170", nome: "C170 - Itens dos Documentos Fiscais", categoria: "EFD" },
-  { id: "bloco_h", nome: "Bloco H - Inventário Físico", categoria: "EFD" },
-  { id: "reg0000", nome: "Reg 0000 - Abertura do Arquivo", categoria: "EFD" },
-  {
-    id: "reg0200",
-    nome: "Reg 0200 - Tabela de Identificação do Item",
-    categoria: "EFD",
-  },
-  {
-    id: "reg0220",
-    nome: "Reg 0220 - Fatores de Conversão de Unidades",
-    categoria: "EFD",
-  },
-];
-
-const ETAPAS_PIPELINE = [
-  { id: "conexao", label: "Conexão Oracle" },
-  { id: "extracao", label: "Extração de Dados" },
-  { id: "parquet", label: "Geração de Parquets" },
-  { id: "produtos", label: "Tabelas de Produtos" },
-  { id: "analises", label: "Análises e Relatórios" },
-];
-
-function formatCnpj(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 14);
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
-  if (digits.length <= 8)
-    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
-  if (digits.length <= 12)
-    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
-  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
-}
+const CONSULTAS_PADRAO = ["nfe", "nfce", "c100", "c170", "bloco_h", "reg0000", "reg0200", "reg0220"];
 
 export default function Extracao() {
-  const [cnpj, setCnpj] = useState("");
+  const { cnpjAtivo, definirCnpjAtivo } = useCnpj();
   const [dataLimite, setDataLimite] = useState("");
-  const [consultasSelecionadas, setConsultasSelecionadas] = useState<string[]>(
-    CONSULTAS_DISPONIVEIS.map(c => c.id)
-  );
-  const [activeTab, setActiveTab] = useState("nova");
+  const [consultasDisponiveis, setConsultasDisponiveis] = useState<string[]>(CONSULTAS_PADRAO);
+  const [consultasSelecionadas, setConsultasSelecionadas] = useState<string[]>(CONSULTAS_PADRAO);
+  const [statusSistema, setStatusSistema] = useState<SistemaStatus | null>(null);
 
-  const toggleConsulta = (id: string) => {
-    setConsultasSelecionadas(prev =>
-      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+  const { listarConsultas, carregarStatus } = useSistema();
+  const { data: resultadoPipeline, loading: executando, error: erroPipeline, executar } = usePipeline();
+  const dicaErroPipeline = identificarDicaOperacionalOracle(erroPipeline);
+
+  useEffect(() => {
+    listarConsultas()
+      .then((resposta) => {
+        if (resposta.consultas?.length) {
+          setConsultasDisponiveis(resposta.consultas);
+          setConsultasSelecionadas(resposta.consultas);
+        }
+      })
+      .catch(() => {
+        // Mantem fallback local quando backend ainda nao tiver consultas disponiveis.
+      });
+  }, [listarConsultas]);
+
+  useEffect(() => {
+    carregarStatus()
+      .then(setStatusSistema)
+      .catch(() => {
+        // Mantem a tela funcional mesmo se o status operacional nao carregar.
+      });
+  }, [carregarStatus]);
+
+  const cnpjFormatado = useMemo(() => formatarCnpj(cnpjAtivo), [cnpjAtivo]);
+  const possuiExtracaoSelecionada = consultasSelecionadas.length > 0;
+  const extracaoBloqueada = possuiExtracaoSelecionada && statusSistema?.oracle_conectada === false;
+  const badgeOracle = classificarStatusOracle(statusSistema);
+  const totalErrosExecucao = contarErrosTotais(resultadoPipeline);
+  const consultasComErro = listarConsultasComErro(resultadoPipeline);
+
+  const alternarConsulta = (consulta: string) => {
+    setConsultasSelecionadas((atual) =>
+      atual.includes(consulta) ? atual.filter((item) => item !== consulta) : [...atual, consulta],
     );
   };
 
-  const handleExecutar = () => {
-    const cnpjLimpo = cnpj.replace(/\D/g, "");
-    if (cnpjLimpo.length !== 14) {
-      toast.error("Informe um CNPJ válido com 14 dígitos");
+  const executarPipeline = async () => {
+    if (cnpjAtivo.length !== 14) {
+      toast.error("Informe um CNPJ valido com 14 digitos");
       return;
     }
-    if (consultasSelecionadas.length === 0) {
-      toast.error("Selecione ao menos uma consulta SQL");
+
+    const statusAtual = await carregarStatus()
+      .then((resposta) => {
+        setStatusSistema(resposta);
+        return resposta;
+      })
+      .catch(() => statusSistema);
+
+    const extracaoBloqueadaAtual = consultasSelecionadas.length > 0 && statusAtual?.oracle_conectada === false;
+
+    if (extracaoBloqueadaAtual) {
+      toast.error("Extracao bloqueada pela conexao Oracle ativa", {
+        description:
+          identificarDicaOperacionalOracle(statusAtual?.erro_oracle ?? erroPipeline) ??
+          "Selecione uma conexao Oracle valida em Configuracoes ou corrija VPN/DNS antes de extrair.",
+      });
       return;
     }
-    toast.info("Funcionalidade em desenvolvimento", {
-      description:
-        "O backend Python (audit_engine) precisa ser configurado para executar extrações.",
-    });
+
+    try {
+      const resultado = await executar(
+        cnpjAtivo,
+        consultasSelecionadas,
+        dataLimite || undefined,
+        statusAtual?.oracle_indice_ativo ?? statusSistema?.oracle_indice_ativo,
+      );
+      if (resultado.status === "concluido") {
+        toast.success("Pipeline concluido", {
+          description: `${resultado.tabelas_geradas.length} tabelas geradas`,
+        });
+      } else {
+        toast.warning("Pipeline concluido com erros", {
+          description: montarResumoErrosExecucao(resultado),
+        });
+      }
+    } catch (erro) {
+      const mensagemErro = (erro as Error).message;
+      const dicaErro = identificarDicaOperacionalOracle(mensagemErro);
+      toast.error("Falha na execucao do pipeline", {
+        description: dicaErro ? `${mensagemErro} ${dicaErro}` : mensagemErro,
+      });
+    }
   };
 
-  const categorias = Array.from(
-    new Set(CONSULTAS_DISPONIVEIS.map(c => c.categoria))
-  );
-
   return (
-    <div className="space-y-6 max-w-5xl">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="nova" className="gap-2">
-            <Play className="h-3.5 w-3.5" />
-            Nova Extração
-          </TabsTrigger>
-          <TabsTrigger value="historico" className="gap-2">
-            <History className="h-3.5 w-3.5" />
-            Histórico
-          </TabsTrigger>
-        </TabsList>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Execucao do pipeline fiscal</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">CNPJ</Label>
+              <Input
+                value={cnpjFormatado}
+                onChange={(event) => definirCnpjAtivo(event.target.value)}
+                placeholder="00.000.000/0000-00"
+                className="font-mono"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Data limite (opcional)
+              </Label>
+              <Input
+                value={dataLimite}
+                onChange={(event) => setDataLimite(event.target.value)}
+                placeholder="YYYY-MM-DD (vazio = todo o historico)"
+                className="font-mono"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Deixe em branco para extrair todo o historico disponivel do CNPJ, sem filtro temporal.
+              </p>
+            </div>
+          </div>
 
-        <TabsContent value="nova" className="space-y-4 mt-4">
-          {/* CNPJ + Data Limite */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Database className="h-4 w-4 text-primary" />
-                Dados da Extração
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="cnpj-input"
-                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                  >
-                    CNPJ do Contribuinte
-                  </Label>
-                  <Input
-                    id="cnpj-input"
-                    placeholder="00.000.000/0000-00"
-                    value={cnpj}
-                    onChange={e => setCnpj(formatCnpj(e.target.value))}
-                    className="font-mono text-base h-11"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="data-limite-input"
-                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                  >
-                    Data Limite EFD (opcional)
-                  </Label>
-                  <Input
-                    id="data-limite-input"
-                    placeholder="DD/MM/AAAA"
-                    value={dataLimite}
-                    onChange={e => setDataLimite(e.target.value)}
-                    className="font-mono text-base h-11"
-                  />
-                </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Consultas SQL</Label>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setConsultasSelecionadas(consultasDisponiveis)}>
+                  Selecionar todas
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setConsultasSelecionadas([])}>
+                  Limpar
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Consultas SQL */}
-          <Card>
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" />
-                  Consultas SQL
-                </CardTitle>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() =>
-                      setConsultasSelecionadas(
-                        CONSULTAS_DISPONIVEIS.map(c => c.id)
-                      )
-                    }
-                  >
-                    Selecionar Todas
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() => setConsultasSelecionadas([])}
-                  >
-                    Limpar
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-64">
-                <div className="space-y-4">
-                  {categorias.map(cat => (
-                    <div key={cat}>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
-                        {cat}
-                      </p>
-                      <div className="space-y-1">
-                        {CONSULTAS_DISPONIVEIS.filter(
-                          c => c.categoria === cat
-                        ).map(consulta => (
-                          <label
-                            key={consulta.id}
-                            htmlFor={`checkbox-${consulta.id}`}
-                            className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent/50 transition-colors cursor-pointer"
-                          >
-                            <Checkbox
-                              id={`checkbox-${consulta.id}`}
-                              checked={consultasSelecionadas.includes(
-                                consulta.id
-                              )}
-                              onCheckedChange={() =>
-                                toggleConsulta(consulta.id)
-                              }
-                            />
-                            <span className="text-sm">{consulta.nome}</span>
-                            <Badge
-                              variant="outline"
-                              className="ml-auto text-[10px] font-mono"
-                            >
-                              {consulta.id}
-                            </Badge>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          {/* Pipeline Steps Preview */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Clock className="h-4 w-4 text-primary" />
-                Etapas do Pipeline
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2 flex-wrap">
-                {ETAPAS_PIPELINE.map((etapa, idx) => (
-                  <div key={etapa.id} className="flex items-center gap-2">
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted">
-                      <Circle className="h-3 w-3 text-muted-foreground/40" />
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {etapa.label}
-                      </span>
-                    </div>
-                    {idx < ETAPAS_PIPELINE.length - 1 && (
-                      <div className="w-4 h-px bg-border" />
-                    )}
-                  </div>
+            </div>
+            <ScrollArea className="h-48 rounded border p-3">
+              <div className="space-y-2">
+                {consultasDisponiveis.map((consulta) => (
+                  <label key={consulta} className="flex cursor-pointer items-center gap-3 rounded px-2 py-1 hover:bg-accent/50">
+                    <Checkbox
+                      checked={consultasSelecionadas.includes(consulta)}
+                      onCheckedChange={() => alternarConsulta(consulta)}
+                    />
+                    <span className="font-mono text-sm">{consulta}</span>
+                  </label>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+            </ScrollArea>
+          </div>
 
-          {/* Execute Button */}
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2 text-xs">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={badgeOracle.variante}>{badgeOracle.texto}</Badge>
+                <Badge variant="outline">Conexao ativa: #{statusSistema?.oracle_indice_ativo ?? 0}</Badge>
+              </div>
+              <p className="text-muted-foreground">
+                {possuiExtracaoSelecionada
+                  ? "A extracao Oracle usa a conexao ativa definida em Configuracoes."
+                  : "Sem consultas selecionadas, a execucao reutiliza dados ja extraidos do CNPJ."}
+              </p>
+            </div>
+            {statusSistema?.erro_oracle ? <p className="max-w-md text-right text-destructive">{statusSistema.erro_oracle}</p> : null}
+          </div>
+
+          <div className="flex items-center justify-end gap-3">
+            {erroPipeline ? (
+              <div className="max-w-md text-right">
+                <p className="text-xs text-destructive">{erroPipeline}</p>
+                {dicaErroPipeline ? <p className="text-[11px] text-muted-foreground">{dicaErroPipeline}</p> : null}
+              </div>
+            ) : null}
             <Button
-              size="lg"
-              className="gap-2 px-8"
-              onClick={handleExecutar}
-              disabled={cnpj.replace(/\D/g, "").length !== 14}
+              onClick={executarPipeline}
+              disabled={executando || cnpjAtivo.length !== 14 || extracaoBloqueada}
+              className="gap-2"
             >
-              <Play className="h-4 w-4" />
-              Executar Pipeline Completo
+              {executando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {executando ? "Executando..." : "Executar pipeline"}
             </Button>
           </div>
-        </TabsContent>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="historico" className="mt-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <FolderOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                <p className="text-sm font-medium text-muted-foreground">
-                  Nenhuma extração registrada
-                </p>
-                <p className="text-xs text-muted-foreground/60 mt-1">
-                  Execute uma extração para ver o histórico aqui
-                </p>
+      {resultadoPipeline ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-sm font-semibold">
+              <span>Resultado da execucao</span>
+              <Badge variant={resultadoPipeline.status === "concluido" ? "default" : "destructive"}>
+                {resultadoPipeline.status}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-4">
+              <div className="rounded border p-2">
+                <p className="text-muted-foreground">Tabelas geradas</p>
+                <p className="font-semibold">{resultadoPipeline.tabelas_geradas.length}</p>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              <div className="rounded border p-2">
+                <p className="text-muted-foreground">Duracao</p>
+                <p className="font-semibold">{resultadoPipeline.duracao_ms} ms</p>
+              </div>
+              <div className="rounded border p-2">
+                <p className="text-muted-foreground">Erros</p>
+                <p className="font-semibold">{totalErrosExecucao}</p>
+                {totalErrosExecucao > 0 ? <p className="text-[11px] text-muted-foreground">{montarResumoErrosExecucao(resultadoPipeline)}</p> : null}
+              </div>
+              <div className="rounded border p-2">
+                <p className="text-muted-foreground">Extracao</p>
+                <p className="font-semibold">{resultadoPipeline.extracao?.status ?? "nao executada"}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Etapas</h3>
+              <div className="overflow-x-auto rounded border">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Tabela</th>
+                      <th className="px-3 py-2 text-left">Status</th>
+                      <th className="px-3 py-2 text-right">Registros</th>
+                      <th className="px-3 py-2 text-right">Duracao (ms)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resultadoPipeline.etapas.map((etapa) => (
+                      <tr key={etapa.tabela} className="border-t">
+                        <td className="px-3 py-2 font-mono">{etapa.tabela}</td>
+                        <td className="px-3 py-2">{etapa.status}</td>
+                        <td className="px-3 py-2 text-right">{etapa.registros ?? 0}</td>
+                        <td className="px-3 py-2 text-right">{etapa.duracao_ms ?? 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {resultadoPipeline.erros_total.length > 0 ? (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-destructive">Erros</h3>
+                {resultadoPipeline.erros_extracao.length > 0 ? (
+                  <div className="space-y-2 rounded border border-destructive/30 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-destructive">Extracao Oracle</p>
+                    <ul className="list-disc space-y-1 pl-4 text-xs text-destructive">
+                      {resultadoPipeline.erros_extracao.map((erro) => (
+                        <li key={erro}>{erro}</li>
+                      ))}
+                    </ul>
+                    {consultasComErro.length > 0 ? (
+                      <p className="text-[11px] text-muted-foreground">Consultas com falha: {consultasComErro.join(", ")}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+                {resultadoPipeline.erros_pipeline.length > 0 ? (
+                  <div className="space-y-2 rounded border border-destructive/30 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-destructive">Pipeline de tabelas</p>
+                    <ul className="list-disc space-y-1 pl-4 text-xs text-destructive">
+                      {resultadoPipeline.erros_pipeline.map((erro) => (
+                        <li key={erro}>{erro}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => executarPipeline()}
+                disabled={executando}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Reexecutar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

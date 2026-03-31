@@ -191,7 +191,13 @@ def transmitir_saida(processo: subprocess.Popen[str], prefixo: str) -> None:
     """Replica a saída do subprocesso com prefixo para facilitar rastreabilidade."""
     assert processo.stdout is not None
     for linha in processo.stdout:
-        print(f"[{prefixo}] {linha}", end="")
+        mensagem = f"[{prefixo}] {linha}"
+        try:
+            print(mensagem, end="")
+        except UnicodeEncodeError:
+            codificacao_saida = sys.stdout.encoding or "utf-8"
+            mensagem_segura = mensagem.encode(codificacao_saida, errors="replace").decode(codificacao_saida)
+            print(mensagem_segura, end="")
 
 
 def iniciar_subprocesso(

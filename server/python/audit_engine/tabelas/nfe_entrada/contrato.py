@@ -6,7 +6,7 @@ registrar_contrato(ContratoTabela(
     descricao="NFe de entrada enriquecidas com classificação CO SEFIN",
     modulo="modulos.estoque",
     funcao="gerar_nfe_entrada",
-    dependencias=["produtos_final"],
+    dependencias=["produtos_final", "id_agrupados"],
     saida="nfe_entrada.parquet",
     colunas=[
         ColunaSchema("chave_nfe", TipoColuna.STRING, "Chave de acesso da NFe"),

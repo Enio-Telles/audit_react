@@ -4,7 +4,11 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { CnpjProvider } from "./contexts/CnpjContext";
+import { SelecaoOperacionalProvider } from "./contexts/SelecaoOperacionalContext";
 import DashboardLayout from "./components/layout/DashboardLayout";
+import Home from "./pages/Home";
+import DadosCadastrais from "./pages/DadosCadastrais";
 import Dashboard from "./pages/Dashboard";
 import Extracao from "./pages/Extracao";
 import Consulta from "./pages/Consulta";
@@ -12,18 +16,23 @@ import Agregacao from "./pages/Agregacao";
 import Conversao from "./pages/Conversao";
 import Estoque from "./pages/Estoque";
 import Configuracoes from "./pages/Configuracoes";
+import Relatorios from "./pages/Relatorios";
+import MapeamentoOracle from "./pages/MapeamentoOracle";
 
-function Router() {
+function PainelRouter() {
   return (
     <DashboardLayout>
       <Switch>
-        <Route path="/" component={Dashboard} />
+        <Route path="/dashboard" component={Dashboard} />
+        <Route path="/dados-cadastrais" component={DadosCadastrais} />
         <Route path="/extracao" component={Extracao} />
         <Route path="/consulta" component={Consulta} />
         <Route path="/agregacao" component={Agregacao} />
         <Route path="/conversao" component={Conversao} />
         <Route path="/estoque" component={Estoque} />
+        <Route path="/mapeamento-oracle" component={MapeamentoOracle} />
         <Route path="/configuracoes" component={Configuracoes} />
+        <Route path="/relatorios" component={Relatorios} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
@@ -31,14 +40,27 @@ function Router() {
   );
 }
 
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route component={PainelRouter} />
+    </Switch>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <CnpjProvider>
+          <SelecaoOperacionalProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Router />
+            </TooltipProvider>
+          </SelecaoOperacionalProvider>
+        </CnpjProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

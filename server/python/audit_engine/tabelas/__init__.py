@@ -20,3 +20,7 @@ from .id_agrupados import contrato as _
 from .id_agrupados import gerador as _
 from .produtos_selecionados import contrato as _
 from .produtos_selecionados import gerador as _
+from .ajustes_e111 import contrato as _
+from .ajustes_e111 import gerador as _
+from .st_itens import contrato as _
+from .st_itens import gerador as _

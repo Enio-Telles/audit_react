@@ -1,8 +1,7 @@
-"""
-Orquestrador de Pipeline — audit_engine
-Executa tabelas na ordem topológica, gerencia dependências e reprocessamento.
-Baseado no orquestrador_pipeline.py do audit_pyside.
-"""
+﻿"""Orquestrador de pipeline de tabelas por CNPJ."""
+
+from __future__ import annotations
+
 import logging
 import time
 from dataclasses import dataclass, field
@@ -10,12 +9,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set
 
-from ..contratos.base import (
-    CONTRATOS,
-    ContratoTabela,
-    obter_contrato,
-    ordem_topologica,
-)
+from ..contratos.base import CONTRATOS, obter_contrato, ordem_topologica
+from ..utils.camada_silver import materializar_camadas_silver
+from ..utils.camadas_cnpj import garantir_estrutura_camadas_cnpj
+from ..utils.manifesto_cnpj import gerar_manifesto_cnpj
 
 logger = logging.getLogger(__name__)
 
@@ -53,119 +50,121 @@ class ResultadoPipeline:
 
     @property
     def tabelas_geradas(self) -> List[str]:
-        return [e.tabela for e in self.etapas if e.status == StatusEtapa.CONCLUIDA]
+        return [item.tabela for item in self.etapas if item.status == StatusEtapa.CONCLUIDA]
 
 
-# Registro de funções geradoras
 _GERADORES: Dict[str, Callable] = {}
 
 
 def registrar_gerador(nome_tabela: str):
-    """Decorator para registrar uma função geradora de tabela."""
+    """Registra funcao geradora no catalogo global do pipeline."""
+
     def decorator(func: Callable):
         _GERADORES[nome_tabela] = func
         return func
+
     return decorator
 
 
 class OrquestradorPipeline:
-    """
-    Orquestra a execução do pipeline de tabelas.
-    
-    Responsabilidades:
-    - Resolver ordem de execução via topologia de dependências
-    - Executar geradores na ordem correta
-    - Gerenciar reprocessamento parcial (cascade)
-    - Reportar progresso e erros
-    """
+    """Executa pipeline completo/parcial e reprocessamento em cascata."""
 
     def __init__(self, diretorio_cnpj: Path, cnpj: str):
         self.diretorio_cnpj = diretorio_cnpj
         self.cnpj = cnpj
+        garantir_estrutura_camadas_cnpj(diretorio_cnpj)
         self.diretorio_parquets = diretorio_cnpj / "parquets"
-        self.diretorio_parquets.mkdir(parents=True, exist_ok=True)
+        self.diretorio_silver = diretorio_cnpj / "silver"
         self._callback_progresso: Optional[Callable] = None
 
     def set_callback_progresso(self, callback: Callable):
-        """Define callback para reportar progresso."""
+        """Define callback opcional para reportar progresso da execucao."""
         self._callback_progresso = callback
 
     def _reportar_progresso(self, etapa: str, status: StatusEtapa, mensagem: str = ""):
         if self._callback_progresso:
             self._callback_progresso(etapa, status.value, mensagem)
 
+    def _validar_tabela(self, nome_tabela: str) -> None:
+        """Valida se tabela existe no catalogo de contratos."""
+        if nome_tabela not in CONTRATOS:
+            raise KeyError(f"Tabela nao registrada no pipeline: {nome_tabela}")
+
     def executar_pipeline_completo(
         self,
         tabelas_alvo: Optional[List[str]] = None,
     ) -> ResultadoPipeline:
-        """
-        Executa o pipeline completo ou parcial.
-        
-        Args:
-            tabelas_alvo: Se fornecido, executa apenas essas tabelas e suas dependências.
-        """
+        """Executa pipeline completo ou parcial."""
         resultado = ResultadoPipeline(cnpj=self.cnpj, inicio=time.time())
-        
-        # Determinar ordem de execução
-        ordem = ordem_topologica()
-        
+        self._materializar_silver()
+
+        ordem_execucao = ordem_topologica()
+
         if tabelas_alvo:
-            # Filtrar apenas tabelas necessárias (alvo + dependências)
-            necessarias = self._resolver_dependencias(tabelas_alvo)
-            ordem = [t for t in ordem if t in necessarias]
+            for tabela in tabelas_alvo:
+                self._validar_tabela(tabela)
 
-        logger.info(f"Pipeline iniciado para CNPJ {self.cnpj}")
-        logger.info(f"Ordem de execução: {ordem}")
+            tabelas_necessarias = self._resolver_dependencias(tabelas_alvo)
+            ordem_execucao = [tabela for tabela in ordem_execucao if tabela in tabelas_necessarias]
 
-        for nome_tabela in ordem:
+        logger.info("Pipeline iniciado para CNPJ %s", self.cnpj)
+        logger.info("Ordem de execucao: %s", ordem_execucao)
+
+        for nome_tabela in ordem_execucao:
             etapa_resultado = self._executar_etapa(nome_tabela)
             resultado.etapas.append(etapa_resultado)
 
             if etapa_resultado.status == StatusEtapa.ERRO:
-                resultado.erros.append(
-                    f"Erro em {nome_tabela}: {etapa_resultado.mensagem}"
-                )
-                # Continuar com próximas tabelas que não dependem desta
-                logger.warning(f"Erro em {nome_tabela}, continuando pipeline...")
+                mensagem = f"Erro em {nome_tabela}: {etapa_resultado.mensagem}"
+                resultado.erros.append(mensagem)
+                logger.warning("%s", mensagem)
 
         resultado.fim = time.time()
-        
+
         if resultado.erros:
             resultado.status = "concluido_com_erros"
-        
+
         logger.info(
-            f"Pipeline concluído em {resultado.duracao_total_ms}ms. "
-            f"Tabelas geradas: {len(resultado.tabelas_geradas)}/{len(ordem)}"
+            "Pipeline concluido em %sms. Tabelas geradas: %s/%s",
+            resultado.duracao_total_ms,
+            len(resultado.tabelas_geradas),
+            len(ordem_execucao),
         )
-        
+        self.gerar_manifesto()
+
         return resultado
 
+    def _materializar_silver(self) -> None:
+        """Prepara as tabelas intermediarias reaproveitaveis do pipeline."""
+        self._reportar_progresso("silver", StatusEtapa.EXECUTANDO, "Materializando camada silver")
+        materializar_camadas_silver(self.diretorio_cnpj, self.cnpj)
+        self._reportar_progresso("silver", StatusEtapa.CONCLUIDA)
+
     def _executar_etapa(self, nome_tabela: str) -> ResultadoEtapa:
-        """Executa uma única etapa do pipeline."""
+        """Executa uma etapa individual respeitando dependencias declaradas."""
         contrato = obter_contrato(nome_tabela)
         gerador = _GERADORES.get(nome_tabela)
 
         self._reportar_progresso(nome_tabela, StatusEtapa.EXECUTANDO)
 
         if not gerador:
-            logger.warning(f"Gerador não registrado para {nome_tabela}, pulando...")
-            self._reportar_progresso(nome_tabela, StatusEtapa.PULADA, "Gerador não registrado")
+            mensagem = "Gerador nao registrado"
+            self._reportar_progresso(nome_tabela, StatusEtapa.PULADA, mensagem)
             return ResultadoEtapa(
                 tabela=nome_tabela,
                 status=StatusEtapa.PULADA,
-                mensagem="Gerador não registrado",
+                mensagem=mensagem,
             )
 
-        # Verificar se dependências foram geradas
-        for dep in contrato.dependencias:
-            arquivo_dep = self.diretorio_parquets / CONTRATOS[dep].saida
-            if not arquivo_dep.exists():
-                msg = f"Dependência não encontrada: {dep}"
-                self._reportar_progresso(nome_tabela, StatusEtapa.ERRO, msg)
+        for dependencia in contrato.dependencias:
+            arquivo_dependencia = self.diretorio_parquets / CONTRATOS[dependencia].saida
+            if not arquivo_dependencia.exists():
+                mensagem = f"Dependencia nao encontrada: {dependencia}"
+                self._reportar_progresso(nome_tabela, StatusEtapa.ERRO, mensagem)
                 return ResultadoEtapa(
                     tabela=nome_tabela,
                     status=StatusEtapa.ERRO,
-                    mensagem=msg,
+                    mensagem=mensagem,
                 )
 
         inicio = time.time()
@@ -178,10 +177,9 @@ class OrquestradorPipeline:
                 contrato=contrato,
             )
             duracao = int((time.time() - inicio) * 1000)
-            
+
             self._reportar_progresso(nome_tabela, StatusEtapa.CONCLUIDA)
-            logger.info(f"  {nome_tabela}: {registros} registros em {duracao}ms")
-            
+
             return ResultadoEtapa(
                 tabela=nome_tabela,
                 status=StatusEtapa.CONCLUIDA,
@@ -189,63 +187,72 @@ class OrquestradorPipeline:
                 registros_gerados=registros,
                 arquivo_saida=str(arquivo_saida),
             )
-        except Exception as e:
+        except Exception as erro:  # noqa: BLE001
             duracao = int((time.time() - inicio) * 1000)
-            msg = str(e)
-            self._reportar_progresso(nome_tabela, StatusEtapa.ERRO, msg)
-            logger.error(f"  Erro em {nome_tabela}: {msg}")
-            
+            mensagem = str(erro)
+            self._reportar_progresso(nome_tabela, StatusEtapa.ERRO, mensagem)
+            logger.exception("Falha na tabela %s", nome_tabela)
+
             return ResultadoEtapa(
                 tabela=nome_tabela,
                 status=StatusEtapa.ERRO,
-                mensagem=msg,
+                mensagem=mensagem,
                 duracao_ms=duracao,
             )
 
     def reprocessar_a_partir_de(self, tabela_editada: str) -> ResultadoPipeline:
-        """
-        Reprocessa todas as tabelas que dependem (direta ou indiretamente)
-        da tabela editada. Usado após edição manual de fatores/agregação.
-        """
+        """Reprocessa tabela editada e todos os dependentes transitivos."""
+        self._validar_tabela(tabela_editada)
+
         dependentes = self._resolver_dependentes(tabela_editada)
-        logger.info(f"Reprocessando a partir de {tabela_editada}: {dependentes}")
-        return self.executar_pipeline_completo(tabelas_alvo=list(dependentes))
+        alvos_reprocessamento = {tabela_editada, *dependentes}
+
+        logger.info(
+            "Reprocessando a partir de %s. Alvos: %s",
+            tabela_editada,
+            sorted(alvos_reprocessamento),
+        )
+
+        return self.executar_pipeline_completo(tabelas_alvo=sorted(alvos_reprocessamento))
 
     def _resolver_dependencias(self, tabelas: List[str]) -> Set[str]:
-        """Resolve todas as dependências transitivas de um conjunto de tabelas."""
+        """Resolve dependencias transitivas das tabelas alvo."""
         necessarias: Set[str] = set()
-        
-        def resolver(nome: str):
-            if nome in necessarias:
+
+        def visitar(nome_tabela: str):
+            if nome_tabela in necessarias:
                 return
-            necessarias.add(nome)
-            contrato = CONTRATOS.get(nome)
+            necessarias.add(nome_tabela)
+            contrato = CONTRATOS.get(nome_tabela)
             if contrato:
-                for dep in contrato.dependencias:
-                    resolver(dep)
-        
-        for t in tabelas:
-            resolver(t)
-        
+                for dependencia in contrato.dependencias:
+                    visitar(dependencia)
+
+        for tabela in tabelas:
+            visitar(tabela)
+
         return necessarias
 
     def _resolver_dependentes(self, tabela: str) -> Set[str]:
-        """Resolve todas as tabelas que dependem (direta ou indiretamente) de uma tabela."""
+        """Resolve todas as tabelas que dependem da tabela informada."""
         dependentes: Set[str] = set()
-        
-        def resolver(nome: str):
-            for nome_t, contrato in CONTRATOS.items():
-                if nome in contrato.dependencias and nome_t not in dependentes:
-                    dependentes.add(nome_t)
-                    resolver(nome_t)
-        
-        resolver(tabela)
+
+        def visitar(nome_tabela: str):
+            for tabela_contrato, contrato in CONTRATOS.items():
+                if nome_tabela in contrato.dependencias and tabela_contrato not in dependentes:
+                    dependentes.add(tabela_contrato)
+                    visitar(tabela_contrato)
+
+        visitar(tabela)
         return dependentes
 
     def verificar_integridade(self) -> Dict[str, bool]:
-        """Verifica se todos os parquets existem e estão íntegros."""
-        resultado = {}
-        for nome, contrato in CONTRATOS.items():
-            arquivo = self.diretorio_parquets / contrato.saida
-            resultado[nome] = arquivo.exists()
-        return resultado
+        """Verifica se arquivos parquet de todas as tabelas existem."""
+        return {
+            nome_tabela: (self.diretorio_parquets / contrato.saida).exists()
+            for nome_tabela, contrato in CONTRATOS.items()
+        }
+
+    def gerar_manifesto(self) -> dict:
+        """Gera manifesto consolidado do CNPJ com metadados das camadas."""
+        return gerar_manifesto_cnpj(self.diretorio_cnpj, cnpj=self.cnpj)

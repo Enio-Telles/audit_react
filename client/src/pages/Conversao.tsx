@@ -1,362 +1,205 @@
-/*
- * Conversão — Swiss Design Fiscal
- * Editar fatores de conversão, unid_ref, importar/exportar Excel
- * Baseado na aba Conversão do audit_pyside
- */
-import { useState, useMemo } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  ArrowLeftRight,
-  Search,
-  Download,
-  Upload,
-  RefreshCw,
-  Save,
-  ArrowUpDown,
-  AlertTriangle,
-  CheckCircle2,
-  Edit3,
-} from "lucide-react";
 import { toast } from "sonner";
-
-// Mock data
-const FATORES_EXEMPLO = Array.from({ length: 15 }).map((_, i) => ({
-  id: i + 1,
-  id_agrupado: `G${String(i + 1).padStart(3, "0")}`,
-  descricao_padrao: [
-    "CERVEJA PILSEN 350ML",
-    "REFRIGERANTE COLA 2L",
-    "AGUA MINERAL 500ML",
-    "LEITE INTEGRAL 1L",
-    "ACUCAR CRISTAL 1KG",
-    "ARROZ TIPO 1 5KG",
-    "FEIJAO PRETO 1KG",
-    "OLEO SOJA 900ML",
-    "FARINHA TRIGO 1KG",
-    "CAFE TORRADO 500G",
-    "SAL REFINADO 1KG",
-    "MACARRAO ESPAGUETE 500G",
-    "BISCOITO CREAM CRACKER 200G",
-    "MARGARINA 500G",
-    "DETERGENTE LIQUIDO 500ML",
-  ][i],
-  unid_compra: [
-    "LT",
-    "UN",
-    "UN",
-    "LT",
-    "KG",
-    "KG",
-    "KG",
-    "LT",
-    "KG",
-    "KG",
-    "KG",
-    "KG",
-    "UN",
-    "UN",
-    "UN",
-  ][i],
-  unid_venda: [
-    "UN",
-    "UN",
-    "UN",
-    "UN",
-    "KG",
-    "KG",
-    "KG",
-    "UN",
-    "KG",
-    "UN",
-    "KG",
-    "UN",
-    "UN",
-    "UN",
-    "UN",
-  ][i],
-  unid_ref: [
-    "UN",
-    "UN",
-    "UN",
-    "UN",
-    "KG",
-    "KG",
-    "KG",
-    "UN",
-    "KG",
-    "UN",
-    "KG",
-    "UN",
-    "UN",
-    "UN",
-    "UN",
-  ][i],
-  fator: [
-    1.0, 1.0, 1.0, 1.0, 1.0, 5.0, 1.0, 1.0, 1.0, 0.5, 1.0, 0.5, 1.0, 1.0, 1.0,
-  ][i],
-  status: i % 4 === 0 ? "pendente" : "ok",
-}));
+import { useConversao } from "@/hooks/useAuditApi";
+import { formatarCnpj, useCnpj } from "@/contexts/CnpjContext";
+import type { FatorConversao } from "@/types/audit";
 
 export default function Conversao() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("todos");
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editFator, setEditFator] = useState("");
-  const [editUnidRef, setEditUnidRef] = useState("");
+  const { cnpjAtivo } = useCnpj();
+  const { loading, editarFator, recalcular, listarFatores } = useConversao();
 
-  // ⚡ Bolt: Memoized array filtering and extracted toLowerCase to avoid unnecessary re-renders on unrelated state changes
-  const filteredFatores = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    return FATORES_EXEMPLO.filter(f => {
-      const matchSearch =
-        f.descricao_padrao.toLowerCase().includes(term) ||
-        f.id_agrupado.toLowerCase().includes(term);
-      const matchStatus = filterStatus === "todos" || f.status === filterStatus;
-      return matchSearch && matchStatus;
-    });
-  }, [searchTerm, filterStatus]);
+  const [fatores, setFatores] = useState<FatorConversao[]>([]);
+  const [filtroStatus, setFiltroStatus] = useState<"todos" | "ok" | "pendente" | "erro">("todos");
+  const [termo, setTermo] = useState("");
+  const [edicao, setEdicao] = useState<Record<string, { unid_ref: string; fator_compra_ref: string; fator_venda_ref: string }>>({});
 
-  const handleEdit = (id: number) => {
-    const fator = FATORES_EXEMPLO.find(f => f.id === id);
-    if (fator) {
-      setEditingId(id);
-      setEditFator(String(fator.fator));
-      setEditUnidRef(fator.unid_ref);
+  const carregarFatores = async () => {
+    if (!cnpjAtivo) return;
+    try {
+      const lista = await listarFatores(cnpjAtivo);
+      setFatores(lista);
+    } catch (erro) {
+      const erroComParciais = erro as Error & { dadosParciais?: FatorConversao[] };
+      setFatores(erroComParciais.dadosParciais ?? []);
+      toast.error("Falha ao carregar fatores", { description: (erro as Error).message });
     }
   };
 
-  const handleSave = () => {
-    toast.info("Funcionalidade em desenvolvimento", {
-      description: "A edição será salva quando o backend estiver conectado.",
+  useEffect(() => {
+    carregarFatores();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cnpjAtivo]);
+
+  const fatoresFiltrados = useMemo(() => {
+    return fatores.filter((fator) => {
+      const matchStatus = filtroStatus === "todos" || fator.status === filtroStatus;
+      const texto = `${fator.id_agrupado} ${fator.descricao_padrao}`.toLowerCase();
+      const matchTexto = texto.includes(termo.toLowerCase());
+      return matchStatus && matchTexto;
     });
-    setEditingId(null);
+  }, [fatores, filtroStatus, termo]);
+
+  const atualizarCampo = (id: string, campo: "unid_ref" | "fator_compra_ref" | "fator_venda_ref", valor: string) => {
+    setEdicao((atual) => ({
+      ...atual,
+      [id]: {
+        unid_ref: atual[id]?.unid_ref ?? "",
+        fator_compra_ref: atual[id]?.fator_compra_ref ?? "",
+        fator_venda_ref: atual[id]?.fator_venda_ref ?? "",
+        [campo]: valor,
+      },
+    }));
   };
 
-  const handleImport = () => {
-    toast.info("Funcionalidade em desenvolvimento", {
-      description: "A importação de Excel será habilitada com o backend.",
-    });
+  const salvarFator = async (fator: FatorConversao) => {
+    if (!cnpjAtivo) return;
+
+    const alteracao = edicao[fator.id_agrupado];
+    if (!alteracao) {
+      toast.info("Nenhuma alteracao para salvar");
+      return;
+    }
+
+    const payload = {
+      unid_ref: alteracao.unid_ref || fator.unid_ref,
+      fator_compra_ref: alteracao.fator_compra_ref ? Number(alteracao.fator_compra_ref) : fator.fator_compra_ref,
+      fator_venda_ref: alteracao.fator_venda_ref ? Number(alteracao.fator_venda_ref) : fator.fator_venda_ref,
+    };
+
+    try {
+      await editarFator(cnpjAtivo, fator.id_agrupado, payload);
+      toast.success("Fator atualizado");
+      setEdicao((atual) => {
+        const proximo = { ...atual };
+        delete proximo[fator.id_agrupado];
+        return proximo;
+      });
+      await carregarFatores();
+    } catch (erro) {
+      toast.error("Falha ao salvar fator", { description: (erro as Error).message });
+    }
   };
 
-  const handleExport = () => {
-    toast.info("Funcionalidade em desenvolvimento", {
-      description: "A exportação será habilitada com o backend.",
-    });
+  const executarRecalculo = async () => {
+    if (!cnpjAtivo) return;
+    try {
+      await recalcular(cnpjAtivo);
+      toast.success("Recalculo concluido");
+      await carregarFatores();
+    } catch (erro) {
+      toast.error("Falha no recalculo", { description: (erro as Error).message });
+    }
   };
 
-  const pendentes = useMemo(() => {
-    return FATORES_EXEMPLO.filter(f => f.status === "pendente").length;
-  }, []);
+  if (!cnpjAtivo) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+          Selecione um CNPJ ativo no cabecalho para editar fatores.
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <div className="space-y-4 max-w-6xl">
-      {/* Status bar */}
-      {pendentes > 0 && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-warning/10 border border-warning/20">
-          <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
-          <p className="text-sm text-foreground">
-            <span className="font-semibold">{pendentes} fatores</span> com
-            recálculo pendente. Edite os valores e clique em "Recalcular" para
-            atualizar as tabelas derivadas.
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-auto gap-1.5 text-xs"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Recalcular Derivados
-          </Button>
-        </div>
-      )}
-
-      {/* Toolbar */}
+    <div className="space-y-4">
       <Card>
-        <CardContent className="py-3 px-4">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Filtrar por descrição ou ID agrupado..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="pl-8 h-8 text-xs"
-              />
-            </div>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-36 h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="ok">Confirmados</SelectItem>
-                <SelectItem value="pendente">Pendentes</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-1.5 ml-auto">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs"
-                onClick={handleImport}
-              >
-                <Upload className="h-3.5 w-3.5" />
-                Importar Excel
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs"
-                onClick={handleExport}
-              >
-                <Download className="h-3.5 w-3.5" />
-                Exportar Excel
-              </Button>
-            </div>
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Fatores de conversao - {formatarCnpj(cnpjAtivo)}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <Input placeholder="Buscar por ID ou descricao" value={termo} onChange={(event) => setTermo(event.target.value)} />
+          <Select value={filtroStatus} onValueChange={(value) => setFiltroStatus(value as typeof filtroStatus)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="ok">OK</SelectItem>
+              <SelectItem value="pendente">Pendentes</SelectItem>
+              <SelectItem value="erro">Erro</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="md:col-span-2 flex items-center gap-2 justify-end">
+            <Button variant="outline" onClick={carregarFatores} disabled={loading}>
+              Atualizar
+            </Button>
+            <Button onClick={executarRecalculo} disabled={loading}>
+              Recalcular derivados
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Table */}
       <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
+        <CardContent className="pt-4">
+          <div className="overflow-x-auto rounded border">
             <table className="w-full text-xs">
-              <thead className="bg-muted/50 sticky top-0">
+              <thead className="bg-muted/50">
                 <tr>
-                  {[
-                    "ID Agrupado",
-                    "Descrição Padrão",
-                    "Unid Compra",
-                    "Unid Venda",
-                    "Unid Ref",
-                    "Fator",
-                    "Status",
-                    "Ações",
-                  ].map(col => (
-                    <th
-                      key={col}
-                      className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-b border-border"
-                    >
-                      <button className="flex items-center gap-1 hover:text-foreground transition-colors">
-                        {col}
-                        {col !== "Ações" && <ArrowUpDown className="h-3 w-3" />}
-                      </button>
-                    </th>
-                  ))}
+                  <th className="px-3 py-2 text-left">ID</th>
+                  <th className="px-3 py-2 text-left">Descricao</th>
+                  <th className="px-3 py-2 text-left">Unid ref</th>
+                  <th className="px-3 py-2 text-left">Fator compra</th>
+                  <th className="px-3 py-2 text-left">Fator venda</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left">Acao</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredFatores.map(fator => (
-                  <tr
-                    key={fator.id}
-                    className={`border-b border-border/50 transition-colors ${
-                      fator.status === "pendente"
-                        ? "bg-warning/5"
-                        : "hover:bg-accent/30"
-                    }`}
-                  >
-                    <td className="px-3 py-2 font-mono font-medium">
-                      {fator.id_agrupado}
-                    </td>
-                    <td className="px-3 py-2 max-w-xs truncate">
-                      {fator.descricao_padrao}
-                    </td>
-                    <td className="px-3 py-2 font-mono">{fator.unid_compra}</td>
-                    <td className="px-3 py-2 font-mono">{fator.unid_venda}</td>
-                    <td className="px-3 py-2">
-                      {editingId === fator.id ? (
+                {fatoresFiltrados.map((fator) => {
+                  const alteracao = edicao[fator.id_agrupado];
+                  return (
+                    <tr key={fator.id_agrupado} className="border-t">
+                      <td className="px-3 py-2 font-mono">{fator.id_agrupado}</td>
+                      <td className="px-3 py-2">{fator.descricao_padrao}</td>
+                      <td className="px-3 py-2">
                         <Input
-                          value={editUnidRef}
-                          onChange={e => setEditUnidRef(e.target.value)}
-                          className="h-7 w-16 text-xs font-mono"
+                          value={alteracao?.unid_ref ?? fator.unid_ref}
+                          onChange={(event) => atualizarCampo(fator.id_agrupado, "unid_ref", event.target.value)}
+                          className="h-8"
                         />
-                      ) : (
-                        <span className="font-mono">{fator.unid_ref}</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {editingId === fator.id ? (
+                      </td>
+                      <td className="px-3 py-2">
                         <Input
-                          value={editFator}
-                          onChange={e => setEditFator(e.target.value)}
-                          className="h-7 w-20 text-xs font-mono text-right"
+                          value={alteracao?.fator_compra_ref ?? String(fator.fator_compra_ref)}
+                          onChange={(event) => atualizarCampo(fator.id_agrupado, "fator_compra_ref", event.target.value)}
                           type="number"
-                          step="0.001"
+                          step="0.0001"
+                          className="h-8"
                         />
-                      ) : (
-                        <span className="font-mono">
-                          {fator.fator.toFixed(3)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {fator.status === "ok" ? (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] gap-1 text-green-700 border-green-200 bg-green-50"
-                        >
-                          <CheckCircle2 className="h-2.5 w-2.5" />
-                          OK
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] gap-1 text-amber-700 border-amber-200 bg-amber-50"
-                        >
-                          <AlertTriangle className="h-2.5 w-2.5" />
-                          Pendente
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {editingId === fator.id ? (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="h-6 text-[10px] gap-1"
-                            onClick={handleSave}
-                          >
-                            <Save className="h-3 w-3" />
-                            Salvar
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-[10px]"
-                            onClick={() => setEditingId(null)}
-                          >
-                            Cancelar
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 text-[10px] gap-1"
-                          onClick={() => handleEdit(fator.id)}
-                        >
-                          <Edit3 className="h-3 w-3" />
-                          Editar
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input
+                          value={alteracao?.fator_venda_ref ?? String(fator.fator_venda_ref)}
+                          onChange={(event) => atualizarCampo(fator.id_agrupado, "fator_venda_ref", event.target.value)}
+                          type="number"
+                          step="0.0001"
+                          className="h-8"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Badge variant={fator.status === "ok" ? "default" : "secondary"}>{fator.status}</Badge>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Button size="sm" onClick={() => salvarFator(fator)} disabled={loading}>
+                          Salvar
                         </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          {fatoresFiltrados.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">Nenhum fator encontrado para os filtros atuais.</p>
+          ) : null}
         </CardContent>
       </Card>
     </div>

@@ -1,375 +1,230 @@
-/*
- * Agregação — Swiss Design Fiscal
- * Tabela agrupável, seleção de linhas, agregação manual, reprocessamento
- * Baseado na aba Agregação do audit_pyside
- */
-import { useState, useMemo } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Boxes,
-  Search,
-  Merge,
-  Undo2,
-  RefreshCw,
-  ArrowUpDown,
-  CheckCircle2,
-  History,
-  Wand2,
-  Filter,
-  GitBranch,
-} from "lucide-react";
 import { toast } from "sonner";
+import { useAgregacao, useTabelas } from "@/hooks/useAuditApi";
+import { formatarCnpj, useCnpj } from "@/contexts/CnpjContext";
 
-// Mock data
-const PRODUTOS_EXEMPLO = Array.from({ length: 20 }).map((_, i) => ({
-  id: i + 1,
-  descricao: [
-    "CERVEJA PILSEN 350ML LATA",
-    "CERVEJA PILSEN 350 ML LT",
-    "CERV PILSEN 350ML",
-    "REFRIGERANTE COLA 2L PET",
-    "REFRIG COLA 2LT",
-    "AGUA MINERAL 500ML",
-    "AGUA MIN 500 ML",
-    "LEITE INTEGRAL 1L",
-    "LEITE INT 1LT CX",
-    "ACUCAR CRISTAL 1KG",
-    "ACUCAR CRIST 1 KG",
-    "ARROZ TIPO 1 5KG",
-    "FEIJAO PRETO 1KG",
-    "OLEO SOJA 900ML",
-    "FARINHA TRIGO 1KG",
-    "CAFE TORRADO 500G",
-    "SAL REFINADO 1KG",
-    "MACARRAO ESPAGUETE 500G",
-    "BISCOITO CREAM CRACKER 200G",
-    "MARGARINA 500G",
-  ][i],
-  ncm: [
-    "2203.00.00",
-    "2203.00.00",
-    "2203.00.00",
-    "2202.10.00",
-    "2202.10.00",
-    "2201.10.00",
-    "2201.10.00",
-    "0401.10.10",
-    "0401.10.10",
-    "1701.99.00",
-    "1701.99.00",
-    "1006.30.21",
-    "0713.33.19",
-    "1507.90.11",
-    "1101.00.10",
-    "0901.21.00",
-    "2501.00.20",
-    "1902.19.00",
-    "1905.31.00",
-    "1517.10.00",
-  ][i],
-  cest: [
-    "03.001.00",
-    "03.001.00",
-    "03.001.00",
-    "03.011.00",
-    "03.011.00",
-    "03.024.00",
-    "03.024.00",
-    "",
-    "",
-    "17.073.00",
-    "17.073.00",
-    "17.047.00",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-  ][i],
-  unidade: "UN",
-  qtd_nfe: Math.floor(Math.random() * 500) + 10,
-  grupo: i < 3 ? "G001" : i < 5 ? "G002" : i < 7 ? "G003" : null,
-}));
+interface ProdutoLinha {
+  id_item?: string;
+  id_produto?: string | number;
+  descricao?: string;
+  ncm?: string;
+  cest?: string;
+}
+
+interface GrupoLinha {
+  id_agrupado: string;
+  descr_padrao?: string;
+  descricao_padrao?: string;
+  qtd_membros: number;
+  origem: string;
+}
+
+function obterIdentificadorProduto(produto: ProdutoLinha): string {
+  return String(produto.id_item ?? produto.id_produto ?? "").trim();
+}
 
 export default function Agregacao() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedRows, setSelectedRows] = useState<number[]>([]);
-  const [activeTab, setActiveTab] = useState("candidatos");
+  const { cnpjAtivo } = useCnpj();
+  const { lerTodasPaginas } = useTabelas();
+  const { agregar, desagregar, loading } = useAgregacao();
 
-  const toggleRow = (id: number) => {
-    setSelectedRows(prev =>
-      prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
+  const [produtos, setProdutos] = useState<ProdutoLinha[]>([]);
+  const [grupos, setGrupos] = useState<GrupoLinha[]>([]);
+  const [selecionados, setSelecionados] = useState<string[]>([]);
+  const [filtro, setFiltro] = useState("");
+  const [descricaoPadrao, setDescricaoPadrao] = useState("");
+
+  const carregarDados = async () => {
+    if (!cnpjAtivo) return;
+
+    const mensagensErro: string[] = [];
+
+    try {
+      const respostaProdutos = await lerTodasPaginas(cnpjAtivo, "produtos", "parquets", undefined, undefined, "id_produto");
+      setProdutos((respostaProdutos?.dados ?? []) as unknown as ProdutoLinha[]);
+    } catch (erro) {
+      const erroComParciais = erro as Error & { dadosParciais?: unknown[] };
+      setProdutos((erroComParciais.dadosParciais ?? []) as ProdutoLinha[]);
+      mensagensErro.push(`produtos: ${erroComParciais.message}`);
+    }
+
+    try {
+      const respostaGrupos = await lerTodasPaginas(
+        cnpjAtivo,
+        "produtos_agrupados",
+        "parquets",
+        undefined,
+        undefined,
+        "descricao_padrao",
+      );
+      setGrupos((respostaGrupos?.dados ?? []) as unknown as GrupoLinha[]);
+    } catch (erro) {
+      const erroComParciais = erro as Error & { dadosParciais?: unknown[] };
+      setGrupos((erroComParciais.dadosParciais ?? []) as GrupoLinha[]);
+      mensagensErro.push(`grupos: ${erroComParciais.message}`);
+    }
+
+    if (mensagensErro.length > 0) {
+      toast.error("Falha ao carregar dados de agregacao", {
+        description: mensagensErro.join(" | "),
+      });
+    }
+  };
+
+  useEffect(() => {
+    carregarDados();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cnpjAtivo]);
+
+  const produtosFiltrados = useMemo(() => {
+    const termo = filtro.toLowerCase();
+    return produtos.filter(
+      (produto) =>
+        obterIdentificadorProduto(produto).toLowerCase().includes(termo) ||
+        produto.descricao?.toLowerCase().includes(termo) ||
+        String(produto.ncm ?? "").toLowerCase().includes(termo),
+    );
+  }, [filtro, produtos]);
+
+  const alternarSelecionado = (id: string) => {
+    setSelecionados((atual) =>
+      atual.includes(id) ? atual.filter((item) => item !== id) : [...atual, id],
     );
   };
 
-  const handleAgregar = () => {
-    if (selectedRows.length < 2) {
-      toast.error("Selecione ao menos 2 produtos para agregar");
+  const executarAgregacao = async () => {
+    if (!cnpjAtivo) return;
+    if (selecionados.length < 2) {
+      toast.error("Selecione pelo menos 2 produtos para agregar");
       return;
     }
-    toast.info("Funcionalidade em desenvolvimento", {
-      description: `${selectedRows.length} produtos selecionados para agregação. O backend precisa estar conectado.`,
-    });
+
+    try {
+      await agregar(cnpjAtivo, selecionados, descricaoPadrao || undefined);
+      toast.success("Agregacao registrada com sucesso");
+      setSelecionados([]);
+      setDescricaoPadrao("");
+      await carregarDados();
+    } catch (erro) {
+      toast.error("Falha ao agregar", { description: (erro as Error).message });
+    }
   };
 
-  // ⚡ Bolt: Memoized expensive array filtering and extracted toLowerCase to prevent unnecessary re-renders when selecting rows
-  const filteredProdutos = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    return PRODUTOS_EXEMPLO.filter(
-      p =>
-        p.descricao.toLowerCase().includes(term) || p.ncm.includes(searchTerm)
-    );
-  }, [searchTerm]);
+  const executarDesagregacao = async (idGrupo: string) => {
+    if (!cnpjAtivo) return;
 
-  const grupos = useMemo(() => {
-    return Array.from(
-      new Set(PRODUTOS_EXEMPLO.filter(p => p.grupo).map(p => p.grupo))
+    try {
+      await desagregar(cnpjAtivo, idGrupo);
+      toast.success("Grupo desagregado com sucesso");
+      await carregarDados();
+    } catch (erro) {
+      toast.error("Falha ao desagregar", { description: (erro as Error).message });
+    }
+  };
+
+  if (!cnpjAtivo) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+          Selecione um CNPJ ativo no cabecalho para editar agregacoes.
+        </CardContent>
+      </Card>
     );
-  }, []);
+  }
 
   return (
-    <div className="space-y-4 max-w-full">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="candidatos" className="gap-2">
-              <Boxes className="h-3.5 w-3.5" />
-              Candidatos
-            </TabsTrigger>
-            <TabsTrigger value="agrupados" className="gap-2">
-              <GitBranch className="h-3.5 w-3.5" />
-              Grupos Existentes
-            </TabsTrigger>
-            <TabsTrigger value="historico" className="gap-2">
-              <History className="h-3.5 w-3.5" />
-              Histórico
-            </TabsTrigger>
-          </TabsList>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <Wand2 className="h-3.5 w-3.5" />
-              Sugerir Pares
-            </Button>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <RefreshCw className="h-3.5 w-3.5" />
-              Reprocessar
-            </Button>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Agregacao manual - {formatarCnpj(cnpjAtivo)}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Input placeholder="Filtrar produtos" value={filtro} onChange={(event) => setFiltro(event.target.value)} />
+            <Input
+              placeholder="Descricao padrao do grupo (opcional)"
+              value={descricaoPadrao}
+              onChange={(event) => setDescricaoPadrao(event.target.value)}
+            />
+            <div className="flex items-center gap-2">
+              <Button onClick={executarAgregacao} disabled={loading || selecionados.length < 2}>
+                Agregar selecionados ({selecionados.length})
+              </Button>
+              <Button variant="outline" onClick={() => setSelecionados([])}>
+                Limpar
+              </Button>
+            </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="candidatos" className="mt-4 space-y-4">
-          {/* Action bar */}
-          <Card>
-            <CardContent className="py-3 px-4">
-              <div className="flex items-center gap-3">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Filtrar por descrição, NCM, CEST..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="pl-8 h-8 text-xs"
-                  />
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Produtos candidatos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto rounded border">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="px-3 py-2 text-left">Sel</th>
+                  <th className="px-3 py-2 text-left">ID</th>
+                  <th className="px-3 py-2 text-left">Descricao</th>
+                  <th className="px-3 py-2 text-left">NCM</th>
+                  <th className="px-3 py-2 text-left">CEST</th>
+                </tr>
+              </thead>
+              <tbody>
+                {produtosFiltrados.map((produto) => (
+                  <tr key={obterIdentificadorProduto(produto)} className="border-t">
+                    <td className="px-3 py-2">
+                      <Checkbox
+                        checked={selecionados.includes(obterIdentificadorProduto(produto))}
+                        onCheckedChange={() => alternarSelecionado(obterIdentificadorProduto(produto))}
+                      />
+                    </td>
+                    <td className="px-3 py-2 font-mono">{obterIdentificadorProduto(produto)}</td>
+                    <td className="px-3 py-2">{produto.descricao}</td>
+                    <td className="px-3 py-2 font-mono">{produto.ncm ?? ""}</td>
+                    <td className="px-3 py-2 font-mono">{produto.cest ?? ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Grupos existentes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {grupos.map((grupo) => (
+              <div key={grupo.id_agrupado} className="flex items-center justify-between rounded border p-3 text-sm">
+                <div>
+                  <p className="font-mono">{grupo.id_agrupado}</p>
+                  <p>{grupo.descricao_padrao ?? grupo.descr_padrao ?? ""}</p>
                 </div>
-                <Badge variant="secondary" className="text-xs">
-                  {selectedRows.length} selecionados
-                </Badge>
-                <Button
-                  size="sm"
-                  className="gap-1.5 text-xs"
-                  onClick={handleAgregar}
-                  disabled={selectedRows.length < 2}
-                >
-                  <Merge className="h-3.5 w-3.5" />
-                  Agregar Selecionados
-                </Button>
-                {selectedRows.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 text-xs"
-                    onClick={() => setSelectedRows([])}
-                  >
-                    <Undo2 className="h-3.5 w-3.5" />
-                    Limpar
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{grupo.qtd_membros} membros</Badge>
+                  <Badge variant="outline">{grupo.origem}</Badge>
+                  <Button variant="destructive" size="sm" onClick={() => executarDesagregacao(grupo.id_agrupado)}>
+                    Desagregar
                   </Button>
-                )}
+                </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Table */}
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-muted/50 sticky top-0">
-                    <tr>
-                      <th className="px-3 py-2.5 w-10 border-b border-border">
-                        <Checkbox
-                          aria-label="Selecionar todos os produtos"
-                          checked={
-                            selectedRows.length === filteredProdutos.length &&
-                            filteredProdutos.length > 0
-                          }
-                          onCheckedChange={checked => {
-                            if (checked) {
-                              setSelectedRows(filteredProdutos.map(p => p.id));
-                            } else {
-                              setSelectedRows([]);
-                            }
-                          }}
-                        />
-                      </th>
-                      {[
-                        "Descrição",
-                        "NCM",
-                        "CEST",
-                        "Unid",
-                        "Qtd NFe",
-                        "Grupo",
-                      ].map(col => (
-                        <th
-                          key={col}
-                          className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-b border-border"
-                        >
-                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
-                            {col}
-                            <ArrowUpDown className="h-3 w-3" />
-                          </button>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredProdutos.map(produto => (
-                      <tr
-                        key={produto.id}
-                        className={`border-b border-border/50 transition-colors ${
-                          selectedRows.includes(produto.id)
-                            ? "bg-primary/5"
-                            : "hover:bg-accent/30"
-                        }`}
-                      >
-                        <td className="px-3 py-2">
-                          <Checkbox
-                            aria-label={`Selecionar produto ${produto.descricao}`}
-                            checked={selectedRows.includes(produto.id)}
-                            onCheckedChange={() => toggleRow(produto.id)}
-                          />
-                        </td>
-                        <td className="px-3 py-2 max-w-sm">
-                          <span className="font-medium">
-                            {produto.descricao}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 font-mono">{produto.ncm}</td>
-                        <td className="px-3 py-2 font-mono">
-                          {produto.cest || "—"}
-                        </td>
-                        <td className="px-3 py-2 font-mono">
-                          {produto.unidade}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-right">
-                          {produto.qtd_nfe}
-                        </td>
-                        <td className="px-3 py-2">
-                          {produto.grupo ? (
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] font-mono"
-                            >
-                              {produto.grupo}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground/40">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="agrupados" className="mt-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                {grupos.map(grupo => {
-                  const membros = PRODUTOS_EXEMPLO.filter(
-                    p => p.grupo === grupo
-                  );
-                  return (
-                    <div
-                      key={grupo}
-                      className="border border-border rounded-lg p-4"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Badge className="font-mono text-xs">{grupo}</Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {membros.length} produtos
-                          </span>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs gap-1.5"
-                        >
-                          <Undo2 className="h-3 w-3" />
-                          Desagregar
-                        </Button>
-                      </div>
-                      <div className="space-y-1">
-                        {membros.map(m => (
-                          <div
-                            key={m.id}
-                            className="flex items-center gap-3 px-3 py-1.5 rounded bg-muted/30 text-xs"
-                          >
-                            <CheckCircle2 className="h-3 w-3 text-green-600 shrink-0" />
-                            <span className="flex-1">{m.descricao}</span>
-                            <span className="font-mono text-muted-foreground">
-                              {m.ncm}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="historico" className="mt-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <History className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                <p className="text-sm font-medium text-muted-foreground">
-                  Nenhum histórico de agregação
-                </p>
-                <p className="text-xs text-muted-foreground/60 mt-1">
-                  As operações de agregação serão registradas aqui
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            ))}
+            {grupos.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum grupo encontrado.</p> : null}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
