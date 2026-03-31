@@ -232,30 +232,35 @@ async def ler_tabela(
     try:
         import polars as pl
 
-        df = pl.read_parquet(arquivo)
+        # Bolt: Otimização de performance. O uso de scan_parquet em vez de read_parquet
+        # permite que o motor do Polars execute avaliações lazy (como filtros e paginação)
+        # apenas nas linhas/colunas necessárias, evitando carregar tabelas imensas na memória de uma vez.
+        lf = pl.scan_parquet(arquivo)
+        schema = lf.collect_schema()
+        colunas_disponiveis = schema.names()
 
         # Aplicar filtro
-        if filtro_coluna and filtro_valor and filtro_coluna in df.columns:
-            df = df.filter(
+        if filtro_coluna and filtro_valor and filtro_coluna in colunas_disponiveis:
+            lf = lf.filter(
                 pl.col(filtro_coluna).cast(pl.Utf8).str.contains(filtro_valor, literal=True)
             )
 
         # Ordenar
-        if ordenar_por and ordenar_por in df.columns:
-            df = df.sort(ordenar_por, descending=(ordem == "desc"))
+        if ordenar_por and ordenar_por in colunas_disponiveis:
+            lf = lf.sort(ordenar_por, descending=(ordem == "desc"))
 
-        total = len(df)
+        total = lf.select(pl.len()).collect().item()
         inicio = (pagina - 1) * por_pagina
-        dados = df.slice(inicio, por_pagina)
+        dados = lf.slice(inicio, por_pagina).collect()
 
         return {
-            "colunas": df.columns,
+            "colunas": colunas_disponiveis,
             "dados": dados.to_dicts(),
             "total_registros": total,
             "pagina": pagina,
             "por_pagina": por_pagina,
             "total_paginas": (total + por_pagina - 1) // por_pagina,
-            "schema": {col: str(df[col].dtype) for col in df.columns},
+            "schema": {col: str(dtype) for col, dtype in schema.items()},
         }
     except ImportError:
         raise HTTPException(
