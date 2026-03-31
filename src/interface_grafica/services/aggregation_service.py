@@ -401,6 +401,10 @@ class ServicoAgregacao:
         df_base = self._ler_parquet_colunas(
             self.caminho_itens_unidades(cnpj),
             ["descricao", "ncm", "cest", "gtin", "co_sefin_item", "fontes", "fonte"],
+        ).with_columns(
+            pl.col("descricao")
+            .map_elements(self._normalizar_descricao_para_match, return_dtype=pl.String)
+            .alias("descricao_normalizada_temp")
         )
 
         df_para_unir = df.filter(pl.col("id_agrupado").is_in(ids_agrupados_selecionados))
@@ -427,10 +431,8 @@ class ServicoAgregacao:
         lista_desc_norm = df_prod_sel["descricao_normalizada"].to_list()
 
         df_base_filtered = df_base.filter(
-            pl.col("descricao")
-            .map_elements(self._normalizar_descricao_para_match, return_dtype=pl.String)
-            .is_in(lista_desc_norm)
-        )
+            pl.col("descricao_normalizada_temp").is_in(lista_desc_norm)
+        ).drop("descricao_normalizada_temp")
 
         padrao = calcular_atributos_padrao(df_base_filtered)
         descr_fallback = self._primeira_descricao_por_chaves(df_prod_link, todas_chaves_proc)
@@ -861,7 +863,11 @@ class ServicoAgregacao:
                 ],
             )
         )
-        df_base = self._ler_parquet_colunas(path_base, ["descricao", "fonte", "fontes", "ncm", "cest", "gtin", "co_sefin_item"])
+        df_base = self._ler_parquet_colunas(path_base, ["descricao", "fonte", "fontes", "ncm", "cest", "gtin", "co_sefin_item"]).with_columns(
+            pl.col("descricao")
+            .map_elements(self._normalizar_descricao_para_match, return_dtype=pl.String)
+            .alias("descricao_normalizada_temp")
+        )
 
         registros = []
         for row in df_agrup.iter_rows(named=True):
@@ -873,10 +879,8 @@ class ServicoAgregacao:
             )
 
             df_base_filtered = df_base.filter(
-                pl.col("descricao")
-                .map_elements(self._normalizar_descricao_para_match, return_dtype=pl.String)
-                .is_in(desc_norm)
-            )
+                pl.col("descricao_normalizada_temp").is_in(desc_norm)
+            ).drop("descricao_normalizada_temp")
             padrao = calcular_atributos_padrao(df_base_filtered)
             descr_fallback = self._primeira_descricao_por_chaves(df_prod, chaves)
 

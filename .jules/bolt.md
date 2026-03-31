@@ -1,0 +1,3 @@
+## 2024-05-24 - [Performance] Pre-calculate string normalization outside loops
+**Learning:** Polars' `map_elements` can be extremely slow if called inside a loop over a DataFrame's rows, especially if used directly within a `.filter()` expression where the transformation is repeatedly calculated on the entire base DataFrame on every iteration.
+**Action:** Always extract `map_elements` operations (like string normalization) from inside iterative loops. Pre-calculate the result into a temporary column using `.with_columns()` before the loop, perform efficient vectorized operations (like `.is_in()`) inside the loop on the pre-calculated column, and finally `.drop()` the temporary column to maintain schema consistency.
