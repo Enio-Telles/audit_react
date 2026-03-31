@@ -7,3 +7,8 @@
 **Vulnerability:** Overly permissive CORS configuration (`allow_origins=["*"]`) combined with `allow_credentials=True`.
 **Learning:** This combination allows any domain to make cross-origin requests with credentials, which is insecure and invalid under strict browser specifications. It was likely left open during early development.
 **Prevention:** Always restrict CORS origins to trusted domains, ideally by reading them from an environment variable (e.g. `CORS_ORIGINS`) with safe localhost defaults for development. Ensure `allow_origins` does not use the wildcard `*` when `allow_credentials` is set to `True`.
+
+## 2025-03-31 - Overly Permissive CORS Configuration
+**Vulnerability:** The `CORSMiddleware` was initialized with `allow_origins=allowed_origins` where `allowed_origins` could potentially contain whitespace and the `*` wildcard, and combined with `allow_credentials=True`, this is a severe vulnerability. The `allow_methods=["*"]` and `allow_headers=["*"]` further amplified the attack surface allowing CSRF and malicious origin access.
+**Learning:** Using `*` for origins, headers or methods while having `allow_credentials=True` is prohibited in modern web architecture as it enables arbitrary sites to send authenticated requests. Furthermore, comma-separated environment variables must always be stripped of whitespace.
+**Prevention:** Sanitize origin strings (e.g., using `[o.strip() for o in raw.split(',') if o.strip() and o.strip() != '*']`) before passing to `allow_origins`. Restrict `allow_methods` to specifically required HTTP verbs (`GET`, `POST`, `PUT`, `DELETE`) and `allow_headers` to specific headers like `Content-Type` and `Authorization`.
