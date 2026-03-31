@@ -1,8 +1,15 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/DataTable";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -12,7 +19,8 @@ import type { CamadaTabela } from "@/types/audit";
 
 export default function Consulta() {
   const { cnpjAtivo } = useCnpj();
-  const { tabelas, dadosTabela, loading, error, listar, ler, exportar } = useTabelas();
+  const { tabelas, dadosTabela, loading, error, listar, ler, exportar } =
+    useTabelas();
 
   const [nomeTabela, setNomeTabela] = useState<string>("");
   const [camada, setCamada] = useState<CamadaTabela>("parquets");
@@ -22,8 +30,10 @@ export default function Consulta() {
 
   useEffect(() => {
     if (!cnpjAtivo) return;
-    listar(cnpjAtivo, camada).catch((erro) => {
-      toast.error("Falha ao listar tabelas", { description: (erro as Error).message });
+    listar(cnpjAtivo, camada).catch(erro => {
+      toast.error("Falha ao listar tabelas", {
+        description: (erro as Error).message,
+      });
     });
   }, [cnpjAtivo, camada, listar]);
 
@@ -36,21 +46,30 @@ export default function Consulta() {
       pagina,
       50,
       filtroColuna !== "__todas__" ? filtroColuna : undefined,
-      filtroValor || undefined,
-    ).catch((erro) => {
-      toast.error("Falha ao carregar tabela", { description: (erro as Error).message });
+      filtroValor || undefined
+    ).catch(erro => {
+      toast.error("Falha ao carregar tabela", {
+        description: (erro as Error).message,
+      });
     });
   }, [cnpjAtivo, nomeTabela, camada, pagina, filtroColuna, filtroValor, ler]);
 
-  const colunasTabela = useMemo(() => dadosTabela?.colunas ?? [], [dadosTabela]);
+  const colunasTabela = useMemo(
+    () => dadosTabela?.colunas ?? [],
+    [dadosTabela]
+  );
 
   const baixarTabela = async (formato: "xlsx" | "csv" | "parquet") => {
     if (!cnpjAtivo || !nomeTabela) return;
     try {
       await exportar(cnpjAtivo, nomeTabela, formato);
-      toast.success("Exportacao concluida", { description: `${nomeTabela}.${formato}` });
+      toast.success("Exportacao concluida", {
+        description: `${nomeTabela}.${formato}`,
+      });
     } catch (erro) {
-      toast.error("Falha ao exportar", { description: (erro as Error).message });
+      toast.error("Falha ao exportar", {
+        description: (erro as Error).message,
+      });
     }
   };
 
@@ -68,16 +87,24 @@ export default function Consulta() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Consulta de tabelas - {formatarCnpj(cnpjAtivo)}</CardTitle>
+          <CardTitle className="text-sm font-semibold">
+            Consulta de tabelas - {formatarCnpj(cnpjAtivo)}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <Select value={nomeTabela} onValueChange={(value) => { setNomeTabela(value); setPagina(1); }}>
+            <Select
+              value={nomeTabela}
+              onValueChange={value => {
+                setNomeTabela(value);
+                setPagina(1);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione a tabela" />
               </SelectTrigger>
               <SelectContent>
-                {tabelas.map((tabela) => (
+                {tabelas.map(tabela => (
                   <SelectItem key={tabela.nome} value={tabela.nome}>
                     {tabela.nome}
                   </SelectItem>
@@ -87,7 +114,7 @@ export default function Consulta() {
 
             <Select
               value={camada}
-              onValueChange={(value) => {
+              onValueChange={value => {
                 setCamada(value as CamadaTabela);
                 setNomeTabela("");
                 setPagina(1);
@@ -109,7 +136,7 @@ export default function Consulta() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__todas__">Sem filtro de coluna</SelectItem>
-                {colunasTabela.map((coluna) => (
+                {colunasTabela.map(coluna => (
                   <SelectItem key={coluna} value={coluna}>
                     {coluna}
                   </SelectItem>
@@ -120,22 +147,36 @@ export default function Consulta() {
             <Input
               placeholder="Valor do filtro"
               value={filtroValor}
-              onChange={(event) => {
+              onChange={event => {
                 setFiltroValor(event.target.value);
                 setPagina(1);
               }}
             />
 
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => cnpjAtivo && listar(cnpjAtivo, camada)} className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => cnpjAtivo && listar(cnpjAtivo, camada)}
+                className="gap-2"
+              >
                 <RefreshCw className="h-4 w-4" />
                 Atualizar
               </Button>
-              <Button variant="outline" onClick={() => baixarTabela("csv")} className="gap-2" disabled={!nomeTabela}>
+              <Button
+                variant="outline"
+                onClick={() => baixarTabela("csv")}
+                className="gap-2"
+                disabled={!nomeTabela}
+              >
                 <Download className="h-4 w-4" />
                 CSV
               </Button>
-              <Button variant="outline" onClick={() => baixarTabela("xlsx")} className="gap-2" disabled={!nomeTabela}>
+              <Button
+                variant="outline"
+                onClick={() => baixarTabela("xlsx")}
+                className="gap-2"
+                disabled={!nomeTabela}
+              >
                 XLSX
               </Button>
             </div>
@@ -150,43 +191,29 @@ export default function Consulta() {
           <CardTitle className="flex items-center justify-between text-sm font-semibold">
             <span>{nomeTabela || "Nenhuma tabela selecionada"}</span>
             {dadosTabela ? (
-              <Badge variant="outline">{dadosTabela.total_registros} registros</Badge>
+              <Badge variant="outline">
+                {dadosTabela.total_registros} registros
+              </Badge>
             ) : null}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {!nomeTabela ? (
-            <p className="text-sm text-muted-foreground">Selecione uma tabela para visualizar.</p>
+            <p className="text-sm text-muted-foreground">
+              Selecione uma tabela para visualizar.
+            </p>
           ) : loading ? (
             <p className="text-sm text-muted-foreground">Carregando...</p>
           ) : !dadosTabela || dadosTabela.dados.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Tabela sem registros para os filtros informados.</p>
+            <p className="text-sm text-muted-foreground">
+              Tabela sem registros para os filtros informados.
+            </p>
           ) : (
             <>
-              <div className="overflow-x-auto rounded border">
-                <table className="w-full text-xs">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      {dadosTabela.colunas.map((coluna) => (
-                        <th key={coluna} className="px-3 py-2 text-left font-semibold">
-                          {coluna}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dadosTabela.dados.map((linha, indice) => (
-                      <tr key={indice} className="border-t">
-                        {dadosTabela.colunas.map((coluna) => (
-                          <td key={`${indice}-${coluna}`} className="px-3 py-2 align-top">
-                            {String(linha[coluna] ?? "")}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                dados={dadosTabela.dados}
+                colunas={dadosTabela.colunas}
+              />
 
               <div className="mt-3 flex items-center justify-between text-xs">
                 <span>
@@ -197,7 +224,7 @@ export default function Consulta() {
                     variant="outline"
                     size="sm"
                     disabled={dadosTabela.pagina <= 1}
-                    onClick={() => setPagina((atual) => Math.max(1, atual - 1))}
+                    onClick={() => setPagina(atual => Math.max(1, atual - 1))}
                   >
                     Anterior
                   </Button>
@@ -205,7 +232,7 @@ export default function Consulta() {
                     variant="outline"
                     size="sm"
                     disabled={dadosTabela.pagina >= dadosTabela.total_paginas}
-                    onClick={() => setPagina((atual) => atual + 1)}
+                    onClick={() => setPagina(atual => atual + 1)}
                   >
                     Proxima
                   </Button>

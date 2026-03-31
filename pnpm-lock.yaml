@@ -97,6 +97,12 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.1(@types/react@19.2.1))(@types/react@19.2.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      ag-grid-community:
+        specifier: ^35.2.0
+        version: 35.2.0
+      ag-grid-react:
+        specifier: ^35.2.0
+        version: 35.2.0(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       axios:
         specifier: ^1.12.0
         version: 1.12.2
@@ -1785,6 +1791,18 @@ packages:
 
   add@2.0.6:
     resolution: {integrity: sha512-j5QzrmsokwWWp6kUcJQySpbG+xfOBqqKnup3OIk1pz+kB/80SLorZ9V8zHFLO92Lcd+hbvq8bT+zOGoPkmBV0Q==}
+
+  ag-charts-types@13.2.0:
+    resolution: {integrity: sha512-O9TTqZmKwLpjylaxxfKqiQ3reWplCSkyB0yG/cRYKxyyIPxEIh312E/aFn63F0rqdY+yYvz/7xe4rmF6clL1gw==}
+
+  ag-grid-community@35.2.0:
+    resolution: {integrity: sha512-YLprL+RsOLHbhgpCXN62MASHGhtR4g1z4bNTY4dnUqKU/RRts13TgHukOEA5JKjyDpeQic8JA17bY8hO/KZBfQ==}
+
+  ag-grid-react@35.2.0:
+    resolution: {integrity: sha512-m+o5n49unv+/E86k6s2Gsvd0CVaOqvgdqv9KakuaR7SUd8ZWUEX2Us0j97lRI1DKIqus65cd8LjvcseYe6nIsw==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   aria-hidden@1.2.6:
     resolution: {integrity: sha512-ik3ZgC9dY/lYVVM++OISsaYDeg1tb0VtP5uL3ouh1koGOaUMDPpbFIei4JkFimWUFPn90sbMNMXQAIVOlnYKJA==}
@@ -5026,6 +5044,19 @@ snapshots:
   acorn@8.15.0: {}
 
   add@2.0.6: {}
+
+  ag-charts-types@13.2.0: {}
+
+  ag-grid-community@35.2.0:
+    dependencies:
+      ag-charts-types: 13.2.0
+
+  ag-grid-react@35.2.0(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
+    dependencies:
+      ag-grid-community: 35.2.0
+      prop-types: 15.8.1
+      react: 19.2.1
+      react-dom: 19.2.1(react@19.2.1)
 
   aria-hidden@1.2.6:
     dependencies:
