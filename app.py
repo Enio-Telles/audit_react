@@ -4,8 +4,6 @@ Este arquivo concentra os fluxos de inicialização local para evitar que o
 projeto dependa de múltiplos comandos soltos no terminal.
 """
 
-from __future__ import annotations
-
 import argparse
 import importlib.util
 import os
