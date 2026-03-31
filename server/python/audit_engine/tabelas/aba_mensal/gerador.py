@@ -37,9 +37,11 @@ def gerar_aba_mensal(
     if not arquivo_mov.exists():
         raise FileNotFoundError("mov_estoque.parquet não encontrado")
 
-    df_mov = pl.read_parquet(arquivo_mov)
+    # ⚡ Bolt: Using lazy scan to avoid loading full dataset into memory
+    lf_mov = pl.scan_parquet(arquivo_mov)
 
-    if len(df_mov) == 0:
+    # ⚡ Bolt: Fast empty check without loading data
+    if lf_mov.select(pl.len()).collect().item() == 0:
         df = pl.DataFrame(
             schema={col.nome: tipo_para_polars(col.tipo.value) for col in contrato.colunas}
         )
@@ -47,13 +49,13 @@ def gerar_aba_mensal(
         return 0
 
     # Extrair mês da data
-    df_mov = df_mov.with_columns(
+    lf_mov = lf_mov.with_columns(
         pl.col("data").str.slice(0, 7).alias("mes")
     )
 
     # Agrupar por id_agrupado + mês
     df = (
-        df_mov
+        lf_mov
         .group_by(["id_agrupado", "mes"])
         .agg([
             pl.col("descricao").first(),
@@ -69,6 +71,7 @@ def gerar_aba_mensal(
             (pl.col("saldo_final") < 0).alias("omissao")
         )
         .sort(["id_agrupado", "mes"])
+        .collect() # ⚡ Bolt: Collect at the very end to maximize query optimization
     )
 
     df.write_parquet(arquivo_saida)
