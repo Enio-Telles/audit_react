@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,8 +36,18 @@ export default function Agregacao() {
   const [produtos, setProdutos] = useState<ProdutoLinha[]>([]);
   const [grupos, setGrupos] = useState<GrupoLinha[]>([]);
   const [selecionados, setSelecionados] = useState<string[]>([]);
-  const [filtro, setFiltro] = useState("");
   const [descricaoPadrao, setDescricaoPadrao] = useState("");
+
+  // Top Table Filters
+  const [topFiltroDescricao, setTopFiltroDescricao] = useState("");
+  const [topFiltroNCM, setTopFiltroNCM] = useState("");
+  const [topFiltroCEST, setTopFiltroCEST] = useState("");
+  const [topFiltroGlobal, setTopFiltroGlobal] = useState("");
+
+  // Bottom Table Filters
+  const [botFiltroDescNorm, setBotFiltroDescNorm] = useState("");
+  const [botFiltroNCM, setBotFiltroNCM] = useState("");
+  const [botFiltroCEST, setBotFiltroCEST] = useState("");
 
   const carregarDados = async () => {
     if (!cnpjAtivo) return;
@@ -45,7 +55,14 @@ export default function Agregacao() {
     const mensagensErro: string[] = [];
 
     try {
-      const respostaProdutos = await lerTodasPaginas(cnpjAtivo, "produtos", "parquets", undefined, undefined, "id_produto");
+      const respostaProdutos = await lerTodasPaginas(
+        cnpjAtivo,
+        "produtos",
+        "parquets",
+        undefined,
+        undefined,
+        "id_produto"
+      );
       setProdutos((respostaProdutos?.dados ?? []) as unknown as ProdutoLinha[]);
     } catch (erro) {
       const erroComParciais = erro as Error & { dadosParciais?: unknown[] };
@@ -60,7 +77,7 @@ export default function Agregacao() {
         "parquets",
         undefined,
         undefined,
-        "descricao_padrao",
+        "descricao_padrao"
       );
       setGrupos((respostaGrupos?.dados ?? []) as unknown as GrupoLinha[]);
     } catch (erro) {
@@ -81,19 +98,76 @@ export default function Agregacao() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cnpjAtivo]);
 
+  const limparFiltrosTop = () => {
+    setTopFiltroDescricao("");
+    setTopFiltroNCM("");
+    setTopFiltroCEST("");
+    setTopFiltroGlobal("");
+  };
+
+  const limparFiltrosBot = () => {
+    setBotFiltroDescNorm("");
+    setBotFiltroNCM("");
+    setBotFiltroCEST("");
+  };
+
   const produtosFiltrados = useMemo(() => {
-    const termo = filtro.toLowerCase();
-    return produtos.filter(
-      (produto) =>
-        obterIdentificadorProduto(produto).toLowerCase().includes(termo) ||
-        produto.descricao?.toLowerCase().includes(termo) ||
-        String(produto.ncm ?? "").toLowerCase().includes(termo),
-    );
-  }, [filtro, produtos]);
+    return produtos.filter(produto => {
+      const descMatch =
+        !topFiltroDescricao ||
+        produto.descricao
+          ?.toLowerCase()
+          .includes(topFiltroDescricao.toLowerCase());
+      const ncmMatch =
+        !topFiltroNCM ||
+        String(produto.ncm ?? "")
+          .toLowerCase()
+          .includes(topFiltroNCM.toLowerCase());
+      const cestMatch =
+        !topFiltroCEST ||
+        String(produto.cest ?? "")
+          .toLowerCase()
+          .includes(topFiltroCEST.toLowerCase());
+      const globalMatch =
+        !topFiltroGlobal ||
+        obterIdentificadorProduto(produto)
+          .toLowerCase()
+          .includes(topFiltroGlobal.toLowerCase()) ||
+        produto.descricao
+          ?.toLowerCase()
+          .includes(topFiltroGlobal.toLowerCase()) ||
+        String(produto.ncm ?? "")
+          .toLowerCase()
+          .includes(topFiltroGlobal.toLowerCase()) ||
+        String(produto.cest ?? "")
+          .toLowerCase()
+          .includes(topFiltroGlobal.toLowerCase());
+
+      return descMatch && ncmMatch && cestMatch && globalMatch;
+    });
+  }, [
+    produtos,
+    topFiltroDescricao,
+    topFiltroNCM,
+    topFiltroCEST,
+    topFiltroGlobal,
+  ]);
+
+  const gruposFiltrados = useMemo(() => {
+    return grupos.filter(grupo => {
+      const descMatch =
+        !botFiltroDescNorm ||
+        (grupo.descricao_padrao ?? grupo.descr_padrao ?? "")
+          .toLowerCase()
+          .includes(botFiltroDescNorm.toLowerCase());
+      // Assuming groups don't explicitly have ncm/cest in this simple view, but we keep the filters for future expansion.
+      return descMatch;
+    });
+  }, [grupos, botFiltroDescNorm, botFiltroNCM, botFiltroCEST]);
 
   const alternarSelecionado = (id: string) => {
-    setSelecionados((atual) =>
-      atual.includes(id) ? atual.filter((item) => item !== id) : [...atual, id],
+    setSelecionados(atual =>
+      atual.includes(id) ? atual.filter(item => item !== id) : [...atual, id]
     );
   };
 
@@ -123,7 +197,9 @@ export default function Agregacao() {
       toast.success("Grupo desagregado com sucesso");
       await carregarDados();
     } catch (erro) {
-      toast.error("Falha ao desagregar", { description: (erro as Error).message });
+      toast.error("Falha ao desagregar", {
+        description: (erro as Error).message,
+      });
     }
   };
 
@@ -138,41 +214,71 @@ export default function Agregacao() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">Agregacao manual - {formatarCnpj(cnpjAtivo)}</CardTitle>
+        <CardHeader className="bg-muted/30">
+          <CardTitle className="text-sm font-semibold">
+            Tabela Agrupada Filtravel (Selecione linhas para agregar)
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Input placeholder="Filtrar produtos" value={filtro} onChange={(event) => setFiltro(event.target.value)} />
+        <CardContent className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
             <Input
-              placeholder="Descricao padrao do grupo (opcional)"
-              value={descricaoPadrao}
-              onChange={(event) => setDescricaoPadrao(event.target.value)}
+              className="w-[200px]"
+              placeholder="Filtrar Descricao..."
+              value={topFiltroDescricao}
+              onChange={e => setTopFiltroDescricao(e.target.value)}
             />
-            <div className="flex items-center gap-2">
-              <Button onClick={executarAgregacao} disabled={loading || selecionados.length < 2}>
-                Agregar selecionados ({selecionados.length})
-              </Button>
-              <Button variant="outline" onClick={() => setSelecionados([])}>
-                Limpar
-              </Button>
-            </div>
+            <Input
+              className="w-[120px]"
+              placeholder="Filtrar NCM"
+              value={topFiltroNCM}
+              onChange={e => setTopFiltroNCM(e.target.value)}
+            />
+            <Input
+              className="w-[120px]"
+              placeholder="Filtrar CEST"
+              value={topFiltroCEST}
+              onChange={e => setTopFiltroCEST(e.target.value)}
+            />
+            <Input
+              className="w-[200px]"
+              placeholder="Busca global..."
+              value={topFiltroGlobal}
+              onChange={e => setTopFiltroGlobal(e.target.value)}
+            />
+            <Button variant="secondary" onClick={limparFiltrosTop}>
+              Limpar filtros
+            </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">Produtos candidatos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded border">
+          <div className="flex items-center gap-2 bg-muted p-2 rounded border">
+            <Input
+              className="w-[300px]"
+              placeholder="Descricao padrao do novo grupo (opcional)"
+              value={descricaoPadrao}
+              onChange={event => setDescricaoPadrao(event.target.value)}
+            />
+            <Button
+              onClick={executarAgregacao}
+              disabled={loading || selecionados.length < 2}
+            >
+              Agregar selecionados ({selecionados.length})
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setSelecionados([])}
+              disabled={selecionados.length === 0}
+            >
+              Desfazer selecao
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto rounded border h-[300px] relative">
             <table className="w-full text-xs">
-              <thead className="bg-muted/50">
+              <thead className="bg-muted/50 sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th className="px-3 py-2 text-left">Sel</th>
+                  <th className="px-3 py-2 text-left w-10">Sel</th>
                   <th className="px-3 py-2 text-left">ID</th>
                   <th className="px-3 py-2 text-left">Descricao</th>
                   <th className="px-3 py-2 text-left">NCM</th>
@@ -180,48 +286,114 @@ export default function Agregacao() {
                 </tr>
               </thead>
               <tbody>
-                {produtosFiltrados.map((produto) => (
-                  <tr key={obterIdentificadorProduto(produto)} className="border-t">
+                {produtosFiltrados.map(produto => (
+                  <tr
+                    key={obterIdentificadorProduto(produto)}
+                    className={`border-t hover:bg-muted/30 ${selecionados.includes(obterIdentificadorProduto(produto)) ? "bg-primary/10" : ""}`}
+                  >
                     <td className="px-3 py-2">
                       <Checkbox
-                        checked={selecionados.includes(obterIdentificadorProduto(produto))}
-                        onCheckedChange={() => alternarSelecionado(obterIdentificadorProduto(produto))}
+                        checked={selecionados.includes(
+                          obterIdentificadorProduto(produto)
+                        )}
+                        onCheckedChange={() =>
+                          alternarSelecionado(
+                            obterIdentificadorProduto(produto)
+                          )
+                        }
                       />
                     </td>
-                    <td className="px-3 py-2 font-mono">{obterIdentificadorProduto(produto)}</td>
-                    <td className="px-3 py-2">{produto.descricao}</td>
+                    <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">
+                      {obterIdentificadorProduto(produto)}
+                    </td>
+                    <td className="px-3 py-2 font-medium">
+                      {produto.descricao}
+                    </td>
                     <td className="px-3 py-2 font-mono">{produto.ncm ?? ""}</td>
-                    <td className="px-3 py-2 font-mono">{produto.cest ?? ""}</td>
+                    <td className="px-3 py-2 font-mono">
+                      {produto.cest ?? ""}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <div className="text-xs text-muted-foreground text-right">
+            {produtosFiltrados.length} linhas filtradas
+          </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">Grupos existentes</CardTitle>
+        <CardHeader className="bg-muted/30">
+          <CardTitle className="text-sm font-semibold">
+            Linhas Agregadas (Mesma Tabela de Referencia)
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {grupos.map((grupo) => (
-              <div key={grupo.id_agrupado} className="flex items-center justify-between rounded border p-3 text-sm">
+        <CardContent className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <Input
+              className="w-[200px]"
+              placeholder="Filtrar Desc. Norm"
+              value={botFiltroDescNorm}
+              onChange={e => setBotFiltroDescNorm(e.target.value)}
+            />
+            <Input
+              className="w-[120px]"
+              placeholder="Filtrar NCM"
+              value={botFiltroNCM}
+              onChange={e => setBotFiltroNCM(e.target.value)}
+            />
+            <Input
+              className="w-[120px]"
+              placeholder="Filtrar CEST"
+              value={botFiltroCEST}
+              onChange={e => setBotFiltroCEST(e.target.value)}
+            />
+            <Button variant="secondary" onClick={limparFiltrosBot}>
+              Limpar filtros
+            </Button>
+          </div>
+
+          <div className="space-y-2 h-[250px] overflow-y-auto pr-2">
+            {gruposFiltrados.map(grupo => (
+              <div
+                key={grupo.id_agrupado}
+                className="flex items-center justify-between rounded border p-3 text-sm bg-card hover:bg-muted/20 transition-colors"
+              >
                 <div>
-                  <p className="font-mono">{grupo.id_agrupado}</p>
-                  <p>{grupo.descricao_padrao ?? grupo.descr_padrao ?? ""}</p>
+                  <p className="font-mono text-xs text-muted-foreground mb-1">
+                    {grupo.id_agrupado}
+                  </p>
+                  <p className="font-medium">
+                    {grupo.descricao_padrao ??
+                      grupo.descr_padrao ??
+                      "Sem descricao"}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{grupo.qtd_membros} membros</Badge>
-                  <Badge variant="outline">{grupo.origem}</Badge>
-                  <Button variant="destructive" size="sm" onClick={() => executarDesagregacao(grupo.id_agrupado)}>
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary" className="font-normal">
+                    {grupo.qtd_membros} membros
+                  </Badge>
+                  <Badge variant="outline" className="font-normal">
+                    {grupo.origem}
+                  </Badge>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => executarDesagregacao(grupo.id_agrupado)}
+                    disabled={loading}
+                  >
                     Desagregar
                   </Button>
                 </div>
               </div>
             ))}
-            {grupos.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum grupo encontrado.</p> : null}
+            {gruposFiltrados.length === 0 ? (
+              <p className="text-sm text-muted-foreground p-4 text-center border rounded border-dashed">
+                Nenhuma linha agrupada ou filtro muito restritivo.
+              </p>
+            ) : null}
           </div>
         </CardContent>
       </Card>
