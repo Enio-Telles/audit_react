@@ -113,7 +113,13 @@ class PipelineWorker(QThread):
                 progresso=self.progress.emit
             )
         except Exception as exc:  # pragma: nao cover - UI
-            self.failed.emit(str(exc))
+            from utilitarios.perf_monitor import registrar_evento_performance
+            registrar_evento_performance(
+                "pipeline_worker.erro",
+                contexto={"cnpj": self.cnpj, "erro": str(exc)},
+                status="error",
+            )
+            self.failed.emit("Ocorreu um erro no pipeline. Verifique os logs internos.")
             return
         
         if result.ok:
@@ -145,7 +151,13 @@ class ServiceTaskWorker(QThread):
                 pass
             resultado = self.func(*self.args, **call_kwargs)
         except Exception as exc:
-            self.failed.emit(str(exc))
+            from utilitarios.perf_monitor import registrar_evento_performance
+            registrar_evento_performance(
+                "service_task_worker.erro",
+                contexto={"func": getattr(self.func, '__name__', str(self.func)), "erro": str(exc)},
+                status="error",
+            )
+            self.failed.emit("Ocorreu um erro no processamento. Verifique os logs internos.")
             return
         self.finished_ok.emit(resultado)
 
