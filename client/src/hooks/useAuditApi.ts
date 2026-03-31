@@ -752,7 +752,7 @@ export function useReferencias() {
       const response = await fetch(`${API_BASE}/referencias/ncm?${searchParams}`);
       if (!response.ok) throw new Error("Falha ao carregar NCM");
       const data: RespostaReferencia<ReferenciaNCM[]> = await response.json();
-      return Array.isArray(data.dados) ? data.dados : [];
+      return (Array.isArray(data.dados) ? data.dados.flat() : []) as any;
     } catch (err) {
       const erro = err as Error;
       setError(erro.message);
@@ -791,7 +791,7 @@ export function useReferencias() {
       const response = await fetch(`${API_BASE}/referencias/cest?${searchParams}`);
       if (!response.ok) throw new Error("Falha ao carregar CEST");
       const data: RespostaReferencia<ReferenciaCEST[]> = await response.json();
-      return Array.isArray(data.dados) ? data.dados : [];
+      return (Array.isArray(data.dados) ? data.dados.flat() : []) as any;
     } catch (err) {
       const erro = err as Error;
       setError(erro.message);
@@ -830,7 +830,7 @@ export function useReferencias() {
       const response = await fetch(`${API_BASE}/referencias/cfop?${searchParams}`);
       if (!response.ok) throw new Error("Falha ao carregar CFOP");
       const data: RespostaReferencia<ReferenciaCFOP[]> = await response.json();
-      return Array.isArray(data.dados) ? data.dados : [];
+      return (Array.isArray(data.dados) ? data.dados.flat() : []) as any;
     } catch (err) {
       const erro = err as Error;
       setError(erro.message);
@@ -869,7 +869,7 @@ export function useReferencias() {
       const response = await fetch(`${API_BASE}/referencias/cst?${searchParams}`);
       if (!response.ok) throw new Error("Falha ao carregar CST");
       const data: RespostaReferencia<ReferenciaCST[]> = await response.json();
-      return Array.isArray(data.dados) ? data.dados : [];
+      return (Array.isArray(data.dados) ? data.dados.flat() : []) as any;
     } catch (err) {
       const erro = err as Error;
       setError(erro.message);
