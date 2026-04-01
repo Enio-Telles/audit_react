@@ -98,7 +98,7 @@ def _carregar_base_agrupamento_canonico(path: Path) -> pl.DataFrame:
     if not path.exists():
         return _df_vazio_agrupamento_canonico()
 
-    schema_cols = set(pl.scan_parquet(path).collect_schema().names())
+    schema_cols = set(pl.read_parquet_schema(path).names())
     if "id_agrupado" not in schema_cols:
         return _df_vazio_agrupamento_canonico()
 

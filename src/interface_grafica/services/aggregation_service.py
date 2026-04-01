@@ -244,7 +244,7 @@ class ServicoAgregacao:
 
     @staticmethod
     def _ler_parquet_colunas(path: Path, colunas: list[str]) -> pl.DataFrame:
-        schema_cols = list(pl.scan_parquet(path).collect_schema().names())
+        schema_cols = list(pl.read_parquet_schema(path).names())
         selecionadas = [col for col in colunas if col in schema_cols]
         if not selecionadas:
             return pl.DataFrame()
@@ -254,7 +254,7 @@ class ServicoAgregacao:
     def _obter_schema_parquet(path: Path) -> set[str]:
         if not path.exists():
             return set()
-        return set(pl.scan_parquet(path).collect_schema().names())
+        return set(pl.read_parquet_schema(path).names())
 
     @staticmethod
     def _colunas_metricas_agregacao() -> list[str]:
