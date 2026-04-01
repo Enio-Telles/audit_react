@@ -40,13 +40,13 @@ def gerar_nfe_entrada(
         logger.warning("silver/fontes_produtos.parquet nao encontrado para %s", diretorio_cnpj.name)
         return escrever_dataframe_ao_contrato(criar_dataframe_vazio_contrato(contrato), arquivo_saida, contrato)
 
-    df_fontes = pl.read_parquet(caminho_fontes)
     df_produtos = pl.read_parquet(arquivo_produtos)
     df_id_agrupados = pl.read_parquet(arquivo_id_agrupados)
     df_produtos_final = pl.read_parquet(arquivo_produtos_final)
     df_produtos_agrupados = pl.read_parquet(arquivo_produtos_agrupados)
 
-    df_entradas = df_fontes.filter(pl.col("tipo_movimento") == "entrada")
+    # ⚡ BOLT: Otimizacao de performance. Usa lazy evaluation para filtrar direto na leitura do parquet (pushdown filter) reduzindo uso de memoria.
+    df_entradas = pl.scan_parquet(caminho_fontes).filter(pl.col("tipo_movimento") == "entrada").collect()
     if df_entradas.is_empty():
         return escrever_dataframe_ao_contrato(criar_dataframe_vazio_contrato(contrato), arquivo_saida, contrato)
 

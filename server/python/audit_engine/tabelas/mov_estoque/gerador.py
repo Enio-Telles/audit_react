@@ -118,15 +118,16 @@ def gerar_mov_estoque(
         return escrever_dataframe_ao_contrato(criar_dataframe_vazio_contrato(contrato), arquivo_saida, contrato)
 
     df_entradas = pl.read_parquet(arquivo_nfe_entrada)
-    df_fontes = pl.read_parquet(caminho_fontes) if caminho_fontes.exists() else pl.DataFrame()
     df_produtos = pl.read_parquet(arquivo_produtos)
     df_id_agrupados = pl.read_parquet(arquivo_id_agrupados)
     df_fatores = pl.read_parquet(arquivo_fatores) if arquivo_fatores.exists() else pl.DataFrame()
 
+    # ⚡ BOLT: Otimizacao de performance. Usa lazy evaluation para filtrar direto na leitura do parquet (pushdown filter) reduzindo uso de memoria.
     df_saidas_inventario = pl.DataFrame()
-    if not df_fontes.is_empty():
-        df_saidas_inventario = df_fontes.filter(pl.col("tipo_movimento").is_in(["saida", "inventario"]))
-        df_saidas_inventario = mapear_fontes_para_grupos(df_saidas_inventario, df_produtos, df_id_agrupados).filter(pl.col("id_agrupado").is_not_null())
+    if caminho_fontes.exists():
+        df_saidas_inventario = pl.scan_parquet(caminho_fontes).filter(pl.col("tipo_movimento").is_in(["saida", "inventario"])).collect()
+        if not df_saidas_inventario.is_empty():
+            df_saidas_inventario = mapear_fontes_para_grupos(df_saidas_inventario, df_produtos, df_id_agrupados).filter(pl.col("id_agrupado").is_not_null())
 
     if not df_saidas_inventario.is_empty() and not df_fatores.is_empty():
         # Juntar fatores as saidas
