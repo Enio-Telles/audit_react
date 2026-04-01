@@ -1153,8 +1153,11 @@ def resolver_caminho_det(
     """Resolve o caminho legado `pdf_det` ou registra o motivo da indisponibilidade."""
     if caminho_informado:
         caminho_det = Path(caminho_informado)
-        if caminho_det.exists() and caminho_det.is_file():
-            return str(caminho_det), None
+        try:
+            if caminho_det.exists() and caminho_det.is_file():
+                return str(caminho_det), None
+        except PermissionError:
+            pass
         aviso = f"DET informado nao encontrado no caminho configurado: {caminho_informado}"
     else:
         aviso = None

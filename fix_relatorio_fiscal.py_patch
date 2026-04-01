@@ -1,0 +1,11 @@
+<<<<<<< SEARCH
+    if caminho_det.exists() and caminho_det.is_file():
+=======
+    try:
+        if caminho_det.exists() and caminho_det.is_file():
+            pass
+    except PermissionError:
+        return None, "Aviso: Permissão negada ao acessar o arquivo DET."
+
+    if caminho_det.exists() and caminho_det.is_file():
+>>>>>>> REPLACE
