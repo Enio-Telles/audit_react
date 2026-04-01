@@ -1770,7 +1770,14 @@ async def upload_det_cnpj(cnpj: str, arquivo: UploadFile = File(...)):
     if not arquivo.filename or not arquivo.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF sao aceitos")
 
-    destino = diretorio / arquivo.filename
+    # 🛡️ SENTINEL: Validate and sanitize upload filename to prevent path traversal
+    safe_filename = Path(arquivo.filename).name
+    destino = (diretorio / safe_filename).resolve()
+
+    # Double check that resolving the path didn't break out of the target directory
+    if not destino.is_relative_to(diretorio.resolve()):
+        raise HTTPException(status_code=400, detail="Nome de arquivo invalido (Path Traversal detectado)")
+
     conteudo = await arquivo.read()
     with destino.open("wb") as f:
         f.write(conteudo)

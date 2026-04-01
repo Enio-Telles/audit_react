@@ -7,3 +7,8 @@
 **Vulnerability:** Overly permissive CORS configuration (`allow_origins=["*"]`) combined with `allow_credentials=True`.
 **Learning:** This combination allows any domain to make cross-origin requests with credentials, which is insecure and invalid under strict browser specifications. It was likely left open during early development.
 **Prevention:** Always restrict CORS origins to trusted domains, ideally by reading them from an environment variable (e.g. `CORS_ORIGINS`) with safe localhost defaults for development. Ensure `allow_origins` does not use the wildcard `*` when `allow_credentials` is set to `True`.
+
+## 2024-05-18 - Path Traversal in File Uploads
+**Vulnerability:** The `/api/relatorio/cnpj/{cnpj}/upload-det` endpoint was vulnerable to Path Traversal because it directly used the user-provided `arquivo.filename` to construct the file path using `diretorio / arquivo.filename`.
+**Learning:** `pathlib.Path` concatenation (using `/`) does not sanitize strings containing `../`. If an attacker submits a filename like `../../../malicious.pdf`, the resulting path resolves to directories outside the intended base directory.
+**Prevention:** Always extract just the base filename securely (e.g., using `Path(filename).name`) and perform an explicit bounds check using `.is_relative_to(base_dir.resolve())` before writing the file.
