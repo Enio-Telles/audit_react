@@ -9,3 +9,6 @@
 ## 2024-05-20 - Lazy evaluation for reading Parquet metadata
 **Learning:** Eager loading a Parquet file just to fetch its schema, columns, or record count using `pl.read_parquet` can cause severe memory and performance bottlenecks, especially for large datasets.
 **Action:** Always use `lf = pl.scan_parquet` combined with `lf.collect_schema()` to get columns/schema and `lf.select(pl.len()).collect().item()` to get the total number of records without loading the entire dataframe into memory.
+## 2026-04-01 - Lazy Evaluation for Polars Filters
+**Learning:** Using `pl.read_parquet()` loads the entire parquet into memory before applying `.filter()`, leading to large memory overhead. Instead, `pl.scan_parquet().filter().collect()` pushes the filter execution down to the file level, bringing only the necessary rows into memory.
+**Action:** Always prefer lazy evaluation with Polars when loading Parquet files, chaining operations like filters and sorts before `.collect()`.
