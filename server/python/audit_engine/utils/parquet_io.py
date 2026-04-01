@@ -39,12 +39,14 @@ def info_parquet(caminho: Path) -> Dict:
     if not caminho.exists():
         return {"existe": False}
 
-    df = pl.read_parquet(caminho)
+    # ⚡ Bolt: Uses scan_parquet (lazy evaluation) to avoid loading the entire dataframe into memory
+    lf = pl.scan_parquet(caminho)
+    schema = lf.collect_schema()
     return {
         "existe": True,
-        "registros": len(df),
-        "colunas": df.columns,
-        "schema": {col: str(df[col].dtype) for col in df.columns},
+        "registros": lf.select(pl.len()).collect().item(),
+        "colunas": schema.names(),
+        "schema": {col: str(dtype) for col, dtype in schema.items()},
         "tamanho_bytes": caminho.stat().st_size,
     }
 
