@@ -1292,30 +1292,35 @@ async def ler_tabela(
     if not arquivo.exists():
         raise HTTPException(status_code=404, detail=f"Tabela {nome_tabela_valido} nao encontrada")
 
-    dataframe = pl.read_parquet(arquivo)
+    lf = pl.scan_parquet(arquivo)
+    colunas_disponiveis = lf.collect_schema().names()
 
-    if filtro_coluna and filtro_valor and filtro_coluna in dataframe.columns:
-        dataframe = dataframe.filter(
+    if filtro_coluna and filtro_valor and filtro_coluna in colunas_disponiveis:
+        lf = lf.filter(
             pl.col(filtro_coluna).cast(pl.Utf8, strict=False).str.contains(filtro_valor, literal=True)
         )
 
-    if ordenar_por and ordenar_por in dataframe.columns:
-        dataframe = dataframe.sort(ordenar_por, descending=(ordem == "desc"))
+    if ordenar_por and ordenar_por in colunas_disponiveis:
+        lf = lf.sort(ordenar_por, descending=(ordem == "desc"))
 
-    total = len(dataframe)
+    total = lf.select(pl.len()).collect().item()
     inicio = (pagina - 1) * por_pagina
-    dados = dataframe.slice(inicio, por_pagina)
+    dados = lf.slice(inicio, por_pagina).collect()
+
+    colunas_finais = dados.columns
+    dados_dict = dados.to_dicts()
+    schema_dict = {coluna: str(dados[coluna].dtype) for coluna in colunas_finais}
 
     return {
         "status": "ok",
         "camada": camada_validada,
-        "colunas": dataframe.columns,
-        "dados": dados.to_dicts(),
+        "colunas": colunas_finais,
+        "dados": dados_dict,
         "total_registros": total,
         "pagina": pagina,
         "por_pagina": por_pagina,
         "total_paginas": (total + por_pagina - 1) // por_pagina,
-        "schema": {coluna: str(dataframe[coluna].dtype) for coluna in dataframe.columns},
+        "schema": schema_dict,
     }
 
 
