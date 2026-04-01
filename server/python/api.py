@@ -1292,30 +1292,34 @@ async def ler_tabela(
     if not arquivo.exists():
         raise HTTPException(status_code=404, detail=f"Tabela {nome_tabela_valido} nao encontrada")
 
-    dataframe = pl.read_parquet(arquivo)
+    # ⚡ BOLT: Otimização de performance. Evita carregar Parquet na memória inteiramente.
+    # Usa pl.scan_parquet para avaliação preguiçosa (lazy evaluation).
+    lf = pl.scan_parquet(arquivo)
+    schema = lf.collect_schema()
+    colunas = list(schema.names())
 
-    if filtro_coluna and filtro_valor and filtro_coluna in dataframe.columns:
-        dataframe = dataframe.filter(
+    if filtro_coluna and filtro_valor and filtro_coluna in colunas:
+        lf = lf.filter(
             pl.col(filtro_coluna).cast(pl.Utf8, strict=False).str.contains(filtro_valor, literal=True)
         )
 
-    if ordenar_por and ordenar_por in dataframe.columns:
-        dataframe = dataframe.sort(ordenar_por, descending=(ordem == "desc"))
+    if ordenar_por and ordenar_por in colunas:
+        lf = lf.sort(ordenar_por, descending=(ordem == "desc"))
 
-    total = len(dataframe)
+    total = lf.select(pl.len()).collect().item()
     inicio = (pagina - 1) * por_pagina
-    dados = dataframe.slice(inicio, por_pagina)
+    dados = lf.slice(inicio, por_pagina).collect()
 
     return {
         "status": "ok",
         "camada": camada_validada,
-        "colunas": dataframe.columns,
+        "colunas": colunas,
         "dados": dados.to_dicts(),
         "total_registros": total,
         "pagina": pagina,
         "por_pagina": por_pagina,
         "total_paginas": (total + por_pagina - 1) // por_pagina,
-        "schema": {coluna: str(dataframe[coluna].dtype) for coluna in dataframe.columns},
+        "schema": {nome: str(dtype) for nome, dtype in schema.items()},
     }
 
 
