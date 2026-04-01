@@ -499,9 +499,10 @@ Não usar estado global complexo. Cada página gerencia seu próprio estado via 
 | Função Python (gerador) | verbo_infinitivo + contexto em português | `filtrar_nfe_por_periodo`, `calcular_quantidade_na_unidade_referencia` |
 | Variável TypeScript | camelCase | `filtroColuna` |
 
-### Commits
+### Commits e Sincronização
 
-Usar prefixos convencionais: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`. Incluir o nome da tabela ou módulo afetado quando aplicável. Exemplo: `feat(fatores_conversao): implementar leitura do Reg0220`.
+- Usar prefixos convencionais: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`. Incluir o nome da tabela ou módulo afetado quando aplicável. Exemplo: `feat(fatores_conversao): implementar leitura do Reg0220`.
+- É **Obrigatório**, a cada atualização bem-sucedida, criar commit das alterações e **sincronizar (fazer push) para o repositório remoto** `https://github.com/Enio-Telles/audit_react`. O agente deve garantir que o remote seja atualizado ao final da sua interação.
 
 ### Documentação
 

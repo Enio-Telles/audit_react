@@ -128,6 +128,11 @@ def gerar_mov_estoque(
         df_saidas_inventario = pl.scan_parquet(caminho_fontes).filter(pl.col("tipo_movimento").is_in(["saida", "inventario"])).collect()
         if not df_saidas_inventario.is_empty():
             df_saidas_inventario = mapear_fontes_para_grupos(df_saidas_inventario, df_produtos, df_id_agrupados).filter(pl.col("id_agrupado").is_not_null())
+            # Usar descricao_padrao (do id_agrupados) como descricao canonica do grupo
+            if "descricao_padrao" in df_saidas_inventario.columns:
+                df_saidas_inventario = df_saidas_inventario.with_columns(
+                    pl.coalesce([pl.col("descricao_padrao"), pl.col("descricao")]).alias("descricao")
+                )
 
     if not df_saidas_inventario.is_empty() and not df_fatores.is_empty():
         # Juntar fatores as saidas
@@ -166,6 +171,13 @@ def gerar_mov_estoque(
             pl.lit("efd").alias("fonte"),
             pl.lit("nfe").alias("origem")
         )
+        # Enriquecer com descricao do grupo (nfe_entrada nao tem coluna descricao)
+        if "descricao" not in df_entradas.columns and not df_id_agrupados.is_empty():
+            df_entradas = df_entradas.join(
+                df_id_agrupados.select(["id_agrupado", "descricao_padrao"]).unique(subset=["id_agrupado"]),
+                on="id_agrupado",
+                how="left",
+            ).rename({"descricao_padrao": "descricao"})
 
     # Normalizar ambas as partes para um esquema comum obrigatorio
     colunas_comuns = ["id_agrupado", "descricao", "fonte", "origem", "q_conv", "valor_unitario", "valor_total", "cfop", "excluir_estoque"]
@@ -193,7 +205,7 @@ def gerar_mov_estoque(
     df_entradas_clean = padronizar_tabela(df_entradas, "data_emissao") if not df_entradas.is_empty() else padronizar_tabela(pl.DataFrame(), "")
     df_saidas_clean = padronizar_tabela(df_saidas_inventario, "data_documento") if not df_saidas_inventario.is_empty() else padronizar_tabela(pl.DataFrame(), "")
 
-    df_movimentos = pl.concat([df_entradas_clean, df_saidas_clean], how="vertical_relaxed")
+    df_movimentos = pl.concat([df_entradas_clean, df_saidas_clean], how="diagonal_relaxed")
     
     if df_movimentos.is_empty():
         return escrever_dataframe_ao_contrato(criar_dataframe_vazio_contrato(contrato), arquivo_saida, contrato)
