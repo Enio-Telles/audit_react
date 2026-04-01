@@ -136,7 +136,7 @@ class ParquetService:
                 },
             )
             return cached[:]
-        schema = list(pl.scan_parquet(parquet_path).collect_schema().names())
+        schema = list(pl.read_parquet_schema(parquet_path).names())
         self._schema_cache[key] = schema[:]
         registrar_evento_performance(
             "parquet_service.get_schema",
