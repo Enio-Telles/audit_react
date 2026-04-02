@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -93,8 +95,14 @@ class OrquestradorPipeline:
     def executar_pipeline_completo(
         self,
         tabelas_alvo: Optional[List[str]] = None,
+        usar_paralelismo: bool = True,
     ) -> ResultadoPipeline:
-        """Executa pipeline completo ou parcial."""
+        """Executa pipeline completo ou parcial.
+        
+        Args:
+            tabelas_alvo: Lista opcional de tabelas alvo para execucao parcial.
+            usar_paralelismo: Se True, executa tabelas independentes em paralelo.
+        """
         resultado = ResultadoPipeline(cnpj=self.cnpj, inicio=time.time())
         self._materializar_silver()
 
@@ -110,14 +118,10 @@ class OrquestradorPipeline:
         logger.info("Pipeline iniciado para CNPJ %s", self.cnpj)
         logger.info("Ordem de execucao: %s", ordem_execucao)
 
-        for nome_tabela in ordem_execucao:
-            etapa_resultado = self._executar_etapa(nome_tabela)
-            resultado.etapas.append(etapa_resultado)
-
-            if etapa_resultado.status == StatusEtapa.ERRO:
-                mensagem = f"Erro em {nome_tabela}: {etapa_resultado.mensagem}"
-                resultado.erros.append(mensagem)
-                logger.warning("%s", mensagem)
+        if usar_paralelismo:
+            self._executar_pipeline_paralelo(ordem_execucao, resultado)
+        else:
+            self._executar_pipeline_sequencial(ordem_execucao, resultado)
 
         resultado.fim = time.time()
 
@@ -133,6 +137,97 @@ class OrquestradorPipeline:
         self.gerar_manifesto()
 
         return resultado
+
+    def _agrupar_por_niveis(self, ordem_execucao: List[str]) -> List[List[str]]:
+        """Agrupa tabelas por niveis de dependencia para execucao paralela.
+        
+        Tabelas no mesmo nivel nao tem dependencias entre si e podem ser
+        executadas em paralelo.
+        """
+        niveis: List[List[str]] = []
+        concluidas: Set[str] = set()
+
+        for nome_tabela in ordem_execucao:
+            contrato = CONTRATOS[nome_tabela]
+            dependencias = set(contrato.dependencias)
+            
+            # Encontra o nivel adequado para esta tabela
+            nivel_encontrado = False
+            for i, nivel in enumerate(niveis):
+                # Verifica se todas as dependencias ja foram concluidas antes deste nivel
+                if dependencias.issubset(concluidas):
+                    # Verifica se pode adicionar neste nivel (todas deps ja estao em niveis anteriores)
+                    pode_adicionar = True
+                    for tabela_no_nivel in nivel:
+                        contrato_nivel = CONTRATOS[tabela_no_nivel]
+                        if nome_tabela in contrato_nivel.dependencias:
+                            pode_adicionar = False
+                            break
+                    
+                    if pode_adicionar:
+                        nivel.append(nome_tabela)
+                        nivel_encontrado = True
+                        break
+            
+            if not nivel_encontrado:
+                niveis.append([nome_tabela])
+            
+            concluidas.add(nome_tabela)
+
+        return niveis
+
+    def _executar_pipeline_paralelo(
+        self,
+        ordem_execucao: List[str],
+        resultado: ResultadoPipeline,
+    ) -> None:
+        """Executa pipeline em paralelo por niveis de dependencia."""
+        niveis = self._agrupar_por_niveis(ordem_execucao)
+        
+        logger.info("Execucao paralela em %d niveis: %s", len(niveis), niveis)
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for i, nivel in enumerate(niveis):
+                logger.info("Executando nivel %d/%d: %s", i + 1, len(niveis), nivel)
+                
+                if len(nivel) == 1:
+                    # Execucao simples para nivel unitario
+                    etapa_resultado = self._executar_etapa(nivel[0])
+                    resultado.etapas.append(etapa_resultado)
+                    if etapa_resultado.status == StatusEtapa.ERRO:
+                        resultado.erros.append(f"Erro em {nivel[0]}: {etapa_resultado.mensagem}")
+                else:
+                    # Execucao paralela para nivel com multiplas tabelas
+                    futures = {
+                        executor.submit(self._executar_etapa, tabela): tabela
+                        for tabela in nivel
+                    }
+                    
+                    for future in futures:
+                        tabela = futures[future]
+                        try:
+                            etapa_resultado = future.result()
+                            resultado.etapas.append(etapa_resultado)
+                            if etapa_resultado.status == StatusEtapa.ERRO:
+                                resultado.erros.append(f"Erro em {tabela}: {etapa_resultado.mensagem}")
+                        except Exception as erro:  # noqa: BLE001
+                            resultado.erros.append(f"Erro em {tabela}: {str(erro)}")
+                            logger.exception("Falha na tabela %s", tabela)
+
+    def _executar_pipeline_sequencial(
+        self,
+        ordem_execucao: List[str],
+        resultado: ResultadoPipeline,
+    ) -> None:
+        """Executa pipeline em sequencia (comportamento original)."""
+        for nome_tabela in ordem_execucao:
+            etapa_resultado = self._executar_etapa(nome_tabela)
+            resultado.etapas.append(etapa_resultado)
+
+            if etapa_resultado.status == StatusEtapa.ERRO:
+                mensagem = f"Erro em {nome_tabela}: {etapa_resultado.mensagem}"
+                resultado.erros.append(mensagem)
+                logger.warning("%s", mensagem)
 
     def _materializar_silver(self) -> None:
         """Prepara as tabelas intermediarias reaproveitaveis do pipeline."""
