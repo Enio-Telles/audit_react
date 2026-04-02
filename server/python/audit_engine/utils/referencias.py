@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 import polars as pl
@@ -9,6 +10,7 @@ import polars as pl
 DIRETORIO_REFERENCIAS = Path(__file__).parent.parent / "dados" / "referencias"
 
 
+@lru_cache(maxsize=1)
 def carregar_ncm() -> pl.DataFrame:
     """Carrega tabela completa de NCM.
 
@@ -23,6 +25,7 @@ def carregar_ncm() -> pl.DataFrame:
     return pl.read_parquet(caminho)
 
 
+@lru_cache(maxsize=1)
 def carregar_ncm_capitulos() -> pl.DataFrame:
     """Carrega capítulos de NCM para agrupamento.
 
@@ -35,6 +38,7 @@ def carregar_ncm_capitulos() -> pl.DataFrame:
     return pl.read_parquet(caminho)
 
 
+@lru_cache(maxsize=1)
 def carregar_cest() -> pl.DataFrame:
     """Carrega tabela CEST (Código Especificador da Substituição Tributária).
 
@@ -47,6 +51,7 @@ def carregar_cest() -> pl.DataFrame:
     return pl.read_parquet(caminho)
 
 
+@lru_cache(maxsize=1)
 def carregar_segmentos_mercadorias() -> pl.DataFrame:
     """Carrega segmentos de mercadorias para classificação.
 
@@ -59,6 +64,7 @@ def carregar_segmentos_mercadorias() -> pl.DataFrame:
     return pl.read_parquet(caminho)
 
 
+@lru_cache(maxsize=1)
 def carregar_cfop() -> pl.DataFrame:
     """Carrega tabela de CFOP (Código Fiscal de Operações e Prestações).
 
@@ -71,6 +77,7 @@ def carregar_cfop() -> pl.DataFrame:
     return pl.read_parquet(caminho)
 
 
+@lru_cache(maxsize=1)
 def carregar_cfop_resumo() -> pl.DataFrame:
     """Carrega resumo de CFOP por primeiro dígito.
 
@@ -83,6 +90,7 @@ def carregar_cfop_resumo() -> pl.DataFrame:
     return pl.read_parquet(caminho)
 
 
+@lru_cache(maxsize=1)
 def carregar_cst() -> pl.DataFrame:
     """Carrega tabela de CST (Código de Situação Tributária).
 
@@ -95,6 +103,7 @@ def carregar_cst() -> pl.DataFrame:
     return pl.read_parquet(caminho)
 
 
+@lru_cache(maxsize=1)
 def carregar_cst_resumo() -> pl.DataFrame:
     """Carrega resumo de CST por primeiro dígito.
 
@@ -360,6 +369,7 @@ def validar_cfop(cfop: str) -> bool:
 # =============================================================================
 
 
+@lru_cache(maxsize=1)
 def carregar_dominios_nfe() -> dict[str, pl.DataFrame]:
     """Carrega todos os domínios de NFe.
 
@@ -379,6 +389,7 @@ def carregar_dominios_nfe() -> dict[str, pl.DataFrame]:
     return dominios
 
 
+@lru_cache(maxsize=1)
 def carregar_mapeamento_nfe() -> pl.DataFrame:
     """Carrega mapeamento de campos de NFe.
 
@@ -391,6 +402,7 @@ def carregar_mapeamento_nfe() -> pl.DataFrame:
     return pl.read_parquet(caminho)
 
 
+@lru_cache(maxsize=1)
 def carregar_dominios_eventos_nfe() -> dict[str, pl.DataFrame]:
     """Carrega domínios de eventos de NFe.
 
@@ -410,6 +422,7 @@ def carregar_dominios_eventos_nfe() -> dict[str, pl.DataFrame]:
     return dominios
 
 
+@lru_cache(maxsize=1)
 def carregar_malhas_fisconforme() -> pl.DataFrame:
     """Carrega malhas de fiscalização do Fisconforme.
 

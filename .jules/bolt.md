@@ -12,3 +12,7 @@
 ## 2026-04-01 - Lazy Evaluation for Polars Filters
 **Learning:** Using `pl.read_parquet()` loads the entire parquet into memory before applying `.filter()`, leading to large memory overhead. Instead, `pl.scan_parquet().filter().collect()` pushes the filter execution down to the file level, bringing only the necessary rows into memory.
 **Action:** Always prefer lazy evaluation with Polars when loading Parquet files, chaining operations like filters and sorts before `.collect()`.
+
+## 2026-03-31 - Memoizing Reference Table Loading
+**Learning:** Loading static reference data (like NCM, CEST) via eager `pl.read_parquet()` repeatedly on every lookup or validation call causes severe disk I/O and memory instantiation overhead (N+1 queries).
+**Action:** Always wrap data-loading functions for small, frequently-accessed reference tables with `functools.lru_cache(maxsize=1)` so the underlying dataframe is read from disk only once.
