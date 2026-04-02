@@ -135,4 +135,26 @@ wheels/
 *.egg
 pycache/
 *.pyc
+venv/
+.venv/
 venv_test/
+
+# Ambientes de agentes IA
+.Jules/
+.jules/
+.qwen/
+.qodo/
+.tmp-decompiled/
+
+# Temporários de desenvolvimento
+.tmp-*.pdf
+*.py_patch
+tmp_*.py
+tmp_*.txt
+tmp/
+
+# Arquivos de plano/rascunho (manter apenas em docs/)
+plan.txt
+plano_novo.md
+ideas.md
+code_review_request.md
