@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from functools import lru_cache
 
 import polars as pl
+
+# ⚡ BOLT: Cache para evitar leitura N+1 I/O disk bottleneck em tabelas de referência
 
 DIRETORIO_REFERENCIAS = Path(__file__).parent.parent / "dados" / "referencias"
 
