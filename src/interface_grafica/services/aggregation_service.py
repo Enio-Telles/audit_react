@@ -188,10 +188,25 @@ class ServicoAgregacao:
     def _coletar_lista_coluna(cls, df: pl.DataFrame, coluna: str) -> list[str]:
         if df.is_empty() or coluna not in df.columns:
             return []
-        valores: list[str] = []
-        for valor in df.get_column(coluna).to_list():
-            valores.extend(cls._normalizar_lista_textos(valor))
-        return sorted(set(valores))
+
+        series = df.get_column(coluna)
+        if series.dtype.is_nested():
+            series = series.explode()
+
+        series_clean = (
+            series
+            .cast(pl.Utf8, strict=False)
+            .str.strip_chars()
+            .drop_nulls()
+        )
+
+        return (
+            series_clean
+            .filter(series_clean != "")
+            .unique()
+            .sort()
+            .to_list()
+        )
 
     @staticmethod
     def _garantir_colunas_lista_agregacao(df: pl.DataFrame) -> pl.DataFrame:
@@ -244,7 +259,7 @@ class ServicoAgregacao:
 
     @staticmethod
     def _ler_parquet_colunas(path: Path, colunas: list[str]) -> pl.DataFrame:
-        schema_cols = list(pl.scan_parquet(path).collect_schema().names())
+        schema_cols = list(pl.read_parquet_schema(path).names())
         selecionadas = [col for col in colunas if col in schema_cols]
         if not selecionadas:
             return pl.DataFrame()
@@ -254,7 +269,7 @@ class ServicoAgregacao:
     def _obter_schema_parquet(path: Path) -> set[str]:
         if not path.exists():
             return set()
-        return set(pl.scan_parquet(path).collect_schema().names())
+        return set(pl.read_parquet_schema(path).names())
 
     @staticmethod
     def _colunas_metricas_agregacao() -> list[str]:
@@ -401,6 +416,10 @@ class ServicoAgregacao:
         df_base = self._ler_parquet_colunas(
             self.caminho_itens_unidades(cnpj),
             ["descricao", "ncm", "cest", "gtin", "co_sefin_item", "fontes", "fonte"],
+        ).with_columns(
+            pl.col("descricao")
+            .map_elements(self._normalizar_descricao_para_match, return_dtype=pl.String)
+            .alias("descricao_normalizada_temp")
         )
 
         df_para_unir = df.filter(pl.col("id_agrupado").is_in(ids_agrupados_selecionados))
@@ -427,10 +446,8 @@ class ServicoAgregacao:
         lista_desc_norm = df_prod_sel["descricao_normalizada"].to_list()
 
         df_base_filtered = df_base.filter(
-            pl.col("descricao")
-            .map_elements(self._normalizar_descricao_para_match, return_dtype=pl.String)
-            .is_in(lista_desc_norm)
-        )
+            pl.col("descricao_normalizada_temp").is_in(lista_desc_norm)
+        ).drop("descricao_normalizada_temp")
 
         padrao = calcular_atributos_padrao(df_base_filtered)
         descr_fallback = self._primeira_descricao_por_chaves(df_prod_link, todas_chaves_proc)
@@ -861,7 +878,11 @@ class ServicoAgregacao:
                 ],
             )
         )
-        df_base = self._ler_parquet_colunas(path_base, ["descricao", "fonte", "fontes", "ncm", "cest", "gtin", "co_sefin_item"])
+        df_base = self._ler_parquet_colunas(path_base, ["descricao", "fonte", "fontes", "ncm", "cest", "gtin", "co_sefin_item"]).with_columns(
+            pl.col("descricao")
+            .map_elements(self._normalizar_descricao_para_match, return_dtype=pl.String)
+            .alias("descricao_normalizada_temp")
+        )
 
         registros = []
         for row in df_agrup.iter_rows(named=True):
@@ -873,10 +894,8 @@ class ServicoAgregacao:
             )
 
             df_base_filtered = df_base.filter(
-                pl.col("descricao")
-                .map_elements(self._normalizar_descricao_para_match, return_dtype=pl.String)
-                .is_in(desc_norm)
-            )
+                pl.col("descricao_normalizada_temp").is_in(desc_norm)
+            ).drop("descricao_normalizada_temp")
             padrao = calcular_atributos_padrao(df_base_filtered)
             descr_fallback = self._primeira_descricao_por_chaves(df_prod, chaves)
 

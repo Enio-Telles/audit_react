@@ -136,7 +136,7 @@ class ParquetService:
                 },
             )
             return cached[:]
-        schema = list(pl.scan_parquet(parquet_path).collect_schema().names())
+        schema = list(pl.read_parquet_schema(parquet_path).names())
         self._schema_cache[key] = schema[:]
         registrar_evento_performance(
             "parquet_service.get_schema",
@@ -265,7 +265,7 @@ class ParquetService:
     def build_lazyframe(self, parquet_path: Path, conditions: Iterable[FilterCondition] | None = None) -> pl.LazyFrame:
         lf = pl.scan_parquet(parquet_path)
         if conditions:
-            schema = lf.collect_schema()
+            schema = pl.read_parquet_schema(parquet_path)
             lf = self.apply_filters(lf, conditions, available_columns={name: schema[name] for name in schema.names()})
         return lf
 
