@@ -15,16 +15,18 @@ VERSAO_REGRA_CORE_FISCAL = "core-fiscal-cnpj-parquet-polars-v2-st"
 
 def _coletar_metadados_parquet(caminho: Path) -> dict[str, Any]:
     """Coleta metadados minimos de um parquet sem alterar seu conteudo."""
-    dataframe = pl.read_parquet(caminho)
+    # ⚡ BOLT: Otimização de performance. Evita carregar o Parquet na memória inteiramente.
+    # Usa lazy evaluation (read_parquet_schema e scan_parquet) para obter dados sem ler as linhas.
+    schema = pl.read_parquet_schema(caminho)
     estatisticas = caminho.stat()
 
     return {
         "nome": caminho.stem,
         "arquivo": caminho.name,
         "caminho": str(caminho),
-        "registros": len(dataframe),
-        "colunas": dataframe.columns,
-        "schema": {coluna: str(tipo) for coluna, tipo in dataframe.schema.items()},
+        "registros": pl.scan_parquet(caminho).select(pl.len()).collect().item(),
+        "colunas": list(schema.names()),
+        "schema": {coluna: str(tipo) for coluna, tipo in schema.items()},
         "tamanho_bytes": estatisticas.st_size,
         "atualizado_em": datetime.fromtimestamp(estatisticas.st_mtime, tz=timezone.utc).isoformat(),
     }
