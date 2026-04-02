@@ -126,13 +126,14 @@ def gerar_mov_estoque(
     df_saidas_inventario = pl.DataFrame()
     if caminho_fontes.exists():
         df_saidas_inventario = pl.scan_parquet(caminho_fontes).filter(pl.col("tipo_movimento").is_in(["saida", "inventario"])).collect()
-        if not df_saidas_inventario.is_empty():
-            df_saidas_inventario = mapear_fontes_para_grupos(df_saidas_inventario, df_produtos, df_id_agrupados).filter(pl.col("id_agrupado").is_not_null())
-            # Usar descricao_padrao (do id_agrupados) como descricao canonica do grupo
-            if "descricao_padrao" in df_saidas_inventario.columns:
-                df_saidas_inventario = df_saidas_inventario.with_columns(
-                    pl.coalesce([pl.col("descricao_padrao"), pl.col("descricao")]).alias("descricao")
-                )
+
+    if not df_saidas_inventario.is_empty():
+        df_saidas_inventario = mapear_fontes_para_grupos(df_saidas_inventario, df_produtos, df_id_agrupados).filter(pl.col("id_agrupado").is_not_null())
+        # Usar descricao_padrao (do id_agrupados) como descricao canonica do grupo
+        if "descricao_padrao" in df_saidas_inventario.columns:
+            df_saidas_inventario = df_saidas_inventario.with_columns(
+                pl.coalesce([pl.col("descricao_padrao"), pl.col("descricao")]).alias("descricao")
+            )
 
     if not df_saidas_inventario.is_empty() and not df_fatores.is_empty():
         # Juntar fatores as saidas
