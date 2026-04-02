@@ -8,11 +8,12 @@ import os
 import re
 import shutil
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
 
 import polars as pl
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File
+from fastapi import Depends, FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -140,6 +141,19 @@ def _normalizar_cnpj(cnpj: str) -> str:
     if len(cnpj_limpo) != 14:
         raise HTTPException(status_code=400, detail="CNPJ deve conter 14 digitos")
     return cnpj_limpo
+
+
+def validar_cnpj(cnpj: str) -> str:
+    """Dependência FastAPI para validar CNPJ e prevenir path traversal.
+    
+    Aceita apenas 14 dígitos numéricos. Rejeita qualquer outro formato.
+    """
+    if not re.match(r"^\d{14}$", cnpj):
+        raise HTTPException(
+            status_code=400,
+            detail="CNPJ inválido: deve conter 14 dígitos numéricos"
+        )
+    return cnpj
 
 
 def _normalizar_cpf(cpf: Any) -> str | None:
@@ -279,6 +293,31 @@ def _calcular_atualizacao_mais_recente(diretorio_cnpj: Path) -> str | None:
     return datetime.fromtimestamp(ultima_data, tz=timezone.utc).isoformat()
 
 
+@lru_cache(maxsize=64)
+def _ler_parquet_cached(caminho: str, mtime: float) -> pl.DataFrame:
+    """Cache LRU de Parquet com invalidacao automatica por mtime.
+    
+    O mtime é usado como chave de invalidacao: quando o arquivo é modificado,
+    o mtime muda e o cache é automaticamente invalidado.
+    """
+    return pl.read_parquet(caminho)
+
+
+def _ler_tabela_com_cache(cnpj: str, nome_tabela: str, camada: str = "parquets") -> pl.DataFrame:
+    """Le tabela Parquet com cache LRU.
+    
+    Se o arquivo não existir, lança FileNotFoundError.
+    """
+    diretorio_parquets = _obter_diretorio_cnpj(_normalizar_cnpj(cnpj)) / camada
+    arquivo = diretorio_parquets / f"{nome_tabela}.parquet"
+    
+    if not arquivo.exists():
+        raise FileNotFoundError(f"Tabela não encontrada: {arquivo}")
+    
+    mtime = arquivo.stat().st_mtime
+    return _ler_parquet_cached(str(arquivo), mtime)
+
+
 def _montar_alvos_analise() -> list[dict[str, Any]]:
     """Monta catalogo de CNPJs conhecidos no storage para selecao inicial."""
     total_tabelas_esperadas = len(CONTRATOS)
@@ -378,7 +417,9 @@ def _listar_diretorios_sql_sugeridos() -> list[dict[str, str]]:
 
     adicionar("ativo", "Diretorio SQL ativo", _obter_diretorio_consultas_sql_ativo())
     adicionar("embutido", "Consultas embutidas do repositorio", _cfg.diretorio_consultas_sql)
-    adicionar("referencia_externa", "Referencia externa do usuario", r"C:\funcoes - Copia\sql")
+    # Caminho de referencia externa configuravel via variavel de ambiente
+    referencia_externa = os.getenv("ORACLE_FONTE_REFERENCIA_SQL", r"C:\funcoes - Copia\sql")
+    adicionar("referencia_externa", "Referencia externa do usuario", referencia_externa)
 
     return sugestoes
 
@@ -1188,7 +1229,7 @@ async def executar_pipeline(request: ExecucaoRequest):
 
 
 @app.post("/api/pipeline/reprocessar")
-async def reprocessar_pipeline(cnpj: str, tabela_editada: str):
+async def reprocessar_pipeline(cnpj: str = Depends(validar_cnpj), tabela_editada: str = ...):
     """Reprocessa tabela editada e dependentes em cascata."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     diretorio_cnpj = _obter_diretorio_cnpj(cnpj_limpo)
@@ -1200,7 +1241,7 @@ async def reprocessar_pipeline(cnpj: str, tabela_editada: str):
 
 
 @app.get("/api/pipeline/status/{cnpj}")
-async def status_pipeline(cnpj: str):
+async def status_pipeline(cnpj: str = Depends(validar_cnpj)):
     """Retorna integridade atual dos parquets do CNPJ."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     diretorio_cnpj = _obter_diretorio_cnpj(cnpj_limpo)
@@ -1217,7 +1258,7 @@ async def status_pipeline(cnpj: str):
 
 
 @app.get("/api/tabelas/{cnpj}")
-async def listar_tabelas(cnpj: str, camada: str = Query("parquets")):
+async def listar_tabelas(cnpj: str = Depends(validar_cnpj), camada: str = Query("parquets")):
     """Lista tabelas parquet disponiveis no CNPJ."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     camada_validada = _validar_camada_armazenamento(camada)
@@ -1266,8 +1307,8 @@ async def listar_tabelas(cnpj: str, camada: str = Query("parquets")):
 
 @app.get("/api/tabelas/{cnpj}/{nome_tabela}")
 async def ler_tabela(
-    cnpj: str,
-    nome_tabela: str,
+    cnpj: str = Depends(validar_cnpj),
+    nome_tabela: str = ...,
     camada: str = Query("parquets"),
     pagina: int = Query(1, ge=1),
     por_pagina: int = Query(50, ge=1, le=1000),
@@ -1325,7 +1366,7 @@ async def ler_tabela(
 
 
 @app.get("/api/storage/{cnpj}/manifesto")
-async def obter_manifesto_cnpj(cnpj: str):
+async def obter_manifesto_cnpj(cnpj: str = Depends(validar_cnpj)):
     """Retorna manifesto operacional do CNPJ por camada."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     diretorio_cnpj = _obter_diretorio_cnpj(cnpj_limpo)
@@ -1336,7 +1377,7 @@ async def obter_manifesto_cnpj(cnpj: str):
 
 
 @app.post("/api/agregacao/agregar")
-async def agregar_produtos(cnpj: str, request: AgregacaoRequest):
+async def agregar_produtos(cnpj: str = Depends(validar_cnpj), request: AgregacaoRequest = ...):
     """Registra edicao manual de agregacao e reprocessa dependentes."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     diretorio_cnpj = _obter_diretorio_cnpj(cnpj_limpo)
@@ -1385,7 +1426,7 @@ async def agregar_produtos(cnpj: str, request: AgregacaoRequest):
 
 
 @app.post("/api/agregacao/desagregar")
-async def desagregar_grupo(cnpj: str, request: DesagregacaoRequest):
+async def desagregar_grupo(cnpj: str = Depends(validar_cnpj), request: DesagregacaoRequest = ...):
     """Remove edicao manual de agregacao e reprocessa dependentes."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     diretorio_cnpj = _obter_diretorio_cnpj(cnpj_limpo)
@@ -1430,7 +1471,7 @@ async def desagregar_grupo(cnpj: str, request: DesagregacaoRequest):
 
 
 @app.put("/api/conversao/fator")
-async def editar_fator(cnpj: str, request: EdicaoFatorRequest):
+async def editar_fator(cnpj: str = Depends(validar_cnpj), request: EdicaoFatorRequest = ...):
     """Registra edicao manual de fator e reprocessa dependentes."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     diretorio_cnpj = _obter_diretorio_cnpj(cnpj_limpo)
@@ -1477,7 +1518,7 @@ async def editar_fator(cnpj: str, request: EdicaoFatorRequest):
 
 
 @app.post("/api/conversao/recalcular")
-async def recalcular_derivados(cnpj: str):
+async def recalcular_derivados(cnpj: str = Depends(validar_cnpj)):
     """Reprocessa cadeia de tabelas dependentes de fatores."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     diretorio_cnpj = _obter_diretorio_cnpj(cnpj_limpo)
@@ -1494,8 +1535,8 @@ async def recalcular_derivados(cnpj: str):
 
 @app.get("/api/exportar/{cnpj}/{nome_tabela}")
 async def exportar_tabela(
-    cnpj: str,
-    nome_tabela: str,
+    cnpj: str = Depends(validar_cnpj),
+    nome_tabela: str = ...,
     formato: str = Query("xlsx", pattern="^(xlsx|csv|parquet)$"),
 ):
     """Exporta tabela parquet para xlsx, csv ou parquet."""
@@ -1720,7 +1761,7 @@ async def listar_cnpjs_com_relatorio():
 
 
 @app.get("/api/relatorio/cnpj/{cnpj}")
-async def obter_relatorio_cnpj(cnpj: str):
+async def obter_relatorio_cnpj(cnpj: str = Depends(validar_cnpj)):
     """Retorna dados do relatorio de um CNPJ."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     dados = carregar_dados_relatorio(BASE_DIR, cnpj_limpo)
@@ -1728,7 +1769,7 @@ async def obter_relatorio_cnpj(cnpj: str):
 
 
 @app.put("/api/relatorio/cnpj/{cnpj}")
-async def salvar_relatorio_cnpj(cnpj: str, request: RelatorioRequest):
+async def salvar_relatorio_cnpj(cnpj: str = Depends(validar_cnpj), request: RelatorioRequest = ...):
     """Salva dados do relatorio de um CNPJ."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     caminho = obter_caminho_relatorio_cnpj(BASE_DIR, cnpj_limpo)
@@ -1759,7 +1800,7 @@ async def salvar_relatorio_cnpj(cnpj: str, request: RelatorioRequest):
 
 
 @app.get("/api/relatorio/cnpj/{cnpj}/listar-dets")
-async def listar_dets_cnpj(cnpj: str):
+async def listar_dets_cnpj(cnpj: str = Depends(validar_cnpj)):
     """Lista PDFs DET disponiveis na pasta do CNPJ."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     dets = listar_dets_disponiveis(BASE_DIR, cnpj_limpo)
@@ -1767,7 +1808,7 @@ async def listar_dets_cnpj(cnpj: str):
 
 
 @app.post("/api/relatorio/cnpj/{cnpj}/upload-det")
-async def upload_det_cnpj(cnpj: str, arquivo: UploadFile = File(...)):
+async def upload_det_cnpj(cnpj: str = Depends(validar_cnpj), arquivo: UploadFile = File(...)):
     """Recebe upload de PDF DET via multipart/form-data."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     diretorio = obter_diretorio_relatorio_cnpj(BASE_DIR, cnpj_limpo)
@@ -1811,7 +1852,7 @@ async def upload_det_cnpj(cnpj: str, arquivo: UploadFile = File(...)):
 # ---- Geracao de PDFs ----
 
 @app.post("/api/relatorio/cnpj/{cnpj}/gerar-docx")
-async def gerar_docx_cnpj(cnpj: str):
+async def gerar_docx_cnpj(cnpj: str = Depends(validar_cnpj)):
     """Gera DOCX do relatorio individual do CNPJ preenchendo o modelo Word."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     diagnostico = diagnosticar_prontidao_relatorios(BASE_DIR)
@@ -1870,7 +1911,7 @@ async def gerar_docx_cnpj(cnpj: str):
 # ---- Geracao de PDFs ----
 
 @app.post("/api/relatorio/cnpj/{cnpj}/gerar-pdf")
-async def gerar_pdf_cnpj(cnpj: str):
+async def gerar_pdf_cnpj(cnpj: str = Depends(validar_cnpj)):
     """Gera PDF do relatorio individual do CNPJ e mescla com DET se disponivel."""
     cnpj_limpo = _normalizar_cnpj(cnpj)
     diagnostico = diagnosticar_prontidao_relatorios(BASE_DIR)
