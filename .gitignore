@@ -135,3 +135,4 @@ wheels/
 *.egg
 pycache/
 *.pyc
+venv_test/
