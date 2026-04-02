@@ -43,30 +43,23 @@ CONSULTAS_ESSENCIAIS = [
     "c170",
     "c176",
     "nfe",
-    "nfe_dados_st",
     "nfce",
     "bloco_h",
-    "e111",
     "reg0200",
     "reg0220",
+    "dados_cadastrais",
 ]
 
 # Placeholders aceitos nos SQLs versionados.
+# Mantidos apenas: C170, Bloco H, NFe, NFCe, REG0000, REG0200, REG0220 (essenciais para conversao, agregacao e estoque)
 FONTES_ORACLE_PADRAO = {
     "FONTE_NFE": "BI.FATO_NFE_DETALHE",
     "FONTE_NFCE": "BI.FATO_NFCE_DETALHE",
-    "FONTE_NFE_XML": "BI.NFE_XML",
-    "FONTE_C100": "SPED.REG_C100",
     "FONTE_C170": "SPED.REG_C170",
     "FONTE_C176": "SPED.REG_C176",
-    "FONTE_E111": "SPED.REG_E111",
     "FONTE_REG0000": "SPED.REG_0000",
     "FONTE_REG0200": "SPED.REG_0200",
-    "FONTE_REG0205": "SPED.REG_0205",
-    "FONTE_REG0190": "SPED.REG_0190",
-    "FONTE_REG0005": "SPED.REG_0005",
     "FONTE_REG0220": "SPED.REG_0220",
-    "FONTE_DM_EFD_AJUSTES": "BI.DM_EFD_AJUSTES",
     "FONTE_BLOCO_H_CAB": "SPED.REG_H005",
     "FONTE_BLOCO_H_ITEM": "SPED.REG_H010",
     "FONTE_BLOCO_H_TRIB": "SPED.REG_H020",

@@ -7,19 +7,13 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
-  Database,
   Table2,
   Boxes,
-  ArrowLeftRight,
   Package,
   Settings,
   ChevronLeft,
   ChevronRight,
-  Shield,
-  FileText,
-  GitBranch,
   Search,
-  IdCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -39,26 +33,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   {
-    path: "/dashboard",
-    label: "Dashboard",
-    icon: LayoutDashboard,
-    description: "Visao geral e atalhos",
-  },
-  {
-    path: "/dados-cadastrais",
-    label: "Dados Cadastrais",
-    icon: IdCard,
-    description: "Ficha cadastral do documento em analise",
-  },
-  {
-    path: "/extracao",
-    label: "Extracao",
-    icon: Database,
-    description: "Extracao Oracle e pipeline",
-  },
-  {
     path: "/consulta",
-    label: "Consulta",
+    label: "Consulta SQL",
     icon: Table2,
     description: "Visualizar tabelas Parquet",
   },
@@ -66,25 +42,13 @@ const navItems: NavItem[] = [
     path: "/agregacao-conversao",
     label: "Agregacao e Conversao",
     icon: Boxes,
-    description: "Agrupar e converter produtos e unidades",
+    description: "Agrupar e converter produtos",
   },
   {
     path: "/estoque",
     label: "Estoque",
     icon: Package,
     description: "Movimentacao e saldos",
-  },
-  {
-    path: "/mapeamento-oracle",
-    label: "Mapa Oracle",
-    icon: GitBranch,
-    description: "Raiz SQL, Parquets e Polars",
-  },
-  {
-    path: "/relatorios",
-    label: "Relatorios",
-    icon: FileText,
-    description: "Relatorios fiscais conclusivos",
   },
 ];
 
