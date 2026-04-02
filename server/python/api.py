@@ -1775,7 +1775,11 @@ async def upload_det_cnpj(cnpj: str, arquivo: UploadFile = File(...)):
     if not arquivo.filename or not arquivo.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF sao aceitos")
 
-    destino = diretorio / arquivo.filename
+    nome_arquivo = Path(arquivo.filename).name
+    destino = diretorio / nome_arquivo
+    if not destino.resolve().is_relative_to(diretorio.resolve()):
+        raise HTTPException(status_code=400, detail="Caminho de arquivo invalido")
+
     conteudo = await arquivo.read()
     with destino.open("wb") as f:
         f.write(conteudo)
@@ -1788,16 +1792,16 @@ async def upload_det_cnpj(cnpj: str, arquivo: UploadFile = File(...)):
             for nome in dados_existentes["arquivos_notificacao_incluidos"]
             if isinstance(nome, str)
         ]
-        if arquivo.filename not in arquivos:
-            arquivos.append(arquivo.filename)
+        if nome_arquivo not in arquivos:
+            arquivos.append(nome_arquivo)
             dados_existentes["arquivos_notificacao_incluidos"] = arquivos
             rf_salvar_json(caminho_dados, dados_existentes)
 
     return {
         "status": "ok",
-        "mensagem": f"DET '{arquivo.filename}' salvo para CNPJ {cnpj_limpo}",
+        "mensagem": f"DET '{nome_arquivo}' salvo para CNPJ {cnpj_limpo}",
         "arquivo": {
-            "nome": arquivo.filename,
+            "nome": nome_arquivo,
             "caminho": str(destino),
             "tamanho_bytes": len(conteudo),
         },
