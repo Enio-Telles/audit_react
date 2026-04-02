@@ -240,8 +240,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-xs">
-              <span className="text-muted-foreground">CNPJ ativo</span>
+              <label
+                htmlFor="cnpj-ativo"
+                className="text-muted-foreground cursor-pointer"
+              >
+                CNPJ ativo
+              </label>
               <Input
+                id="cnpj-ativo"
                 value={formatarCnpj(cnpjAtivo)}
                 onChange={event => definirCnpjAtivo(event.target.value)}
                 placeholder="00.000.000/0000-00"
