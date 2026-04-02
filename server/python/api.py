@@ -15,7 +15,8 @@ from typing import Any, Optional
 import polars as pl
 from fastapi import Depends, FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 import audit_engine  # noqa: F401 - importa para registrar contratos e geradores
@@ -2043,6 +2044,50 @@ async def gerar_relatorio_geral(request: GerarRelatorioGeralRequest):
         filename=output_filename,
         media_type="application/pdf",
     )
+
+
+# ============================================================
+# SERVIDOR DE ARQUIVOS ESTÁTICOS (PRODUÇÃO)
+# ============================================================
+# Monta o diretório de build do Vite para servir em produção
+# e implementa fallback para index.html (SPA routing)
+
+import os
+
+# Diretório de build do Vite (configurado em vite.config.ts)
+BUILD_DIR = Path(__file__).parent.parent.parent / "dist" / "public"
+
+
+def _serve_index_html() -> HTMLResponse:
+    """Retorna index.html para SPA routing."""
+    index_path = BUILD_DIR / "index.html"
+    if not index_path.exists():
+        return HTMLResponse(
+            content="<html><body><h1>Frontend em desenvolvimento</h1><p>Execute <code>pnpm dev</code> para iniciar o Vite.</p></body></html>",
+            status_code=200,
+        )
+    with open(index_path, "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
+
+
+# Monta arquivos estáticos do build do Vite
+# Nota: Em desenvolvimento, use o Vite diretamente (pnpm dev)
+if BUILD_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(BUILD_DIR / "assets"), html=False), name="assets")
+
+
+# Handler para SPA routing - serve index.html para rotas desconhecidas
+@app.get("/{path:path}")
+async def spa_fallback(path: str):
+    """Fallback para index.html em rotas não-API (SPA routing)."""
+    # Se o caminho for um arquivo estático existente, retorna o arquivo
+    if path.startswith("assets/"):
+        arquivo_estatico = BUILD_DIR / path
+        if arquivo_estatico.exists() and arquivo_estatico.is_file():
+            return FileResponse(path=arquivo_estatico)
+    
+    # Para todas as outras rotas, retorna index.html (client-side routing)
+    return _serve_index_html()
 
 
 if __name__ == "__main__":
