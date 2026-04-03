@@ -103,6 +103,15 @@ def gerar_fatores_conversao(
     # 2. Iterar programaticamente sobre os agrupados aplicando regras finas (mantido loop pela facilidade manual)
     registros: list[dict[str, object]] = []
     
+    # Pre-computar lookup dictionary para evitar chamadas de filter em loop O(N*M)
+    lookup_unidades: dict[str, list[dict[str, object]]] = {}
+    if not df_unidades_calc.is_empty():
+        for row in df_unidades_calc.iter_rows(named=True):
+            desc = str(row.get("descricao_normalizada") or "")
+            if desc not in lookup_unidades:
+                lookup_unidades[desc] = []
+            lookup_unidades[desc].append(dict(row))
+
     for linha in df_agrupados.to_dicts():
         id_agrupado = str(linha["id_agrupado"])
         descricao_padrao = str(linha.get("descricao_padrao") or "")
@@ -110,15 +119,16 @@ def gerar_fatores_conversao(
         unid_compra = str(linha.get("unid_compra") or "").strip()
         unid_venda = str(linha.get("unid_venda") or "").strip()
         
-        # Filtra as unidades ativas daquele produto
-        unidades_prod = df_unidades_calc.filter(pl.col("descricao_normalizada") == desc_norm) if not df_unidades_calc.is_empty() else pl.DataFrame()
+        # Filtra as unidades ativas daquele produto via dicionario
+        unidades_prod = lookup_unidades.get(desc_norm, [])
         
         # Escolha da unidade referencia automatica:
         # unid_ref = fallback automatico (maior qtd_mov_total)
         unid_ref = unid_venda or unid_compra
-        if not unidades_prod.is_empty():
-            unidades_ordenadas = unidades_prod.sort("qtd_mov_total", descending=True)
-            unid_ref = str(unidades_ordenadas["unidade"][0])
+        if unidades_prod:
+            # Encontrar unidade com maior qtd_mov_total
+            unid_ref_dict = max(unidades_prod, key=lambda u: float(u.get("qtd_mov_total") or 0.0))
+            unid_ref = str(unid_ref_dict.get("unidade") or "")
             
         fator_compra_ref = 1.0
         fator_venda_ref = 1.0
@@ -134,14 +144,15 @@ def gerar_fatores_conversao(
             editado_manualmente = True
 
         # Logica de fator baseada no preco medio:
-        if unid_ref and not unidades_prod.is_empty():
+        if unid_ref and unidades_prod:
             # Pegar precos da unidade referencia
-            linha_ref = unidades_prod.filter(pl.col("unidade") == unid_ref)
+            linha_ref = [u for u in unidades_prod if u.get("unidade") == unid_ref]
             preco_base = 0.0
             
-            if not linha_ref.is_empty():
-                pm_compra = float(linha_ref["preco_compra"][0])
-                pm_venda = float(linha_ref["preco_venda"][0])
+            if linha_ref:
+                u_ref = linha_ref[0]
+                pm_compra = float(u_ref.get("preco_compra") or 0.0)
+                pm_venda = float(u_ref.get("preco_venda") or 0.0)
                 
                 # Preco base prioriza COMPRA senao VENDA
                 if pm_compra > 0:
@@ -154,19 +165,21 @@ def gerar_fatores_conversao(
             # Recalcular fatores perante o preco base
             if preco_base > 0:
                 # Fator Compra
-                linha_compra = unidades_prod.filter(pl.col("unidade") == unid_compra)
-                if not linha_compra.is_empty():
-                    pm_compra_uc = float(linha_compra["preco_compra"][0])
-                    pm_venda_uc = float(linha_compra["preco_venda"][0])
+                linha_compra = [u for u in unidades_prod if u.get("unidade") == unid_compra]
+                if linha_compra:
+                    u_compra = linha_compra[0]
+                    pm_compra_uc = float(u_compra.get("preco_compra") or 0.0)
+                    pm_venda_uc = float(u_compra.get("preco_venda") or 0.0)
                     preco_base_uc = pm_compra_uc if pm_compra_uc > 0 else pm_venda_uc
                     if preco_base_uc > 0:
                         fator_compra_ref = preco_base_uc / preco_base
                         
                 # Fator Venda
-                linha_venda = unidades_prod.filter(pl.col("unidade") == unid_venda)
-                if not linha_venda.is_empty():
-                    pm_compra_uv = float(linha_venda["preco_compra"][0])
-                    pm_venda_uv = float(linha_venda["preco_venda"][0])
+                linha_venda = [u for u in unidades_prod if u.get("unidade") == unid_venda]
+                if linha_venda:
+                    u_venda = linha_venda[0]
+                    pm_compra_uv = float(u_venda.get("preco_compra") or 0.0)
+                    pm_venda_uv = float(u_venda.get("preco_venda") or 0.0)
                     preco_base_uv = pm_compra_uv if pm_compra_uv > 0 else pm_venda_uv
                     if preco_base_uv > 0:
                         fator_venda_ref = preco_base_uv / preco_base

@@ -16,3 +16,6 @@
 ## 2026-03-31 - Memoizing Reference Table Loading
 **Learning:** Loading static reference data (like NCM, CEST) via eager `pl.read_parquet()` repeatedly on every lookup or validation call causes severe disk I/O and memory instantiation overhead (N+1 queries).
 **Action:** Always wrap data-loading functions for small, frequently-accessed reference tables with `functools.lru_cache(maxsize=1)` so the underlying dataframe is read from disk only once.
+## 2026-04-03 - O(N*M) Polars Filter in Python Loops
+**Learning:** Using `df.filter(pl.col(name) == val)` inside a Python loop (e.g., when iterating over another dataframe's rows) causes severe O(N*M) performance bottlenecks and lags the processing engine.
+**Action:** Always pre-compute a lookup dictionary using `df.iter_rows(named=True)` before the loop. This converts the O(N*M) operation into an O(N+M) mapping with O(1) constant-time access inside the loop.
