@@ -237,7 +237,8 @@ def _carregar_metadados_reg0000(diretorio_cnpj: Path) -> dict[str, Any]:
         }
 
     try:
-        df_reg0000 = pl.read_parquet(caminho_reg0000, columns=["nome", "ie", "cpf"])
+        # ⚡ BOLT: Otimizacao de performance. Evita alocacao completa do Parquet na memoria.
+        df_reg0000 = pl.scan_parquet(caminho_reg0000).select(["nome", "ie", "cpf"]).collect()
     except Exception as erro:  # noqa: BLE001
         logger.warning("Falha ao ler metadados do reg0000 para %s: %s", diretorio_cnpj.name, erro)
         return {
@@ -1391,19 +1392,25 @@ async def agregar_produtos(cnpj: str = Depends(validar_cnpj), request: Agregacao
     if not arquivo_produtos.exists():
         raise HTTPException(status_code=404, detail="Tabela produtos.parquet nao encontrada")
 
-    df_produtos = pl.read_parquet(arquivo_produtos)
-    coluna_identificador = "id_item" if "id_item" in df_produtos.columns else "id_produto" if "id_produto" in df_produtos.columns else None
+    # ⚡ BOLT: Otimizacao de performance. Extrai schema e dados em lazy evaluation para nao carregar a tabela produtos inteira
+    schema_produtos = pl.read_parquet_schema(arquivo_produtos).names()
+    coluna_identificador = "id_item" if "id_item" in schema_produtos else "id_produto" if "id_produto" in schema_produtos else None
     if coluna_identificador is None:
         raise HTTPException(status_code=400, detail="Tabela produtos sem coluna de identificador publico")
 
-    ids_disponiveis = set(df_produtos[coluna_identificador].cast(pl.String, strict=False).to_list())
+    lf_produtos = pl.scan_parquet(arquivo_produtos)
+    ids_disponiveis = set(
+        lf_produtos.select(coluna_identificador).collect()[coluna_identificador].cast(pl.String, strict=False).to_list()
+    )
     ids_invalidos = [item for item in ids_produtos if item not in ids_disponiveis]
     if ids_invalidos:
         raise HTTPException(status_code=400, detail=f"IDs de produto invalidos: {ids_invalidos}")
 
     descricao_padrao = request.descricao_padrao
     if not descricao_padrao:
-        df_primeiro = df_produtos.filter(pl.col(coluna_identificador).cast(pl.String, strict=False) == ids_produtos[0])
+        df_primeiro = lf_produtos.filter(
+            pl.col(coluna_identificador).cast(pl.String, strict=False) == ids_produtos[0]
+        ).select("descricao").collect()
         descricao_padrao = str(df_primeiro["descricao"][0]) if not df_primeiro.is_empty() else ids_produtos[0]
 
     arquivo_edicoes = diretorio_cnpj / "edicoes" / "agregacao.json"
@@ -1439,8 +1446,8 @@ async def desagregar_grupo(cnpj: str = Depends(validar_cnpj), request: Desagrega
     if chave_alvo not in edicoes:
         arquivo_agrupados = diretorio_cnpj / "parquets" / "produtos_agrupados.parquet"
         if arquivo_agrupados.exists():
-            df_agrupados = pl.read_parquet(arquivo_agrupados)
-            candidatos = df_agrupados.filter(pl.col("id_agrupado") == request.id_grupo)
+            # ⚡ BOLT: Otimizacao de performance. Lazy evaluation e pushdown filter para encontrar a descricao agrupada.
+            candidatos = pl.scan_parquet(arquivo_agrupados).filter(pl.col("id_agrupado") == request.id_grupo).collect()
             if not candidatos.is_empty():
                 coluna_descricao = (
                     "descricao_padrao"

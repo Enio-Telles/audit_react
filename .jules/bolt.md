@@ -16,3 +16,7 @@
 ## 2026-03-31 - Memoizing Reference Table Loading
 **Learning:** Loading static reference data (like NCM, CEST) via eager `pl.read_parquet()` repeatedly on every lookup or validation call causes severe disk I/O and memory instantiation overhead (N+1 queries).
 **Action:** Always wrap data-loading functions for small, frequently-accessed reference tables with `functools.lru_cache(maxsize=1)` so the underlying dataframe is read from disk only once.
+
+## 2024-05-20 - Fetching Column Names using Lazyframes
+**Learning:** To retrieve available column names from Parquet files without loading the dataset into memory, using `.columns` on an eagerly evaluated dataframe is extremely inefficient.
+**Action:** Use `pl.read_parquet_schema(filepath).names()`. If the dataframe is already a lazyframe, use `lf.collect_schema().names()`.
