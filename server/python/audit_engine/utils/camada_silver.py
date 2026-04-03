@@ -546,13 +546,13 @@ def _montar_c176_xml(diretorio_extraidos: Path, cnpj: str) -> pl.DataFrame:
 
 def _montar_nfe_dados_st(diretorio_extraidos: Path) -> pl.DataFrame:
     """Padroniza a base XML de ST/FCP em um artefato silver por item de NF-e."""
-    df_st = _ler_parquet_se_existir(diretorio_extraidos / "nfe_dados_st.parquet")
-    if df_st.is_empty():
+    caminho_st = diretorio_extraidos / "nfe_dados_st.parquet"
+    if not caminho_st.exists():
         return _criar_dataframe_vazio("nfe_dados_st")
 
-    # A base de ST do XML preserva os campos tributarios do item de NF-e para conciliacao posterior.
+    # ⚡ BOLT: Otimizacao de performance. Usa lazy evaluation para pushdown de projecoes reduzindo uso de memoria.
     df_nfe_dados_st = (
-        df_st
+        pl.scan_parquet(caminho_st)
         .with_columns(
             [
                 pl.col("chave_acesso").cast(pl.String, strict=False).alias("chave_documento"),
@@ -588,20 +588,20 @@ def _montar_nfe_dados_st(diretorio_extraidos: Path) -> pl.DataFrame:
             ).alias("id_linha_origem")
         )
         .select(list(SCHEMAS_SILVER["nfe_dados_st"].keys()))
-    )
+    ).collect()
 
     return df_nfe_dados_st
 
 
 def _montar_e111_ajustes(diretorio_extraidos: Path) -> pl.DataFrame:
     """Padroniza os ajustes E111 em uma trilha silver por competencia."""
-    df_e111 = _ler_parquet_se_existir(diretorio_extraidos / "e111.parquet")
-    if df_e111.is_empty():
+    caminho_e111 = diretorio_extraidos / "e111.parquet"
+    if not caminho_e111.exists():
         return _criar_dataframe_vazio("e111_ajustes")
 
-    # O E111 materializa ajustes de apuracao e precisa preservar codigo, descricao e valor original.
+    # ⚡ BOLT: Otimizacao de performance. Usa lazy evaluation para pushdown de projecoes reduzindo uso de memoria.
     df_e111_ajustes = (
-        df_e111
+        pl.scan_parquet(caminho_e111)
         .with_columns(
             [
                 pl.col("periodo_efd").cast(pl.String, strict=False).alias("periodo_efd"),
@@ -615,7 +615,7 @@ def _montar_e111_ajustes(diretorio_extraidos: Path) -> pl.DataFrame:
             ]
         )
         .select(list(SCHEMAS_SILVER["e111_ajustes"].keys()))
-    )
+    ).collect()
 
     return df_e111_ajustes
 

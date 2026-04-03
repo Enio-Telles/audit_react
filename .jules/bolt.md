@@ -16,3 +16,7 @@
 ## 2026-03-31 - Memoizing Reference Table Loading
 **Learning:** Loading static reference data (like NCM, CEST) via eager `pl.read_parquet()` repeatedly on every lookup or validation call causes severe disk I/O and memory instantiation overhead (N+1 queries).
 **Action:** Always wrap data-loading functions for small, frequently-accessed reference tables with `functools.lru_cache(maxsize=1)` so the underlying dataframe is read from disk only once.
+
+## 2025-02-12 - [Lazy DataFrame Materialization on Single-Source Extraction]
+**Learning:** Polars' `pl.read_parquet()` eager reader pulls the entire table into memory before any filtering, padding, or selection transforms are applied in `camada_silver.py`. For huge Parquet extractions (`nfe_dados_st.parquet`, `e111.parquet`), this introduces a memory allocation bottleneck that can OOM on large CNPJs.
+**Action:** When a transformation pipeline reads from a single huge Parquet file and immediately does `with_columns` and `select` mapping, ALWAYS use `pl.scan_parquet()...collect()` instead to defer evaluation and let Polars automatically pushdown projections right to the IO reader.
