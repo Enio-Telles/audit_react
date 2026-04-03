@@ -2083,6 +2083,14 @@ async def spa_fallback(path: str):
     # Se o caminho for um arquivo estático existente, retorna o arquivo
     if path.startswith("assets/"):
         arquivo_estatico = BUILD_DIR / path
+
+        # Previne Path Traversal
+        try:
+            if not arquivo_estatico.resolve().is_relative_to(BUILD_DIR.resolve()):
+                raise ValueError("Fora do BUILD_DIR")
+        except ValueError as erro:
+            raise HTTPException(status_code=400, detail="Caminho de arquivo invalido") from erro
+
         if arquivo_estatico.exists() and arquivo_estatico.is_file():
             return FileResponse(path=arquivo_estatico)
     
