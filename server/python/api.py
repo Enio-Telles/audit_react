@@ -72,10 +72,15 @@ app = FastAPI(
     version="1.0.0",
 )
 
-allowed_origins = os.getenv(
+raw_origins = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:5173,http://localhost:3000,http://localhost:8000",
 ).split(",")
+
+# Remove empty origins, strips whitespace, and forbids the wildcard (*) when allow_credentials=True
+allowed_origins = [
+    origin.strip() for origin in raw_origins if origin.strip() and origin.strip() != "*"
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -2083,6 +2088,11 @@ async def spa_fallback(path: str):
     # Se o caminho for um arquivo estático existente, retorna o arquivo
     if path.startswith("assets/"):
         arquivo_estatico = BUILD_DIR / path
+
+        # Previne path traversal verificando se o arquivo resolvido permanece no diretório seguro
+        if not arquivo_estatico.resolve().is_relative_to(BUILD_DIR.resolve()):
+            return _serve_index_html()
+
         if arquivo_estatico.exists() and arquivo_estatico.is_file():
             return FileResponse(path=arquivo_estatico)
     
