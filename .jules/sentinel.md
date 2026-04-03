@@ -12,3 +12,8 @@
 **Vulnerability:** Path traversal via unsanitized `UploadFile.filename` in FastAPI file upload (`upload_det_cnpj` endpoint). User input was concatenated directly to the base path (`diretorio / arquivo.filename`).
 **Learning:** Even internal or admin-focused applications can suffer from critical remote code execution / arbitrary file write vulnerabilities if the standard web framework objects (like FastAPI's `UploadFile`) have their properties passed blindly to filesystem operations.
 **Prevention:** Always use `Path(user_filename).name` to extract just the base filename, stripping any directory traversal elements (`../`). As a defense in depth measure, verify that `resolved_destination_path.is_relative_to(resolved_base_dir)` before performing the I/O.
+
+## 2025-02-27 - [Fix Path Traversal in Static Asset Handler]
+**Vulnerability:** A path traversal vulnerability existed in the `spa_fallback` handler where the static asset path was checked using `startswith('assets/')` but not validated securely after joining with `BUILD_DIR`, allowing access to files outside the intended directory.
+**Learning:** Checking a path prefix using string operations is insufficient because `../` traversal elements can bypass these checks when passed to file system operations. FastApi/Starlette's string path parameters allow traversal.
+**Prevention:** Always sanitize dynamically constructed paths. Wrap path operations in a `try...except` block, resolve the constructed path using `.resolve()`, and explicitly enforce bounds using `.is_relative_to(base_dir.resolve())` before file access.
