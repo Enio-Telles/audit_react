@@ -2083,7 +2083,7 @@ async def spa_fallback(path: str):
     # Se o caminho for um arquivo estático existente, retorna o arquivo
     if path.startswith("assets/"):
         arquivo_estatico = BUILD_DIR / path
-        if arquivo_estatico.exists() and arquivo_estatico.is_file():
+        if arquivo_estatico.resolve().is_relative_to(BUILD_DIR.resolve()) and arquivo_estatico.exists() and arquivo_estatico.is_file():
             return FileResponse(path=arquivo_estatico)
     
     # Para todas as outras rotas, retorna index.html (client-side routing)
