@@ -16,17 +16,14 @@ logger = logging.getLogger(__name__)
 
 def extrair_relacao_id_agrupado(df_agrupados: pl.DataFrame) -> pl.DataFrame:
     """Extrai a relacao de cada id_produto para seu id_agrupado e descricao padrao."""
-    # 1. Analisa os ids_membros (que estao em formato JSON string) usando operacoes literais se necessario,
-    # Mas como o polars nao parseia JSON array para Int64 diretamente de forma trivial, 
-    # podemos usar uma funcao lambda ou expression para explodir e castar.
-    
-    # Extrair os ids do json, removendo colchetes e aspas, dividindo em lista, e explodindo
+    # ⚡ BOLT: Otimizacao de performance.
+    # Usa pl.List(pl.String) e json_decode nativo que utiliza processamento
+    # vetorizado em Rust para parser JSON ao inves de iteracoes Regex lentas
     return df_agrupados.select(
         pl.col("id_agrupado"),
         pl.col("descricao_padrao"),
         pl.col("ids_membros")
-          .str.replace_all(r"[\[\]\"']", "")
-          .str.split(",")
+          .str.json_decode(pl.List(pl.String))
           .alias("id_produto")
     ).explode("id_produto").with_columns(
         # Castar para inteiro ignorando eventuais espacos

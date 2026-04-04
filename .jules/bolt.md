@@ -16,3 +16,7 @@
 ## 2026-03-31 - Memoizing Reference Table Loading
 **Learning:** Loading static reference data (like NCM, CEST) via eager `pl.read_parquet()` repeatedly on every lookup or validation call causes severe disk I/O and memory instantiation overhead (N+1 queries).
 **Action:** Always wrap data-loading functions for small, frequently-accessed reference tables with `functools.lru_cache(maxsize=1)` so the underlying dataframe is read from disk only once.
+
+## 2026-04-01 - Fast JSON Array Parsing in Polars
+**Learning:** Using regex string replacements (`str.replace_all`) and `.str.split()` to extract arrays of elements from JSON strings is incredibly slow.
+**Action:** For expanding JSON string columns containing lists in Polars, always use `.str.json_decode(pl.List(TYPE)).explode()` to leverage vectorized performance and avoid slow Python-level row iteration or slow string manipulation.
