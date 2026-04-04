@@ -12,3 +12,8 @@
 **Vulnerability:** Path traversal via unsanitized `UploadFile.filename` in FastAPI file upload (`upload_det_cnpj` endpoint). User input was concatenated directly to the base path (`diretorio / arquivo.filename`).
 **Learning:** Even internal or admin-focused applications can suffer from critical remote code execution / arbitrary file write vulnerabilities if the standard web framework objects (like FastAPI's `UploadFile`) have their properties passed blindly to filesystem operations.
 **Prevention:** Always use `Path(user_filename).name` to extract just the base filename, stripping any directory traversal elements (`../`). As a defense in depth measure, verify that `resolved_destination_path.is_relative_to(resolved_base_dir)` before performing the I/O.
+
+## $(date +%Y-%m-%d) - [Fix Path Traversal in spa_fallback]
+**Vulnerability:** A path traversal vulnerability existed in the `spa_fallback` handler in `api.py` which serves static assets. It checked `path.startswith("assets/")` but joined the path with `BUILD_DIR` without validating the resolved path. This allowed traversal strings like `assets/../../etc/passwd` to resolve outside of the `BUILD_DIR`.
+**Learning:** A simple string prefix check (`startswith`) is not sufficient when joining paths using `pathlib` with user-controlled input, as `pathlib` will still resolve the traversal strings (`../`).
+**Prevention:** Always use `.resolve().is_relative_to(BASE_DIR.resolve())` to securely verify that the final path resides within the expected base directory boundaries. Wrap in a `try-except` block to handle OS-level resolution errors safely.
