@@ -15,4 +15,3 @@
 
 ## 2026-03-31 - Memoizing Reference Table Loading
 **Learning:** Loading static reference data (like NCM, CEST) via eager `pl.read_parquet()` repeatedly on every lookup or validation call causes severe disk I/O and memory instantiation overhead (N+1 queries).
-**Action:** Always wrap data-loading functions for small, frequently-accessed reference tables with `functools.lru_cache(maxsize=1)` so the underlying dataframe is read from disk only once.
