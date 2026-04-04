@@ -801,6 +801,8 @@ export default function Relatorios() {
                                 size="sm"
                                 onClick={() => handleRemoverCnpjDsf(cnpj)}
                                 className="h-6 w-6 p-0"
+                                aria-label="Remover CNPJ da DSF"
+                                title="Remover"
                               >
                                 <X className="h-3 w-3" />
                               </Button>
