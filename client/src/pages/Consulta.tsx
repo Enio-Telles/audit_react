@@ -92,68 +92,80 @@ export default function Consulta() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <Select
-              value={nomeTabela}
-              onValueChange={value => {
-                setNomeTabela(value);
-                setPagina(1);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a tabela" />
-              </SelectTrigger>
-              <SelectContent>
-                {tabelas.map(tabela => (
-                  <SelectItem key={tabela.nome} value={tabela.nome}>
-                    {tabela.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <div className="w-full sm:w-48">
+                <Select
+                  value={nomeTabela}
+                  onValueChange={value => {
+                    setNomeTabela(value);
+                    setPagina(1);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a tabela" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tabelas.map(tabela => (
+                      <SelectItem key={tabela.nome} value={tabela.nome}>
+                        {tabela.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <Select
-              value={camada}
-              onValueChange={value => {
-                setCamada(value as CamadaTabela);
-                setNomeTabela("");
-                setPagina(1);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a camada" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="parquets">Gold</SelectItem>
-                <SelectItem value="silver">Silver</SelectItem>
-                <SelectItem value="extraidos">Extraidos</SelectItem>
-              </SelectContent>
-            </Select>
+              <div className="w-full sm:w-40">
+                <Select
+                  value={camada}
+                  onValueChange={value => {
+                    setCamada(value as CamadaTabela);
+                    setNomeTabela("");
+                    setPagina(1);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a camada" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="parquets">Gold</SelectItem>
+                    <SelectItem value="silver">Silver</SelectItem>
+                    <SelectItem value="extraidos">Extraidos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <Select value={filtroColuna} onValueChange={setFiltroColuna}>
-              <SelectTrigger>
-                <SelectValue placeholder="Coluna de filtro" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__todas__">Sem filtro de coluna</SelectItem>
-                {colunasTabela.map(coluna => (
-                  <SelectItem key={coluna} value={coluna}>
-                    {coluna}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <div className="w-full sm:w-48">
+                <Select value={filtroColuna} onValueChange={setFiltroColuna}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Coluna de filtro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__todas__">
+                      Sem filtro de coluna
+                    </SelectItem>
+                    {colunasTabela.map(coluna => (
+                      <SelectItem key={coluna} value={coluna}>
+                        {coluna}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <Input
-              placeholder="Valor do filtro"
-              value={filtroValor}
-              onChange={event => {
-                setFiltroValor(event.target.value);
-                setPagina(1);
-              }}
-            />
+              <div className="w-full sm:w-48">
+                <Input
+                  placeholder="Valor do filtro"
+                  value={filtroValor}
+                  onChange={event => {
+                    setFiltroValor(event.target.value);
+                    setPagina(1);
+                  }}
+                />
+              </div>
+            </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2 sm:w-auto md:ml-auto">
               <Button
                 variant="outline"
                 onClick={() => cnpjAtivo && listar(cnpjAtivo, camada)}
