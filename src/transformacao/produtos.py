@@ -16,7 +16,6 @@ import polars as pl
 from rich.console import Console
 
 from src.utilitarios.salvar_para_parquet import salvar_para_parquet
-from src.utilitarios.text import remove_accents
 
 CURRENT_FILE = Path(__file__).resolve()
 ROOT_DIR = CURRENT_FILE.parent.parent.parent
@@ -25,10 +24,6 @@ CNPJ_ROOT = DADOS_DIR / "CNPJ"
 
 ERR_CONSOLE = Console(stderr=True)
 OUT_CONSOLE = Console(stderr=False)
-
-
-def _remover_acentos(text: str | None) -> str | None:
-    return remove_accents(text) if text else None
 
 
 def gerar_produtos(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
@@ -48,10 +43,16 @@ def gerar_produtos(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
     try:
         df = pl.read_parquet(arq_input)
 
-        # Mantem map_elements apenas para remocao de acentos; o resto usa API nativa do Polars.
+        # Optimization: Using vectorized str.replace_all instead of map_elements with custom Python function to prevent breaking vectorization and improve performance.
         df = df.with_columns(
             pl.col("descricao")
-            .map_elements(_remover_acentos, return_dtype=pl.String)
+            .str.replace_all(r"[áàâãäåÁÀÂÃÄÅ]", "A")
+            .str.replace_all(r"[éèêëÉÈÊË]", "E")
+            .str.replace_all(r"[íìîïÍÌÎÏ]", "I")
+            .str.replace_all(r"[óòôõöÓÒÔÕÖ]", "O")
+            .str.replace_all(r"[úùûüÚÙÛÜ]", "U")
+            .str.replace_all(r"[çÇ]", "C")
+            .str.replace_all(r"[ñÑ]", "N")
             .str.to_uppercase()
             .str.strip_chars()
             .str.replace_all(r"\s+", " ")

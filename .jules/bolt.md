@@ -9,3 +9,7 @@
 ## 2024-05-30 - Replace O(N*M) loop filter with partition_by
 **Learning:** Using `polars.DataFrame.filter()` inside a Python loop can lead to severe O(N*M) performance bottlenecks when doing cross-dataset lookups, as each iteration performs a full scan of the dataframe. Using `partition_by(column, as_dict=True)` pre-computes a constant-time lookup dictionary mapping keys to their corresponding DataFrames, turning an O(N*M) operation into an O(N+M) operation. This reduces lookup times significantly (e.g. 0.43s -> 0.05s in test script).
 **Action:** Always prefer `partition_by(..., as_dict=True)` over iterative `df.filter()` when querying or cross-referencing values inside a Python `for` or `while` loop.
+
+## 2025-04-05 - Avoid map_elements for string normalization
+**Learning:** Using `.map_elements` with a custom Python function to apply character replacements (like accent removal) forces Polars to fall back to the Python interpreter on every row, breaking vectorization and severely degrading performance.
+**Action:** Always prefer native Polars chained string methods, such as `.str.replace_all()`, to perform character normalization. This keeps execution entirely within Polars' optimized Rust engine.
