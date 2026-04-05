@@ -14,6 +14,21 @@ STOPWORDS = {
 }
 
 
+import polars as pl
+
+def polars_remove_accents_upper(expr: pl.Expr) -> pl.Expr:
+    return (
+        expr.str.to_uppercase()
+        .str.replace_all(r"[ÁÀÂÃÄ]", "A")
+        .str.replace_all(r"[ÉÈÊË]", "E")
+        .str.replace_all(r"[ÍÌÎÏ]", "I")
+        .str.replace_all(r"[ÓÒÔÕÖ]", "O")
+        .str.replace_all(r"[ÚÙÛÜ]", "U")
+        .str.replace_all(r"[Ç]", "C")
+        .str.replace_all(r"[Ñ]", "N")
+    )
+
+
 def remove_accents(text: str | None) -> str | None:
     if text is None:
         return None

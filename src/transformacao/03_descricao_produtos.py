@@ -37,13 +37,14 @@ except ImportError as e:
     sys.exit(1)
 
 
+from src.utilitarios.text import polars_remove_accents_upper
+
 def _normalizar_descricao_expr(col: str) -> pl.Expr:
+    # Usando a API nativa do Polars (vectorizada) para evitar o overhead do map_elements
     return (
-        pl.col(col)
-        .cast(pl.Utf8, strict=False)
-        .map_elements(remove_accents, return_dtype=pl.String)
-        .fill_null("")
-        .str.to_uppercase()
+        polars_remove_accents_upper(
+            pl.col(col).cast(pl.Utf8, strict=False).fill_null("")
+        )
         .str.strip_chars()
         .str.replace_all(r"\s+", " ")
         .alias("descricao_normalizada")
