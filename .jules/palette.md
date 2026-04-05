@@ -8,3 +8,6 @@
 ## 2024-05-24 - Improve DataTable pagination and selection accessibility
 **Learning:** Found missing aria labels for checkboxes and pagination buttons. Added `aria-label` and `title` to them, and improved visual feedback with `disabled:cursor-not-allowed` for disabled buttons.
 **Action:** Always provide `aria-label` or `title` for icon-only elements like `«` and `»` pagination buttons or checkboxes to ensure screen readers can announce them. Also add visual cues like `disabled:cursor-not-allowed` for disabled states.
+## 2024-05-30 - Add WAI-ARIA roles to custom tabs and aria-labels to inline filters
+**Learning:** Custom tabbed interfaces lack inherent semantics, causing screen readers to misinterpret their structure. Similarly, inline filter inputs without explicit labels are inaccessible to screen reader users.
+**Action:** Always apply `role="tablist"`, `role="tab"`, `aria-selected`, `aria-controls`, and `role="tabpanel"` to custom tab implementations. Ensure all inputs, including inline filters, have `aria-label` or explicit `<label>` associations.

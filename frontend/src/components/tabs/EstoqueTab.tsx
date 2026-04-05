@@ -173,6 +173,7 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
               className={inputCls + " w-56"}
               value={filterIdAgrupado}
               onChange={(e) => setFilterIdAgrupado(e.target.value)}
+              aria-label="Filtrar por ID Agrupado"
             >
               <option value="">— Todos os produtos —</option>
               {uniqueIdAgrupados.map((id) => (
@@ -182,7 +183,11 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
               ))}
             </select>
           ) : (
-            <select className={inputCls + " w-48"} disabled>
+            <select
+              className={inputCls + " w-48"}
+              disabled
+              aria-label="Filtro por ID Agrupado indisponível"
+            >
               <option>Filtrar id_agrupado</option>
             </select>
           )}
@@ -191,19 +196,26 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
             placeholder="Filtrar descricao..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            aria-label="Filtrar descrição"
           />
           {sub === "tabela_mensal" && (
             <>
-              <select className={inputCls + " w-24"}>
+              <select
+                className={inputCls + " w-24"}
+                aria-label="Filtrar por Ano"
+              >
                 <option>Ano: Todos</option>
               </select>
-              <select className={inputCls + " w-24"}>
+              <select
+                className={inputCls + " w-24"}
+                aria-label="Filtrar por Mês"
+              >
                 <option>Mes: Todos</option>
               </select>
             </>
           )}
           {sub === "tabela_anual" && (
-            <select className={inputCls + " w-24"}>
+            <select className={inputCls + " w-24"} aria-label="Filtrar por Ano">
               <option>Todos</option>
             </select>
           )}
@@ -314,6 +326,7 @@ export function EstoqueTab() {
       <div
         className="flex gap-1 px-3 pt-2 border-b border-slate-700"
         style={{ background: "#0a1628" }}
+        role="tablist"
       >
         {subtabs.map((st) => (
           <button
@@ -325,6 +338,9 @@ export function EstoqueTab() {
                 : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
             style={subTab === st.key ? { background: "#0f1b33" } : {}}
+            role="tab"
+            aria-selected={subTab === st.key}
+            aria-controls={"panel-" + st.key}
           >
             {st.label}
             {st.count !== undefined
@@ -334,7 +350,11 @@ export function EstoqueTab() {
         ))}
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div
+        className="flex-1 overflow-hidden"
+        role="tabpanel"
+        id={"panel-" + subTab}
+      >
         <EstoqueSubTab cnpj={selectedCnpj} sub={subTab} />
       </div>
     </div>
