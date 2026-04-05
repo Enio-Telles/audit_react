@@ -57,7 +57,8 @@ export function ConversaoTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fatores_conversao', selectedCnpj] }),
   });
 
-  const allRows: Row[] = data?.rows ?? [];
+  const rows = data?.rows;
+  const allRows: Row[] = useMemo(() => rows ?? [], [rows]);
   const dataColumns: string[] = data?.columns ?? [];
 
   const displayCols = DISPLAY_COLS_ORDER.filter(c => dataColumns.includes(c));
