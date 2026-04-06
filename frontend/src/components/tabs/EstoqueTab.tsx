@@ -319,12 +319,18 @@ export function EstoqueTab() {
     <div className="flex flex-col h-full">
       {/* Subtab bar */}
       <div
+        role="tablist"
+        aria-label="Tabelas de estoque"
         className="flex gap-1 px-3 pt-2 border-b border-slate-700"
         style={{ background: "#0a1628" }}
       >
         {subtabs.map((st) => (
           <button
             key={st.key}
+            role="tab"
+            aria-selected={subTab === st.key}
+            aria-controls={`subtabpanel-${st.key}`}
+            id={`subtab-${st.key}`}
             onClick={() => setSubTab(st.key)}
             className={`px-3 py-1.5 rounded-t text-xs font-medium transition-colors border-t border-l border-r ${
               subTab === st.key
@@ -341,7 +347,12 @@ export function EstoqueTab() {
         ))}
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div
+        role="tabpanel"
+        id={`subtabpanel-${subTab}`}
+        aria-labelledby={`subtab-${subTab}`}
+        className="flex-1 overflow-hidden"
+      >
         <EstoqueSubTab cnpj={selectedCnpj} sub={subTab} />
       </div>
     </div>
