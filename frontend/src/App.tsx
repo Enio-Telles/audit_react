@@ -9,6 +9,7 @@ import { EstoqueTab } from "./components/tabs/EstoqueTab";
 import { LogsTab } from "./components/tabs/LogsTab";
 import { LandingPage } from "./components/LandingPage";
 import { FisconformeTab } from "./components/tabs/FisconformeTab";
+import { RessarcimentoTab } from "./components/tabs/RessarcimentoTab";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -19,6 +20,7 @@ const TABS = [
   { id: "sql", label: "Consulta SQL" },
   { id: "agregacao", label: "Agregacao" },
   { id: "conversao", label: "Conversao" },
+  { id: "ressarcimento", label: "Ressarcimento ST" },
   { id: "estoque", label: "Estoque" },
   { id: "logs", label: "Logs" },
 ];
@@ -120,6 +122,7 @@ function MainContent() {
           {activeTab === "sql" && <ConsultaSqlTab />}
           {activeTab === "agregacao" && <AgregacaoTab />}
           {activeTab === "conversao" && <ConversaoTab />}
+          {activeTab === "ressarcimento" && <RessarcimentoTab />}
           {activeTab === "estoque" && <EstoqueTab />}
           {activeTab === "logs" && <LogsTab />}
         </div>

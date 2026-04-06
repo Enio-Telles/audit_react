@@ -18,6 +18,7 @@ import type {
   OracleSalvarRequest,
   OracleTestarRequest,
   OracleTestarResponse,
+  RessarcimentoResumo,
 } from "./types";
 
 const api = axios.create({ baseURL: "/api" });
@@ -124,6 +125,36 @@ export const estoqueApi = {
         unid_ref,
       })
       .then((r) => r.data),
+};
+
+// ---- Ressarcimento ST ----
+export const ressarcimentoApi = {
+  itens: (cnpj: string, page = 1, page_size = 500) =>
+    api
+      .get<PageResult>(`/ressarcimento/${cnpj}/itens`, {
+        params: { page, page_size },
+      })
+      .then((r) => r.data),
+  mensal: (cnpj: string, page = 1, page_size = 500) =>
+    api
+      .get<PageResult>(`/ressarcimento/${cnpj}/mensal`, {
+        params: { page, page_size },
+      })
+      .then((r) => r.data),
+  conciliacao: (cnpj: string, page = 1, page_size = 500) =>
+    api
+      .get<PageResult>(`/ressarcimento/${cnpj}/conciliacao`, {
+        params: { page, page_size },
+      })
+      .then((r) => r.data),
+  validacoes: (cnpj: string, page = 1, page_size = 500) =>
+    api
+      .get<PageResult>(`/ressarcimento/${cnpj}/validacoes`, {
+        params: { page, page_size },
+      })
+      .then((r) => r.data),
+  resumo: (cnpj: string) =>
+    api.get<RessarcimentoResumo>(`/ressarcimento/${cnpj}/resumo`).then((r) => r.data),
 };
 
 // ---- Aggregation ----

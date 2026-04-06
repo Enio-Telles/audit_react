@@ -43,6 +43,8 @@ def _iter_sql_paths(include_archive: bool = False) -> Iterable[Path]:
                 continue
             except ValueError:
                 pass
+            if any(parte.lower() == "referencia" for parte in path.parts):
+                continue
         resultado.append(path)
     return resultado
 

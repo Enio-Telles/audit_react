@@ -43,6 +43,24 @@ export interface SqlFile {
   path: string;
 }
 
+export type RessarcimentoStatusCalculo =
+  | "ok"
+  | "pendente_conversao"
+  | "parcial_pos_2022";
+
+export interface RessarcimentoResumo {
+  ready: boolean;
+  prerequisitos: Record<string, boolean>;
+  faltantes: string[];
+  qtd_itens: number;
+  pendencias_conversao: number;
+  parciais_pos_2022: number;
+  itens_com_st_calc: number;
+  itens_com_fronteira: number;
+  cobertura_pre_2023: number;
+  cobertura_pos_2023: number;
+}
+
 // ---- Fisconforme types ----
 export interface DadosCadastrais {
   cnpj: string;

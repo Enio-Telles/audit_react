@@ -61,6 +61,7 @@ _registar("fontes_produtos",     "transformacao.fontes_produtos:gerar_fontes_pro
 _registar("fatores_conversao",   "transformacao.fatores_conversao:calcular_fatores_conversao", deps=["fontes_produtos"])
 _registar("c170_xml",            "transformacao.c170_xml:gerar_c170_xml",                 deps=["fatores_conversao"])
 _registar("c176_xml",            "transformacao.c176_xml:gerar_c176_xml",                 deps=["fatores_conversao"])
+_registar("ressarcimento_st",    "transformacao.ressarcimento_st:gerar_ressarcimento_st", deps=["efd_atomizacao", "c176_xml"])
 _registar("movimentacao_estoque","transformacao.movimentacao_estoque:gerar_movimentacao_estoque", deps=["c170_xml", "c176_xml"])
 _registar("calculos_mensais",    "transformacao.calculos_mensais:gerar_calculos_mensais", deps=["movimentacao_estoque"])
 _registar("calculos_anuais",     "transformacao.calculos_anuais:gerar_calculos_anuais",   deps=["movimentacao_estoque"])

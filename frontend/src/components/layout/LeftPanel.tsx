@@ -1,35 +1,39 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cnpjApi, pipelineApi } from "../../api/client";
 import { useAppStore } from "../../store/appStore";
-import type { PipelineStatus } from "../../api/types";
 
 const inputCls =
   "w-full bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500";
 const btnCls =
   "px-3 py-1.5 rounded text-xs font-medium cursor-pointer transition-colors";
 const CONSULTAS_ATOMIZADAS_PADRAO = [
-  "fiscal/efd/reg_0000.sql",
-  "fiscal/efd/reg_0005.sql",
-  "fiscal/efd/reg_0190.sql",
-  "fiscal/efd/reg_0200.sql",
-  "fiscal/efd/c100.sql",
-  "fiscal/efd/c170.sql",
-  "fiscal/efd/c176.sql",
-  "fiscal/efd/bloco_h.sql",
+  "arquivos_parquet/atomizadas/shared/01_reg0000_historico.sql",
+  "arquivos_parquet/atomizadas/shared/02_reg0000_versionado.sql",
+  "arquivos_parquet/atomizadas/shared/03_reg0000_ultimo_periodo.sql",
+  "arquivos_parquet/atomizadas/c100/10_c100_raw.sql",
+  "arquivos_parquet/atomizadas/c170/20_c170_raw.sql",
+  "arquivos_parquet/atomizadas/c176/30_c176_raw.sql",
+  "arquivos_parquet/atomizadas/bloco_h/40_h005_raw.sql",
+  "arquivos_parquet/atomizadas/bloco_h/41_h010_raw.sql",
+  "arquivos_parquet/atomizadas/bloco_h/42_h020_raw.sql",
+  "arquivos_parquet/atomizadas/dimensions/50_reg0200_raw.sql",
 ];
 
 export function LeftPanel() {
   const queryClient = useQueryClient();
-  const { selectedCnpj, setSelectedCnpj, selectedFile, setSelectedFile } =
-    useAppStore();
+  const {
+    selectedCnpj,
+    setSelectedCnpj,
+    pipelineWatchCnpj,
+    pipelineStatus,
+    pipelinePolling,
+    startPipelineMonitor,
+    updatePipelineStatus,
+  } = useAppStore();
 
   const [newCnpj, setNewCnpj] = useState("");
   const [dataLimite, setDataLimite] = useState("12/03/2026");
-  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus | null>(
-    null,
-  );
-  const [polling, setPolling] = useState(false);
 
   const { data: cnpjs = [] } = useQuery({
     queryKey: ["cnpjs"],
@@ -64,7 +68,7 @@ export function LeftPanel() {
     const cnpj = await ensureSelectedCnpj();
     if (!cnpj) return;
 
-    setPipelineStatus({
+    startPipelineMonitor(cnpj, {
       status: "queued",
       progresso: [],
       erros: [],
@@ -85,21 +89,19 @@ export function LeftPanel() {
       tabelas: modo === "atomized" ? ["efd_atomizacao"] : undefined,
     });
     setSelectedCnpj(cnpj);
-    setPolling(true);
   };
 
   useEffect(() => {
-    if (!polling || !selectedCnpj) return;
+    if (!pipelinePolling || !pipelineWatchCnpj) return;
     const id = setInterval(async () => {
-      const s = await pipelineApi.status(selectedCnpj);
-      setPipelineStatus(s);
+      const s = await pipelineApi.status(pipelineWatchCnpj);
+      updatePipelineStatus(s);
       if (s.status === "done" || s.status === "error") {
-        setPolling(false);
-        queryClient.invalidateQueries({ queryKey: ["files", selectedCnpj] });
+        queryClient.invalidateQueries({ queryKey: ["files", pipelineWatchCnpj] });
       }
     }, 1500);
     return () => clearInterval(id);
-  }, [polling, selectedCnpj, queryClient]);
+  }, [pipelinePolling, pipelineWatchCnpj, queryClient, updatePipelineStatus]);
 
   const progressValue = pipelineStatus?.percentual ?? 0;
   const etapasConcluidas = pipelineStatus?.etapas_concluidas ?? 0;
@@ -196,7 +198,7 @@ export function LeftPanel() {
               btnCls + " bg-slate-700 hover:bg-slate-600 text-slate-200"
             }
             onClick={() => void runPipeline("extract")}
-            disabled={(!selectedCnpj && !newCnpj.trim()) || polling}
+            disabled={(!selectedCnpj && !newCnpj.trim()) || pipelinePolling}
           >
             Extrair Tabelas Brutas
           </button>
@@ -205,9 +207,9 @@ export function LeftPanel() {
               btnCls + " bg-slate-700 hover:bg-slate-600 text-slate-200"
             }
             onClick={() => void runPipeline("process")}
-            disabled={(!selectedCnpj && !newCnpj.trim()) || polling}
+            disabled={(!selectedCnpj && !newCnpj.trim()) || pipelinePolling}
           >
-            {polling ? "Processando..." : "Processamento"}
+            {pipelinePolling ? "Processando..." : "Processamento"}
           </button>
           <button
             className={
@@ -215,9 +217,9 @@ export function LeftPanel() {
               " col-span-2 bg-cyan-900/70 hover:bg-cyan-800 text-cyan-100"
             }
             onClick={() => void runPipeline("atomized")}
-            disabled={(!selectedCnpj && !newCnpj.trim()) || polling}
+            disabled={(!selectedCnpj && !newCnpj.trim()) || pipelinePolling}
           >
-            {polling ? "Executando etapa..." : "EFD Atomizada"}
+            {pipelinePolling ? "Executando etapa..." : "EFD Atomizada"}
           </button>
           <button
             className={

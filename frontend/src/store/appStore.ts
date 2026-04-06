@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import type { FilterItem, ParquetFile, HighlightRule } from '../api/types';
+import type {
+  FilterItem,
+  HighlightRule,
+  ParquetFile,
+  PipelineStatus,
+} from '../api/types';
 
 export type AppMode = 'audit' | 'fisconforme' | null;
 
@@ -52,6 +57,17 @@ interface AppStore {
   // Left panel visibility
   leftPanelVisible: boolean;
   toggleLeftPanel: () => void;
+
+  // Pipeline monitor
+  pipelineWatchCnpj: string | null;
+  pipelineStatus: PipelineStatus | null;
+  pipelinePolling: boolean;
+  startPipelineMonitor: (
+    cnpj: string,
+    status: PipelineStatus | null,
+  ) => void;
+  updatePipelineStatus: (status: PipelineStatus | null) => void;
+  stopPipelineMonitor: () => void;
 }
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -137,4 +153,24 @@ export const useAppStore = create<AppStore>((set) => ({
   leftPanelVisible: true,
   toggleLeftPanel: () =>
     set((s) => ({ leftPanelVisible: !s.leftPanelVisible })),
+
+  pipelineWatchCnpj: null,
+  pipelineStatus: null,
+  pipelinePolling: false,
+  startPipelineMonitor: (cnpj, status) =>
+    set({
+      pipelineWatchCnpj: cnpj,
+      pipelineStatus: status,
+      pipelinePolling: true,
+    }),
+  updatePipelineStatus: (status) =>
+    set({
+      pipelineStatus: status,
+      pipelinePolling:
+        status?.status === 'done' || status?.status === 'error' ? false : true,
+    }),
+  stopPipelineMonitor: () =>
+    set({
+      pipelinePolling: false,
+    }),
 }));

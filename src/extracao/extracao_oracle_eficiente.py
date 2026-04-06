@@ -95,18 +95,37 @@ def descobrir_consultas_sql(
 ) -> list[ConsultaSql]:
     """Descobre as consultas SQL disponiveis ou normaliza uma selecao explicita."""
 
+    # When caller provides explicit dirs (e.g. tests), use them directly;
+    # otherwise fall back to the canonical SQL_ROOT via sql_catalog.
+    diretorios_explicitados = diretorios_sql is not None
     diretorios = _normalizar_diretorios_sql(diretorios_sql)
     consultas: list[ConsultaSql] = []
 
     if consultas_selecionadas:
         for consulta in consultas_selecionadas:
-            caminho = resolve_sql_path(consulta)
-            raiz_consulta = _resolver_raiz_sql(caminho, diretorios)
-            consultas.append(ConsultaSql(caminho=caminho, raiz_sql=raiz_consulta))
+            consulta_path = Path(consulta)
+            if diretorios_explicitados:
+                for raiz in diretorios:
+                    candidato = (raiz / consulta_path).resolve() if (raiz / consulta_path).exists() else raiz / consulta_path
+                    if candidato.exists():
+                        consultas.append(ConsultaSql(caminho=candidato, raiz_sql=raiz))
+                        break
+                else:
+                    caminho = resolve_sql_path(consulta)
+                    consultas.append(ConsultaSql(caminho=caminho, raiz_sql=SQL_ROOT))
+            else:
+                caminho = resolve_sql_path(consulta)
+                raiz_consulta = _resolver_raiz_sql(caminho, diretorios)
+                consultas.append(ConsultaSql(caminho=caminho, raiz_sql=raiz_consulta))
     else:
-        for entry in list_sql_entries():
-            caminho = entry.path
-            consultas.append(ConsultaSql(caminho=caminho, raiz_sql=SQL_ROOT))
+        if diretorios_explicitados:
+            for raiz in diretorios:
+                for sql_path in raiz.rglob("*.sql"):
+                    consultas.append(ConsultaSql(caminho=sql_path, raiz_sql=raiz))
+        else:
+            for entry in list_sql_entries():
+                caminho = entry.path
+                consultas.append(ConsultaSql(caminho=caminho, raiz_sql=SQL_ROOT))
 
     consultas_unicas: list[ConsultaSql] = []
     vistos: set[str] = set()
