@@ -15,6 +15,9 @@ type SubTab =
 // Sub-tabs that show the produtos_final table and support full selection
 const PRODUTOS_SUBS = new Set<SubTab>(["produtos", "id_agrupados"]);
 
+// ⚡ Bolt Optimization: Cache Intl.NumberFormat to prevent expensive re-instantiations during render loops
+const intFormatter = new Intl.NumberFormat("pt-BR");
+
 function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -213,7 +216,7 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
           <span className="text-xs text-slate-400">
             {isLoading
               ? "Carregando..."
-              : `Exibindo ${filteredRows.length.toLocaleString("pt-BR")} de ${(data?.total_rows ?? 0).toLocaleString("pt-BR")} linhas.`}
+              : `Exibindo ${intFormatter.format(filteredRows.length)} de ${intFormatter.format(data?.total_rows ?? 0)} linhas.`}
           </span>
           {hasFilters && (
             <span className="text-xs text-amber-400">
@@ -328,7 +331,7 @@ export function EstoqueTab() {
           >
             {st.label}
             {st.count !== undefined
-              ? ` (${st.count.toLocaleString("pt-BR")})`
+              ? ` (${intFormatter.format(st.count)})`
               : ""}
           </button>
         ))}

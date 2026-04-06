@@ -25,15 +25,19 @@ interface DataTableProps {
   onSelectAll?: (checked: boolean, visibleKeys: string[]) => void;
 }
 
+// ⚡ Bolt Optimization: Cache Intl.NumberFormat to prevent expensive re-instantiations during frequent table renders
+const intFormatter = new Intl.NumberFormat("pt-BR");
+const decimalFormatter = new Intl.NumberFormat("pt-BR", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (Array.isArray(value)) return value.join(" | ");
   if (typeof value === "number") {
-    if (Number.isInteger(value)) return value.toLocaleString("pt-BR");
-    return value.toLocaleString("pt-BR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    if (Number.isInteger(value)) return intFormatter.format(value);
+    return decimalFormatter.format(value);
   }
   return String(value);
 }
@@ -238,7 +242,7 @@ export function DataTable({
           </button>
           <span>
             Página {page} / {totalPages} | Linhas filtradas:{" "}
-            {(totalRows ?? 0).toLocaleString("pt-BR")}
+            {intFormatter.format(totalRows ?? 0)}
           </span>
           <button
             onClick={() => onPageChange(page + 1)}
