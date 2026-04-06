@@ -50,6 +50,7 @@ def _registar(id: str, funcao_path: str, deps: list[str] | None = None) -> None:
     REGISTO_TABELAS[id] = _TabelaRegistro(id, funcao_path, deps)
 
 
+_registar("efd_atomizacao",    "transformacao.efd_atomizacao:gerar_efd_atomizacao")
 # Ordem lógica: dependencias criticas explícitas
 _registar("tb_documentos",       "transformacao.tabela_documentos:gerar_tabela_documentos")
 _registar("item_unidades",       "transformacao.item_unidades:gerar_item_unidades",       deps=["tb_documentos"])

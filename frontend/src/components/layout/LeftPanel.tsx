@@ -8,6 +8,18 @@ const inputCls =
   "w-full bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500";
 const btnCls =
   "px-3 py-1.5 rounded text-xs font-medium cursor-pointer transition-colors";
+const CONSULTAS_ATOMIZADAS_PADRAO = [
+  "01_reg0000_historico.sql",
+  "02_reg0000_versionado.sql",
+  "03_reg0000_ultimo_periodo.sql",
+  "10_c100_raw.sql",
+  "20_c170_raw.sql",
+  "30_c176_raw.sql",
+  "40_h005_raw.sql",
+  "41_h010_raw.sql",
+  "42_h020_raw.sql",
+  "50_reg0200_raw.sql",
+];
 
 export function LeftPanel() {
   const queryClient = useQueryClient();
@@ -48,7 +60,9 @@ export function LeftPanel() {
     return selectedCnpj;
   };
 
-  const runPipeline = async (modo: "full" | "extract" | "process") => {
+  const runPipeline = async (
+    modo: "full" | "extract" | "process" | "atomized",
+  ) => {
     const cnpj = await ensureSelectedCnpj();
     if (!cnpj) return;
 
@@ -65,9 +79,12 @@ export function LeftPanel() {
 
     await pipelineApi.run({
       cnpj,
-      data_limite: modo === "process" ? undefined : dataLimite,
+      data_limite:
+        modo === "process" || modo === "atomized" ? undefined : dataLimite,
       incluir_extracao: modo !== "process",
-      incluir_processamento: modo !== "extract",
+      incluir_processamento: modo !== "extract" && modo !== "atomized",
+      consultas: modo === "atomized" ? CONSULTAS_ATOMIZADAS_PADRAO : undefined,
+      tabelas: modo === "atomized" ? ["efd_atomizacao"] : undefined,
     });
     setSelectedCnpj(cnpj);
     setPolling(true);
@@ -193,6 +210,15 @@ export function LeftPanel() {
             disabled={(!selectedCnpj && !newCnpj.trim()) || polling}
           >
             {polling ? "Processando..." : "Processamento"}
+          </button>
+          <button
+            className={
+              btnCls + " col-span-2 bg-cyan-900/70 hover:bg-cyan-800 text-cyan-100"
+            }
+            onClick={() => void runPipeline("atomized")}
+            disabled={(!selectedCnpj && !newCnpj.trim()) || polling}
+          >
+            {polling ? "Executando etapa..." : "EFD Atomizada"}
           </button>
           <button
             className={

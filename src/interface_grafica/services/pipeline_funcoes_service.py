@@ -49,6 +49,13 @@ class ResultadoGeracaoTabelas:
 
 TABELAS_DISPONIVEIS: list[dict[str, str]] = [
     {
+        "id": "efd_atomizacao",
+        "nome": "0. EFD Atomizada",
+        "descricao": "Materializa a camada atomizada tipada de 0200, C100, C170, C176 e Bloco H",
+        "modulo": "efd_atomizacao",
+        "funcao": "gerar_efd_atomizacao",
+    },
+    {
         "id": "tb_documentos",
         "nome": "Consolidacao de Documentos",
         "descricao": "Unifica cabecalhos de NFe, NFCe e C100",
@@ -323,6 +330,7 @@ class ServicoTabelas:
         tempos: dict[str, float] = {}
 
         ordem = [
+            "efd_atomizacao",
             "tb_documentos",
             "item_unidades",
             "itens",

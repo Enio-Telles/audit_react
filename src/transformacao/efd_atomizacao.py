@@ -4,25 +4,39 @@ from pathlib import Path
 
 from rich import print as rprint
 
-from transformacao.atomizacao_pkg.pipeline_efd_atomizado import salvar_c100_tipado
+from transformacao.atomizacao_pkg.pipeline_efd_atomizado import _base_atomizada
+from transformacao.atomizacao_pkg.pipeline_efd_atomizado import materializar_camadas_atomizadas
 
 
 def gerar_efd_atomizacao(cnpj: str, _pasta_cnpj: Path | None = None) -> bool:
     """
-    Gera a primeira camada analitica da abordagem atomizada.
+    Gera a camada analitica principal da abordagem atomizada.
 
-    A etapa atual materializa o C100 tipado a partir dos parquets extraidos em
-    `arquivos_parquet/atomizadas`. Mantem a funcao desacoplada do restante do
-    pipeline para permitir evolucao incremental da atomizacao.
+    A materializacao parte dos parquets em `arquivos_parquet/atomizadas` e gera
+    visoes tipadas de `0200`, `C100`, `C170`, `C176`, `H005`, `H010`, `H020`
+    e uma consolidacao do `Bloco H`.
     """
 
-    try:
-        caminho = salvar_c100_tipado(cnpj)
-        rprint(f"[green]Atomizacao EFD gerada com sucesso:[/green] {caminho.name}")
-        return True
-    except FileNotFoundError as exc:
-        rprint(f"[yellow]Atomizacao EFD nao executada:[/yellow] {exc}")
-        return False
-    except Exception as exc:
-        rprint(f"[red]Falha ao gerar atomizacao EFD:[/red] {exc}")
-        return False
+    caminhos_esperados = [
+        _base_atomizada(cnpj) / "dimensions" / f"50_reg0200_raw_{cnpj}.parquet",
+        _base_atomizada(cnpj) / "c100" / f"10_c100_raw_{cnpj}.parquet",
+        _base_atomizada(cnpj) / "c170" / f"20_c170_raw_{cnpj}.parquet",
+        _base_atomizada(cnpj) / "c176" / f"30_c176_raw_{cnpj}.parquet",
+        _base_atomizada(cnpj) / "bloco_h" / f"40_h005_raw_{cnpj}.parquet",
+        _base_atomizada(cnpj) / "bloco_h" / f"41_h010_raw_{cnpj}.parquet",
+        _base_atomizada(cnpj) / "bloco_h" / f"42_h020_raw_{cnpj}.parquet",
+    ]
+    faltantes = [str(caminho.name) for caminho in caminhos_esperados if not caminho.exists()]
+    if faltantes:
+        raise RuntimeError(
+            "Parquets atomizados ausentes para a EFD atomizada. "
+            "Execute a extracao das consultas atomizadas antes do processamento. "
+            f"Arquivos faltantes: {', '.join(faltantes)}"
+        )
+
+    caminhos = materializar_camadas_atomizadas(cnpj)
+    rprint(
+        "[green]Atomizacao EFD gerada com sucesso:[/green] "
+        + ", ".join(caminho.name for caminho in caminhos)
+    )
+    return True
