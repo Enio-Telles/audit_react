@@ -25,15 +25,19 @@ interface DataTableProps {
   onSelectAll?: (checked: boolean, visibleKeys: string[]) => void;
 }
 
+// Optimize performance by caching NumberFormat instances instead of calling toLocaleString repeatedly
+const intFormat = new Intl.NumberFormat("pt-BR");
+const floatFormat = new Intl.NumberFormat("pt-BR", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (Array.isArray(value)) return value.join(" | ");
   if (typeof value === "number") {
-    if (Number.isInteger(value)) return value.toLocaleString("pt-BR");
-    return value.toLocaleString("pt-BR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    if (Number.isInteger(value)) return intFormat.format(value);
+    return floatFormat.format(value);
   }
   return String(value);
 }
