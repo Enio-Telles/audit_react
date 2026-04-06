@@ -22,10 +22,20 @@ const TABS = [
 ];
 
 function MainContent() {
-  const { activeTab, setActiveTab, leftPanelVisible, toggleLeftPanel, selectedFile, selectedCnpj } = useAppStore();
+  const {
+    activeTab,
+    setActiveTab,
+    leftPanelVisible,
+    toggleLeftPanel,
+    selectedFile,
+    selectedCnpj,
+  } = useAppStore();
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#0a1628" }}>
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{ background: "#0a1628" }}
+    >
       {/* Left panel */}
       {leftPanelVisible && <LeftPanel />}
 
@@ -40,12 +50,7 @@ function MainContent() {
             {selectedCnpj && (
               <>
                 CNPJ: {selectedCnpj}
-                {selectedFile && (
-                  <>
-                    {" "}
-                    | Arquivo: {selectedFile.name}
-                  </>
-                )}
+                {selectedFile && <> | Arquivo: {selectedFile.name}</>}
               </>
             )}
           </div>
@@ -53,20 +58,28 @@ function MainContent() {
             onClick={toggleLeftPanel}
             className="text-xs text-blue-400 hover:text-blue-200 px-2 py-1 rounded bg-slate-800 border border-slate-700"
           >
-            {leftPanelVisible ? "<< Ocultar Painel Lateral" : ">> Mostrar Painel Lateral"}
+            {leftPanelVisible
+              ? "<< Ocultar Painel Lateral"
+              : ">> Mostrar Painel Lateral"}
           </button>
         </div>
 
         {/* Tab bar */}
         <div
+          role="tablist"
+          aria-label="Navegação Principal"
           className="flex items-center gap-1 px-3 pt-2 border-b border-slate-700"
           style={{ background: "#0a1628" }}
         >
           {TABS.map((t) => (
             <button
               key={t.id}
+              role="tab"
+              id={`tab-${t.id}`}
+              aria-selected={activeTab === t.id}
+              aria-controls={`panel-${t.id}`}
               onClick={() => setActiveTab(t.id)}
-              className={`px-4 py-1.5 text-xs font-medium rounded-t transition-colors border-t border-l border-r ${
+              className={`px-4 py-1.5 text-xs font-medium rounded-t transition-colors border-t border-l border-r focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
                 activeTab === t.id
                   ? "border-slate-600 text-white"
                   : "border-transparent text-slate-400 hover:text-slate-200"
@@ -79,7 +92,13 @@ function MainContent() {
         </div>
 
         {/* Tab content */}
-        <div className="flex-1 overflow-hidden" style={{ background: "#0a1628" }}>
+        <div
+          role="tabpanel"
+          id={`panel-${activeTab}`}
+          aria-labelledby={`tab-${activeTab}`}
+          className="flex-1 overflow-hidden"
+          style={{ background: "#0a1628" }}
+        >
           {activeTab === "consulta" && <ConsultaTab />}
           {activeTab === "sql" && <ConsultaSqlTab />}
           {activeTab === "agregacao" && <AgregacaoTab />}
