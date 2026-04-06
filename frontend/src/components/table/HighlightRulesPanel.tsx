@@ -135,7 +135,9 @@ export function HighlightRulesPanel({
               </div>
             )}
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-slate-400">Rótulo (opc.)</label>
+              <label className="text-[10px] text-slate-400">
+                Rótulo (opc.)
+              </label>
               <input
                 className={inputCls + " w-24"}
                 placeholder="Ex: Erro"
@@ -154,8 +156,7 @@ export function HighlightRulesPanel({
                     className="w-5 h-5 rounded-sm border-2 transition-all cursor-pointer"
                     style={{
                       background: c.value,
-                      borderColor:
-                        color === c.value ? "#fff" : "transparent",
+                      borderColor: color === c.value ? "#fff" : "transparent",
                     }}
                   />
                 ))}
@@ -198,8 +199,9 @@ export function HighlightRulesPanel({
                   </span>
                   <button
                     onClick={() => onRemove(i)}
-                    className="ml-auto text-red-400 hover:text-red-300 text-xs shrink-0 cursor-pointer"
-                    title="Remover"
+                    className="ml-auto text-red-400 hover:text-red-300 text-xs shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-400 rounded px-1"
+                    aria-label="Remover regra de destaque"
+                    title="Remover regra de destaque"
                   >
                     ✕
                   </button>
