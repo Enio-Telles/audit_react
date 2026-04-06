@@ -54,6 +54,11 @@ const EMPTY_DRAFT: FisconformeDraft = {
   pdfStoredName: "",
 };
 
+const intlDateTime = new Intl.DateTimeFormat("pt-BR", {
+  dateStyle: "short",
+  timeStyle: "medium",
+});
+
 const MONTH_LABELS = [
   "jan",
   "fev",
@@ -174,7 +179,7 @@ function formatDateTime(value: string): string {
   if (!value) return "-";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString("pt-BR");
+  return intlDateTime.format(parsed);
 }
 
 function buildDsfHeadline(
