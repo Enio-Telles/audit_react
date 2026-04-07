@@ -90,7 +90,7 @@ class SalvarConfigRequest(BaseModel):
 
 @router.get("/config", response_model=OracleConfigResponse)
 def obter_config():
-    """Retorna as configurações das duas conexões Oracle, incluindo senhas (app local)."""
+    """Retorna as configurações das duas conexões Oracle, omitindo as senhas para segurança."""
     env = _read_env()
     return {
         "conexao_1": {
@@ -98,7 +98,7 @@ def obter_config():
             "port": env.get("ORACLE_PORT", "1521"),
             "service": env.get("ORACLE_SERVICE", ""),
             "user": env.get("DB_USER", ""),
-            "password": env.get("DB_PASSWORD", ""),
+            "password": "********" if env.get("DB_PASSWORD") else "",
             "configured": bool(env.get("DB_USER") and env.get("DB_PASSWORD")),
         },
         "conexao_2": {
@@ -106,7 +106,7 @@ def obter_config():
             "port": env.get("ORACLE_PORT_1", "1521"),
             "service": env.get("ORACLE_SERVICE_1", ""),
             "user": env.get("DB_USER_1", ""),
-            "password": env.get("DB_PASSWORD_1", ""),
+            "password": "********" if env.get("DB_PASSWORD_1") else "",
             "configured": bool(env.get("DB_USER_1") and env.get("DB_PASSWORD_1")),
         },
     }
@@ -163,13 +163,15 @@ def salvar_config(req: SalvarConfigRequest):
             "ORACLE_PORT": req.oracle_port,
             "ORACLE_SERVICE": req.oracle_service,
             "DB_USER": req.db_user,
-            "DB_PASSWORD": req.db_password,
             "ORACLE_HOST_1": req.oracle_host_1,
             "ORACLE_PORT_1": req.oracle_port_1,
             "ORACLE_SERVICE_1": req.oracle_service_1,
             "DB_USER_1": req.db_user_1,
-            "DB_PASSWORD_1": req.db_password_1,
         }
+        if req.db_password != "********":
+            campos["DB_PASSWORD"] = req.db_password
+        if req.db_password_1 != "********":
+            campos["DB_PASSWORD_1"] = req.db_password_1
         # optional fields — only write if non-empty
         for k, v in [("LOG_LEVEL", req.log_level), ("CACHE_ENABLED", req.cache_enabled),
                      ("CACHE_TTL", req.cache_ttl), ("DASHBOARD_THEME", req.dashboard_theme)]:
