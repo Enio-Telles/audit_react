@@ -123,6 +123,26 @@ class ServicoAgregacao:
         return " ".join((remove_accents(texto) or "").upper().strip().split()) if texto is not None else ""
 
     @staticmethod
+    def _normalizar_descricao_expr(col: str, alias: str = "descricao_normalizada") -> pl.Expr:
+        # Optimization: Replace .map_elements with native Polars string operations to preserve vectorization
+        return (
+            pl.col(col)
+            .cast(pl.Utf8, strict=False)
+            .fill_null("")
+            .str.to_uppercase()
+            .str.replace_all(r"[ÁÀÂÃÄ]", "A")
+            .str.replace_all(r"[ÉÈÊË]", "E")
+            .str.replace_all(r"[ÍÌÎÏ]", "I")
+            .str.replace_all(r"[ÓÒÔÕÖ]", "O")
+            .str.replace_all(r"[ÚÙÛÜ]", "U")
+            .str.replace_all(r"Ç", "C")
+            .str.replace_all(r"Ñ", "N")
+            .str.replace_all(r"\s+", " ")
+            .str.strip_chars()
+            .alias(alias)
+        )
+
+    @staticmethod
     def _primeira_descricao_por_chaves(df_prod: pl.DataFrame, chaves: list[str]) -> str | None:
         if not chaves:
             return None
@@ -523,9 +543,7 @@ class ServicoAgregacao:
             self.caminho_itens_unidades(cnpj),
             ["descricao", "ncm", "cest", "gtin", "co_sefin_item", "fontes", "fonte"],
         ).with_columns(
-            pl.col("descricao")
-            .map_elements(self._normalizar_descricao_para_match, return_dtype=pl.String)
-            .alias("descricao_normalizada_temp")
+            self._normalizar_descricao_expr("descricao", alias="descricao_normalizada_temp")
         )
 
         ids_agrupados_selecionados = self._deduplicar_preservando_ordem(ids_agrupados_selecionados)
@@ -1070,9 +1088,7 @@ class ServicoAgregacao:
             )
         )
         df_base = self._ler_parquet_colunas(path_base, ["descricao", "fonte", "fontes", "ncm", "cest", "gtin", "co_sefin_item"]).with_columns(
-            pl.col("descricao")
-            .map_elements(self._normalizar_descricao_para_match, return_dtype=pl.String)
-            .alias("descricao_normalizada_temp")
+            self._normalizar_descricao_expr("descricao", alias="descricao_normalizada_temp")
         )
 
         registros = []
@@ -1269,9 +1285,7 @@ class ServicoAgregacao:
                 df_base
                 .with_columns(
                     [
-                        pl.col("descricao")
-                        .map_elements(self._normalizar_descricao_para_match, return_dtype=pl.String)
-                        .alias("descricao_normalizada"),
+                        self._normalizar_descricao_expr("descricao", alias="descricao_normalizada"),
                         pl.col("compras").cast(pl.Float64, strict=False).fill_null(0.0).alias("compras"),
                         pl.col("qtd_compras").cast(pl.Float64, strict=False).fill_null(0.0).alias("qtd_compras"),
                         pl.col("vendas").cast(pl.Float64, strict=False).fill_null(0.0).alias("vendas"),
