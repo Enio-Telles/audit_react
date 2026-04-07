@@ -6,6 +6,8 @@ import { DataTable } from "../table/DataTable";
 import { ColumnToggle } from "../table/ColumnToggle";
 import { usePreferenciasColunas } from "../../hooks/usePreferenciasColunas";
 
+const intlNumber = new Intl.NumberFormat("pt-BR");
+
 type SubTab = "itens" | "mensal" | "conciliacao" | "validacoes";
 
 function RessarcimentoGrid({ cnpj, subTab }: { cnpj: string; subTab: SubTab }) {
@@ -31,13 +33,18 @@ function RessarcimentoGrid({ cnpj, subTab }: { cnpj: string; subTab: SubTab }) {
   const rows = useMemo(() => {
     const termo = search.toLowerCase();
     if (!termo) return data?.rows ?? [];
-    return (data?.rows ?? []).filter((row) =>
-      Object.values(row).some((value) =>
-        String(value ?? "")
-          .toLowerCase()
-          .includes(termo),
-      ),
-    );
+    return (data?.rows ?? []).filter((row) => {
+      for (const key in row) {
+        if (
+          String(row[key] ?? "")
+            .toLowerCase()
+            .includes(termo)
+        ) {
+          return true;
+        }
+      }
+      return false;
+    });
   }, [data?.rows, search]);
 
   const {
@@ -94,7 +101,7 @@ function RessarcimentoGrid({ cnpj, subTab }: { cnpj: string; subTab: SubTab }) {
         <div className="mt-2 text-xs text-slate-400">
           {isLoading
             ? "Carregando..."
-            : `Exibindo ${rows.length.toLocaleString("pt-BR")} de ${(data?.total_rows ?? 0).toLocaleString("pt-BR")} linhas.`}
+            : `Exibindo ${intlNumber.format(rows.length)} de ${intlNumber.format(data?.total_rows ?? 0)} linhas.`}
         </div>
       </div>
 
@@ -226,7 +233,7 @@ export function RessarcimentoTab() {
               Itens
             </div>
             <div className="text-lg font-semibold text-slate-100 mt-1">
-              {resumoLoading ? "..." : (resumo?.qtd_itens ?? 0).toLocaleString("pt-BR")}
+              {resumoLoading ? "..." : intlNumber.format(resumo?.qtd_itens ?? 0)}
             </div>
           </div>
           <div className="rounded border border-slate-700 bg-slate-900/50 p-3">
@@ -236,7 +243,7 @@ export function RessarcimentoTab() {
             <div className="text-lg font-semibold text-amber-300 mt-1">
               {resumoLoading
                 ? "..."
-                : (resumo?.pendencias_conversao ?? 0).toLocaleString("pt-BR")}
+                : intlNumber.format(resumo?.pendencias_conversao ?? 0)}
             </div>
           </div>
           <div className="rounded border border-slate-700 bg-slate-900/50 p-3">

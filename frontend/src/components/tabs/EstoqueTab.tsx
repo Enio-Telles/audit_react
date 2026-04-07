@@ -14,6 +14,8 @@ type SubTab =
   | "produtos"
   | "id_agrupados";
 
+const intlNumber = new Intl.NumberFormat("pt-BR");
+
 // Sub-tabs that show the produtos_final table and support full selection
 const PRODUTOS_SUBS = new Set<SubTab>(["produtos", "id_agrupados"]);
 
@@ -251,7 +253,7 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
           <span className="text-xs text-slate-400">
             {isLoading
               ? "Carregando..."
-              : `Exibindo ${filteredRows.length.toLocaleString("pt-BR")} de ${(data?.total_rows ?? 0).toLocaleString("pt-BR")} linhas.`}
+              : `Exibindo ${intlNumber.format(filteredRows.length)} de ${intlNumber.format(data?.total_rows ?? 0)} linhas.`}
           </span>
           {hasFilters && (
             <span className="text-xs text-amber-400">
@@ -371,7 +373,7 @@ export function EstoqueTab() {
           >
             {st.label}
             {st.count !== undefined
-              ? ` (${st.count.toLocaleString("pt-BR")})`
+              ? ` (${intlNumber.format(st.count)})`
               : ""}
           </button>
         ))}
