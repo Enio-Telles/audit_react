@@ -14,6 +14,15 @@ import type {
 type Step = "home" | "input" | "results" | "auditor";
 type ConsultaMode = "single" | "lote";
 
+const intlDateTime = new Intl.DateTimeFormat("pt-BR", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
 interface FisconformeDraft {
   id: string | null;
   dsf: string;
@@ -174,7 +183,8 @@ function formatDateTime(value: string): string {
   if (!value) return "-";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString("pt-BR");
+  // ⚡ Bolt Optimization: Use cached Intl.DateTimeFormat
+  return intlDateTime.format(parsed).replace(",", "");
 }
 
 function buildDsfHeadline(

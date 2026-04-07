@@ -6,6 +6,8 @@ import { DataTable } from "../table/DataTable";
 import { ColumnToggle } from "../table/ColumnToggle";
 import { usePreferenciasColunas } from "../../hooks/usePreferenciasColunas";
 
+const intlInteger = new Intl.NumberFormat("pt-BR");
+
 type SubTab =
   | "mov_estoque"
   | "tabela_mensal"
@@ -251,7 +253,7 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
           <span className="text-xs text-slate-400">
             {isLoading
               ? "Carregando..."
-              : `Exibindo ${filteredRows.length.toLocaleString("pt-BR")} de ${(data?.total_rows ?? 0).toLocaleString("pt-BR")} linhas.`}
+              : `Exibindo ${intlInteger.format(filteredRows.length)} de ${intlInteger.format(data?.total_rows ?? 0)} linhas.`}
           </span>
           {hasFilters && (
             <span className="text-xs text-amber-400">
@@ -371,7 +373,7 @@ export function EstoqueTab() {
           >
             {st.label}
             {st.count !== undefined
-              ? ` (${st.count.toLocaleString("pt-BR")})`
+              ? ` (${intlInteger.format(st.count)})`
               : ""}
           </button>
         ))}
