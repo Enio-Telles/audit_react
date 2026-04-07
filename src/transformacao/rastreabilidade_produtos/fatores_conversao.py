@@ -40,12 +40,23 @@ def _norm(text: str | None) -> str:
     return re.sub(r"\s+", " ", (remove_accents(text) or "").upper().strip())
 
 
-def _normalizar_descricao_expr(col: str) -> pl.Expr:
+def _normalizar_descricao_expr(col: str, alias: str = "descricao_normalizada") -> pl.Expr:
+    # Optimization: Replace .map_elements with native Polars string operations to preserve vectorization
     return (
         pl.col(col)
         .cast(pl.Utf8, strict=False)
-        .map_elements(_norm, return_dtype=pl.String)
-        .alias("descricao_normalizada")
+        .fill_null("")
+        .str.to_uppercase()
+        .str.replace_all(r"[ÁÀÂÃÄ]", "A")
+        .str.replace_all(r"[ÉÈÊË]", "E")
+        .str.replace_all(r"[ÍÌÎÏ]", "I")
+        .str.replace_all(r"[ÓÒÔÕÖ]", "O")
+        .str.replace_all(r"[ÚÙÛÜ]", "U")
+        .str.replace_all(r"Ç", "C")
+        .str.replace_all(r"Ñ", "N")
+        .str.replace_all(r"\s+", " ")
+        .str.strip_chars()
+        .alias(alias)
     )
 
 
@@ -225,10 +236,7 @@ def _construir_mapa_descricoes_canonicas(df_agrupamento_canonico: pl.DataFrame) 
         .with_columns(
             [
                 pl.col("descricao_texto").cast(pl.Utf8, strict=False).fill_null("").str.strip_chars().alias("descricao_texto"),
-                pl.col("descricao_texto")
-                .cast(pl.Utf8, strict=False)
-                .map_elements(_norm, return_dtype=pl.String)
-                .alias("descricao_normalizada_match"),
+                _normalizar_descricao_expr("descricao_texto", alias="descricao_normalizada_match"),
             ]
         )
         .filter(pl.col("descricao_normalizada_match") != "")
@@ -314,12 +322,8 @@ def _reconciliar_fatores_existentes_com_agrupamento_atual(
         .with_columns(
             [
                 (pl.col("fator_manual") | pl.col("unid_ref_manual")).alias("__eh_manual__"),
-                pl.col("descr_padrao").map_elements(_norm, return_dtype=pl.String).alias("__descr_padrao_norm__"),
-                pl.col("descr_padrao_canonico")
-                .cast(pl.Utf8, strict=False)
-                .fill_null("")
-                .map_elements(_norm, return_dtype=pl.String)
-                .alias("__descr_padrao_canonico_norm__"),
+                _normalizar_descricao_expr("descr_padrao", alias="__descr_padrao_norm__"),
+                _normalizar_descricao_expr("descr_padrao_canonico", alias="__descr_padrao_canonico_norm__"),
             ]
         )
         .with_columns(
