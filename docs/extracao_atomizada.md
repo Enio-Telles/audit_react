@@ -1,5 +1,7 @@
 # Extracao Atomizada da EFD
 
+> **Nota (Atualização):** Este fluxo de extração e conversão "atomizada" explícita foi substituído pela navegação oficial do **Dossiê**. O Dossiê é o fluxo principal que consome esses conceitos de forma modular, não sendo mais um fluxo isolado. Esta documentação fica mantida apenas para contexto histórico.
+
 ## Objetivo
 
 Implementar uma extracao Oracle mais eficiente e compativel com a abordagem de atomizacao usada no projeto de referencia `audit_react_atomizacao_v2`, preservando a estrutura atual do pipeline e a rastreabilidade por CNPJ.

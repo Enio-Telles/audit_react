@@ -10,12 +10,14 @@ import { EstoqueTab } from "./components/tabs/EstoqueTab";
 import { LogsTab } from "./components/tabs/LogsTab";
 import { LandingPage } from "./components/LandingPage";
 import { FisconformeTab } from "./components/tabs/FisconformeTab";
+import { DossieTab } from "./features/dossie/components/DossieTab";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 });
 
 const TABS = [
+  { id: "dossie", label: "Dossiê" },
   { id: "consulta", label: "Consulta" },
   { id: "sql", label: "Consulta SQL" },
   { id: "agregacao", label: "Agregacao" },
@@ -77,7 +79,13 @@ function MainContent() {
           <div className="text-xs text-slate-400 flex items-center gap-2 min-w-0 overflow-hidden">
             {selectedCnpj && (
               <>
-                <span className="font-mono text-slate-300 shrink-0">{selectedCnpj}</span>
+                <button
+                  onClick={() => setActiveTab("dossie")}
+                  className={`font-mono shrink-0 px-2 py-0.5 rounded transition-colors ${activeTab === 'dossie' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                  title="Ir para o Dossiê"
+                >
+                  {selectedCnpj}
+                </button>
                 {selectedRecord?.razao_social && (
                   <span className="text-slate-400 truncate max-w-[280px]" title={selectedRecord.razao_social}>
                     | {selectedRecord.razao_social}
@@ -131,6 +139,7 @@ function MainContent() {
 
         {/* Tab content */}
         <div className="flex-1 overflow-hidden" style={{ background: "#0a1628" }}>
+          {activeTab === "dossie" && <DossieTab cnpj={selectedCnpj} razaoSocial={selectedRecord?.razao_social} />}
           {activeTab === "consulta" && <ConsultaTab />}
           {activeTab === "sql" && <ConsultaSqlTab />}
           {activeTab === "agregacao" && <AgregacaoTab />}
