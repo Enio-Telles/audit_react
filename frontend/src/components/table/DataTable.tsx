@@ -112,20 +112,16 @@ function matchesRule(
       return cellVal.toLowerCase().includes(v.toLowerCase());
     case "maior":
       return (
-        parseFloat(cellVal.replace(",", ".")) >
-        parseFloat(v.replace(",", "."))
+        parseFloat(cellVal.replace(",", ".")) > parseFloat(v.replace(",", "."))
       );
     case "menor":
       return (
-        parseFloat(cellVal.replace(",", ".")) <
-        parseFloat(v.replace(",", "."))
+        parseFloat(cellVal.replace(",", ".")) < parseFloat(v.replace(",", "."))
       );
     case "e_nulo":
       return cellVal === "" || cellVal === "null" || cellVal === "undefined";
     case "nao_e_nulo":
-      return (
-        cellVal !== "" && cellVal !== "null" && cellVal !== "undefined"
-      );
+      return cellVal !== "" && cellVal !== "null" && cellVal !== "undefined";
     default:
       return false;
   }
@@ -184,16 +180,28 @@ export function DataTable({
 
   const effectiveRows = useMemo(() => {
     if (onColumnFilterChange) return rows;
-    const hasFilters = Object.values(effectiveColFilters).some((v) => v !== "");
-    if (!hasFilters) return rows;
-    return rows.filter((row) =>
-      Object.entries(effectiveColFilters).every(([col, val]) => {
-        if (!val) return true;
-        return String(row[col] ?? "")
-          .toLowerCase()
-          .includes(val.toLowerCase());
-      }),
-    );
+
+    // ⚡ Bolt Optimization: Pre-compute active filters and lowercased values outside the loop to prevent O(N) allocations
+    const activeFilters = Object.entries(effectiveColFilters)
+      .filter(([, val]) => val !== "")
+      .map(([col, val]) => ({ col, val: val.toLowerCase() }));
+
+    if (activeFilters.length === 0) return rows;
+
+    return rows.filter((row) => {
+      // ⚡ Bolt Optimization: Use traditional for loop for faster early returns
+      for (let i = 0; i < activeFilters.length; i++) {
+        const { col, val } = activeFilters[i];
+        if (
+          !String(row[col] ?? "")
+            .toLowerCase()
+            .includes(val)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
   }, [rows, effectiveColFilters, onColumnFilterChange]);
 
   const controlledSort: SortingState = useMemo(
@@ -416,7 +424,10 @@ export function DataTable({
                         className="px-2 py-2 text-left text-slate-300 font-semibold border-b border-slate-700 truncate select-none cursor-pointer hover:bg-slate-700 transition-colors group relative"
                         style={{
                           width: obterLarguraColuna(columnWidths, h.column.id),
-                          maxWidth: obterLarguraColuna(columnWidths, h.column.id),
+                          maxWidth: obterLarguraColuna(
+                            columnWidths,
+                            h.column.id,
+                          ),
                         }}
                         title={`${h.column.id} - clique para ordenar`}
                         draggable={podeReordenarColunas}
@@ -557,7 +568,10 @@ export function DataTable({
                           key={cell.id}
                           className="px-2 py-1.5 border-b border-slate-800 truncate"
                           style={{
-                            width: obterLarguraColuna(columnWidths, cell.column.id),
+                            width: obterLarguraColuna(
+                              columnWidths,
+                              cell.column.id,
+                            ),
                             maxWidth: obterLarguraColuna(
                               columnWidths,
                               cell.column.id,
