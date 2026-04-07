@@ -26,21 +26,35 @@ const TABS = [
 ];
 
 function MainContent() {
-  const { activeTab, setActiveTab, leftPanelVisible, toggleLeftPanel, selectedFile, selectedCnpj, appMode, setAppMode } = useAppStore();
+  const {
+    activeTab,
+    setActiveTab,
+    leftPanelVisible,
+    toggleLeftPanel,
+    selectedFile,
+    selectedCnpj,
+    appMode,
+    setAppMode,
+  } = useAppStore();
 
   if (appMode === null) {
     return <LandingPage onSelect={setAppMode} />;
   }
 
-  if (appMode === 'fisconforme') {
+  if (appMode === "fisconforme") {
     return (
-      <div className="flex h-screen overflow-hidden" style={{ background: "#0a1628" }}>
+      <div
+        className="flex h-screen overflow-hidden"
+        style={{ background: "#0a1628" }}
+      >
         <div className="flex flex-col flex-1 overflow-hidden">
           <div
             className="flex items-center justify-between px-3 py-1 border-b border-slate-700"
             style={{ background: "#0d1f3c", minHeight: 32 }}
           >
-            <span className="text-xs text-slate-400 font-semibold">Fisconforme — Análise em Lote</span>
+            <span className="text-xs text-slate-400 font-semibold">
+              Fisconforme — Análise em Lote
+            </span>
             <button
               onClick={() => setAppMode(null)}
               className="text-xs text-blue-400 hover:text-blue-200 px-2 py-1 rounded bg-slate-800 border border-slate-700"
@@ -57,7 +71,10 @@ function MainContent() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#0a1628" }}>
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{ background: "#0a1628" }}
+    >
       {/* Left panel */}
       {leftPanelVisible && <LeftPanel />}
 
@@ -72,12 +89,7 @@ function MainContent() {
             {selectedCnpj && (
               <>
                 CNPJ: {selectedCnpj}
-                {selectedFile && (
-                  <>
-                    {" "}
-                    | Arquivo: {selectedFile.name}
-                  </>
-                )}
+                {selectedFile && <> | Arquivo: {selectedFile.name}</>}
               </>
             )}
           </div>
@@ -85,7 +97,9 @@ function MainContent() {
             onClick={toggleLeftPanel}
             className="text-xs text-blue-400 hover:text-blue-200 px-2 py-1 rounded bg-slate-800 border border-slate-700"
           >
-            {leftPanelVisible ? "<< Ocultar Painel Lateral" : ">> Mostrar Painel Lateral"}
+            {leftPanelVisible
+              ? "<< Ocultar Painel Lateral"
+              : ">> Mostrar Painel Lateral"}
           </button>
           <button
             onClick={() => setAppMode(null)}
@@ -97,12 +111,18 @@ function MainContent() {
 
         {/* Tab bar */}
         <div
+          role="tablist"
+          aria-label="Tabs principais"
           className="flex items-center gap-1 px-3 pt-2 border-b border-slate-700"
           style={{ background: "#0a1628" }}
         >
           {TABS.map((t) => (
             <button
               key={t.id}
+              id={`tab-${t.id}`}
+              role="tab"
+              aria-selected={activeTab === t.id}
+              aria-controls={`tabpanel-${t.id}`}
               onClick={() => setActiveTab(t.id)}
               className={`px-4 py-1.5 text-xs font-medium rounded-t transition-colors border-t border-l border-r ${
                 activeTab === t.id
@@ -117,7 +137,13 @@ function MainContent() {
         </div>
 
         {/* Tab content */}
-        <div className="flex-1 overflow-hidden" style={{ background: "#0a1628" }}>
+        <div
+          id={`tabpanel-${activeTab}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${activeTab}`}
+          className="flex-1 overflow-hidden"
+          style={{ background: "#0a1628" }}
+        >
           {activeTab === "consulta" && <ConsultaTab />}
           {activeTab === "sql" && <ConsultaSqlTab />}
           {activeTab === "agregacao" && <AgregacaoTab />}
