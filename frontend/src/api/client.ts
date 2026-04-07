@@ -390,4 +390,11 @@ export const oracleApi = {
     api.post<{ ok: boolean }>("/oracle/salvar", payload).then((r) => r.data),
 };
 
+
+// ---- Dossiê ----
+export const dossieApi = {
+  getSecoes: (cnpj: string) =>
+    api.get<unknown[]>(`/dossie/${cnpj}/secoes`).then((r) => r.data),
+};
+
 export default api;

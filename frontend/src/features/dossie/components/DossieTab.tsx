@@ -1,28 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
+import { dossieApi } from '../../../api/client';
 import type { DossieSectionSummary, DossieTabProps } from '../types';
-
-const defaultSections: DossieSectionSummary[] = [
-  {
-    id: 'cadastro',
-    title: 'Cadastro',
-    description: 'Dados cadastrais, situação e histórico básico do contribuinte.',
-    sourceType: 'mixed',
-    status: 'idle',
-  },
-  {
-    id: 'documentos_fiscais',
-    title: 'Documentos fiscais',
-    description: 'NF-e, NFC-e e outras visões reaproveitadas do catálogo SQL atual.',
-    sourceType: 'sql_catalog',
-    status: 'idle',
-  },
-  {
-    id: 'arrecadacao',
-    title: 'Arrecadação e conta corrente',
-    description: 'Visões de situação fiscal e financeira com foco em reuso e rastreabilidade.',
-    sourceType: 'mixed',
-    status: 'idle',
-  },
-];
 
 function statusLabel(status: DossieSectionSummary['status']): string {
   switch (status) {
@@ -39,8 +17,12 @@ function statusLabel(status: DossieSectionSummary['status']): string {
   }
 }
 
-export function DossieTab({ cnpj, razaoSocial, sections }: DossieTabProps) {
-  const items = sections && sections.length > 0 ? sections : defaultSections;
+export function DossieTab({ cnpj, razaoSocial }: DossieTabProps) {
+  const { data: sections, isLoading, isError } = useQuery({
+    queryKey: ['dossie_sections', cnpj],
+    queryFn: () => dossieApi.getSecoes(cnpj!),
+    enabled: !!cnpj,
+  });
 
   if (!cnpj) {
     return (
@@ -66,23 +48,32 @@ export function DossieTab({ cnpj, razaoSocial, sections }: DossieTabProps) {
         </p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {items.map((section) => (
-          <div key={section.id} className="rounded-2xl border border-slate-700 bg-slate-900/50 p-4">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <h3 className="text-sm font-semibold text-white">{section.title}</h3>
-              <span className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] text-slate-300">
-                {statusLabel(section.status)}
-              </span>
+      {isLoading && <div className="text-sm text-slate-400">Carregando seções do dossiê...</div>}
+      {isError && <div className="text-sm text-red-400">Erro ao carregar as seções do dossiê.</div>}
+
+      {!isLoading && !isError && sections && (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {sections.map((section: any) => (
+            <div key={section.id} className="rounded-2xl border border-slate-700 bg-slate-900/50 p-4 hover:bg-slate-800/80 transition-colors cursor-pointer border-t-2 hover:border-t-blue-500">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <h3 className="text-sm font-semibold text-white">{section.title}</h3>
+                <span className={`rounded-full border px-2 py-0.5 text-[10px] ${
+                  section.status === 'cached' || section.status === 'fresh'
+                    ? 'border-green-800 text-green-300 bg-green-900/30'
+                    : 'border-slate-600 text-slate-300'
+                }`}>
+                  {statusLabel(section.status)}
+                </span>
+              </div>
+              <p className="text-sm text-slate-400 mb-3">{section.description}</p>
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span>Fonte: {section.sourceType}</span>
+                <span>{section.rowCount ? `${section.rowCount} linhas` : 'sem carga'}</span>
+              </div>
             </div>
-            <p className="text-sm text-slate-400 mb-3">{section.description}</p>
-            <div className="flex items-center justify-between text-xs text-slate-500">
-              <span>Fonte: {section.sourceType}</span>
-              <span>{section.rowCount ? `${section.rowCount} linhas` : 'sem carga'}</span>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
