@@ -108,9 +108,10 @@ export function ExtrairSelecaoModal({ onClose, onConfirm, sqlFiles }: Props) {
           </h2>
           <button
             onClick={onClose}
+            aria-label="Fechar modal"
             className="text-slate-400 hover:text-slate-200 text-lg leading-none"
           >
-            x
+            ✕
           </button>
         </div>
 

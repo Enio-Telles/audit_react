@@ -77,8 +77,7 @@ export function GerenciarConsultasModal({ isOpen, onClose }: Props) {
       setFormError(null);
     },
     onError: (err: unknown) => {
-      const msg =
-        err instanceof Error ? err.message : "Erro ao criar arquivo.";
+      const msg = err instanceof Error ? err.message : "Erro ao criar arquivo.";
       setFormError(msg);
     },
   });
@@ -113,6 +112,7 @@ export function GerenciarConsultasModal({ isOpen, onClose }: Props) {
           </h2>
           <button
             onClick={onClose}
+            aria-label="Fechar modal"
             className="text-slate-400 hover:text-slate-200 text-lg leading-none"
           >
             ✕
@@ -154,7 +154,9 @@ export function GerenciarConsultasModal({ isOpen, onClose }: Props) {
                 />
               </div>
               <div className="flex flex-col gap-1 w-44">
-                <label className="text-[10px] text-slate-400">Pasta destino</label>
+                <label className="text-[10px] text-slate-400">
+                  Pasta destino
+                </label>
                 <select
                   className="rounded bg-slate-700 border border-slate-600 px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                   value={newFolder}
@@ -181,9 +183,7 @@ export function GerenciarConsultasModal({ isOpen, onClose }: Props) {
             )}
 
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-slate-400">
-                Conteúdo SQL
-              </label>
+              <label className="text-[10px] text-slate-400">Conteúdo SQL</label>
               <textarea
                 className="rounded bg-slate-700 border border-slate-600 px-2 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500 resize-y"
                 rows={6}
@@ -271,9 +271,7 @@ export function GerenciarConsultasModal({ isOpen, onClose }: Props) {
                           Confirmar?
                         </span>
                         <button
-                          onClick={() =>
-                            deleteMutation.mutate(f.path)
-                          }
+                          onClick={() => deleteMutation.mutate(f.path)}
                           disabled={isRunning}
                           className="rounded bg-rose-700 px-2 py-0.5 text-[10px] text-white hover:bg-rose-600 disabled:opacity-50"
                         >
