@@ -38,13 +38,19 @@ function RessarcimentoGrid({ cnpj, subTab }: { cnpj: string; subTab: SubTab }) {
   const rows = useMemo(() => {
     const termo = search.toLowerCase();
     if (!termo) return data?.rows ?? [];
-    return (data?.rows ?? []).filter((row) =>
-      Object.values(row).some((value) =>
-        String(value ?? "")
-          .toLowerCase()
-          .includes(termo),
-      ),
-    );
+    return (data?.rows ?? []).filter((row) => {
+      // ⚡ Bolt Optimization: Replace Object.values().some() with for...in loop and early break to prevent O(N*C) object allocations
+      for (const key in row) {
+        if (
+          String(row[key] ?? "")
+            .toLowerCase()
+            .includes(termo)
+        ) {
+          return true;
+        }
+      }
+      return false;
+    });
   }, [data?.rows, search]);
 
   const {

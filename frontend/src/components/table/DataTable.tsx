@@ -182,14 +182,24 @@ export function DataTable({
     if (onColumnFilterChange) return rows;
     const hasFilters = Object.values(effectiveColFilters).some((v) => v !== "");
     if (!hasFilters) return rows;
-    return rows.filter((row) =>
-      Object.entries(effectiveColFilters).every(([col, val]) => {
-        if (!val) return true;
-        return String(row[col] ?? "")
-          .toLowerCase()
-          .includes(val.toLowerCase());
-      }),
-    );
+
+    // ⚡ Bolt Optimization: Pre-compute active filter lowercases and use for...of loop with early return instead of Object.entries().every() to prevent O(N*C) array allocations.
+    const activeFilters = Object.entries(effectiveColFilters)
+      .filter(([, val]) => val !== "")
+      .map(([col, val]) => [col, val.toLowerCase()]);
+
+    return rows.filter((row) => {
+      for (const [col, valLower] of activeFilters) {
+        if (
+          !String(row[col] ?? "")
+            .toLowerCase()
+            .includes(valLower)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
   }, [rows, effectiveColFilters, onColumnFilterChange]);
 
   const controlledSort: SortingState = useMemo(
