@@ -3,7 +3,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from interface_grafica.services.dossie_catalog import listar_secoes_dossie
-from interface_grafica.services.dossie_cache_keys import criar_chave_cache_secao
+from interface_grafica.services.dossie_cache_keys import gerar_chave_cache_dossie
 
 router = APIRouter()
 
@@ -29,7 +29,7 @@ def get_secoes(cnpj: str):
             continue
 
         # Verificar o status de cache usando as rotinas de chave
-        cache_key = criar_chave_cache_secao(secao.id, cnpj)
+        cache_key = gerar_chave_cache_dossie(secao.id, cnpj)
         # TODO: Implementar verificação real de arquivo cache se existir.
         # Por enquanto, retorna idle. No futuro, usar dossie_cache para varrer o path.
 
