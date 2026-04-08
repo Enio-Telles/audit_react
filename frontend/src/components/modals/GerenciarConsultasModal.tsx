@@ -50,8 +50,12 @@ export function GerenciarConsultasModal({ isOpen, onClose }: Props) {
   }, [sqlFiles]);
 
   const groups = useMemo(() => {
+    // ⚡ Bolt Optimization: Hoist lowercasing and return early if empty to prevent O(N) string allocations
+    const buscaLower = busca.toLowerCase();
+    if (!buscaLower) return groupByFolder(sqlFiles);
+
     const filtered = sqlFiles.filter((f) =>
-      f.path.toLowerCase().includes(busca.toLowerCase()),
+      f.path.toLowerCase().includes(buscaLower),
     );
     return groupByFolder(filtered);
   }, [sqlFiles, busca]);
