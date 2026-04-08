@@ -84,9 +84,20 @@ def calcular_precos_medios_produtos_final(
         df_link = (
             df_unid
             .with_columns(
+                # Optimization: Replace .map_elements with native Polars string operations to preserve vectorization
                 pl.col("descricao")
                 .cast(pl.Utf8, strict=False)
-                .map_elements(_norm, return_dtype=pl.String)
+                .fill_null("")
+                .str.to_uppercase()
+                .str.replace_all(r"[ÁÀÂÃÄ]", "A")
+                .str.replace_all(r"[ÉÈÊË]", "E")
+                .str.replace_all(r"[ÍÌÎÏ]", "I")
+                .str.replace_all(r"[ÓÒÔÕÖ]", "O")
+                .str.replace_all(r"[ÚÙÛÜ]", "U")
+                .str.replace_all(r"Ç", "C")
+                .str.replace_all(r"Ñ", "N")
+                .str.strip_chars()
+                .str.replace_all(r"\s+", " ")
                 .alias("descricao_normalizada")
             )
             .join(df_final, on="descricao_normalizada", how="left")
