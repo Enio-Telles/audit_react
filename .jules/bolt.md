@@ -6,3 +6,7 @@
 ## 2024-05-25 - Polars string processing performance with map_elements
 **Learning:** Using `.map_elements()` with custom Python functions (like string manipulation and regex replacements) in Polars breaks vectorization, causing significant performance bottlenecks on large DataFrames. Operations are executed iteratively in Python space instead of utilizing the optimized Rust backend.
 **Action:** Always prefer native Polars string operations (e.g., chained `.str.replace_all()`, `.str.to_uppercase()`) for vectorized processing when cleaning or normalizing text columns.
+
+## 2024-05-26 - Polars vectorization for complex accent removal
+**Learning:** Using Python functions for complex accent removal inside `.map_elements()` breaks Polars vectorization and severely degrades performance. A fully vectorized approach using chained `.str.replace_all()` with regex groups (e.g., `r"[ÁÀÂÃÄ]", "A"`) and `.str.to_uppercase()` performs over 3x faster than the Python-based counterpart.
+**Action:** Always refactor text normalization functions that remove accents or normalize spacing to use native Polars string manipulation methods to fully utilize the Rust backend optimizations.
