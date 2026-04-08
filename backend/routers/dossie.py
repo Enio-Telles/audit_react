@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from interface_grafica.services.dossie_catalog import listar_secoes_dossie
 from interface_grafica.services.dossie_resolution import resolver_secao_dossie
+from interface_grafica.services.dossie_cache_keys import gerar_chave_cache_dossie
 from utilitarios.project_paths import CNPJ_ROOT
 
 router = APIRouter()
@@ -203,7 +204,7 @@ def get_secoes(cnpj: str):
         if secao.exige_cnpj and not cnpj_normalizado:
             continue
 
-        status_secao, quantidade_linhas, data_atualizacao = montar_resumo_secao(secao.id, cnpj_normalizado)
+<<<<<<< HEAD        status_secao, quantidade_linhas, data_atualizacao = montar_resumo_secao(secao.id, cnpj_normalizado)
         resultado.append(
             DossieSectionSummaryResponse(
                 id=secao.id,
