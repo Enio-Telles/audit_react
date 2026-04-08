@@ -90,3 +90,25 @@ def gerar_nome_arquivo_cache_dossie(
     secao_slug = "_".join(parte for parte in str(secao).strip().lower().replace("/", " ").replace("-", " ").split() if parte)
     sufixo = extensao if extensao.startswith(".") else f".{extensao}"
     return f"dossie_{str(cnpj).strip()}_{secao_slug}_{chave}{sufixo}"
+
+
+def criar_chave_cache_secao(
+    secao: str,
+    cnpj: str,
+    parametros: dict[str, Any] | None = None,
+    versao_consulta: str | None = None,
+) -> str:
+    """Mantem compatibilidade com chamadas legadas do backend para chave de secao.
+
+    A regra funcional permanece a mesma: a chave continua sendo derivada de CNPJ,
+    secao, parametros normalizados e versao da consulta. O alias evita quebra de
+    importacao em chamadores antigos enquanto o nome canonico do modulo segue
+    centralizado em `gerar_chave_cache_dossie`.
+    """
+
+    return gerar_chave_cache_dossie(
+        cnpj=cnpj,
+        secao=secao,
+        parametros=parametros,
+        versao_consulta=versao_consulta,
+    )

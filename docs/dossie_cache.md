@@ -39,6 +39,7 @@ Funções principais:
 - `serializar_parametros_dossie`
 - `gerar_chave_cache_dossie`
 - `gerar_nome_arquivo_cache_dossie`
+- `criar_chave_cache_secao` como alias legada para compatibilidade com chamadores antigos do backend
 
 ## Regras de normalização
 
@@ -83,6 +84,14 @@ dossie_12345678000190_nfe_saida_ab12cd34ef56.parquet
 - evita salvar duas vezes a mesma coisa;
 - facilita auditoria de resultados persistidos;
 - prepara o backend para catálogo de seções do dossiê.
+
+## Compatibilidade retroativa
+
+O nome canônico para geração da chave continua sendo `gerar_chave_cache_dossie`.
+
+Para preservar compatibilidade com imports antigos do backend, o módulo também expõe
+`criar_chave_cache_secao`, que delega internamente para a função canônica sem alterar
+as regras de formação da chave.
 
 ## Próximo passo natural
 

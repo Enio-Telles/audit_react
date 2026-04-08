@@ -21,6 +21,7 @@ import type {
   OracleTestarResponse,
   RessarcimentoResumo,
 } from "./types";
+import type { DossieSectionSummary, DossieSyncResponse } from "../features/dossie/types";
 
 const api = axios.create({ baseURL: "/api" });
 
@@ -394,7 +395,11 @@ export const oracleApi = {
 // ---- Dossiê ----
 export const dossieApi = {
   getSecoes: (cnpj: string) =>
-    api.get<unknown[]>(`/dossie/${cnpj}/secoes`).then((r) => r.data),
+    api.get<DossieSectionSummary[]>(`/dossie/${cnpj}/secoes`).then((r) => r.data),
+  syncSecao: (cnpj: string, secaoId: string, parametros?: Record<string, unknown>) =>
+    api
+      .post<DossieSyncResponse>(`/dossie/${cnpj}/secoes/${secaoId}/sync`, { parametros })
+      .then((r) => r.data),
 };
 
 export default api;

@@ -1,16 +1,22 @@
-﻿import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { useAppStore } from "./store/appStore";
+import { useEffect, useRef } from "react";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+
 import { cnpjApi } from "./api/client";
+import { LandingPage } from "./components/LandingPage";
 import { LeftPanel } from "./components/layout/LeftPanel";
-import { ConsultaTab } from "./components/tabs/ConsultaTab";
-import { ConsultaSqlTab } from "./components/tabs/ConsultaSqlTab";
 import { AgregacaoTab } from "./components/tabs/AgregacaoTab";
+import { ConsultaSqlTab } from "./components/tabs/ConsultaSqlTab";
+import { ConsultaTab } from "./components/tabs/ConsultaTab";
 import { ConversaoTab } from "./components/tabs/ConversaoTab";
 import { EstoqueTab } from "./components/tabs/EstoqueTab";
-import { LogsTab } from "./components/tabs/LogsTab";
-import { LandingPage } from "./components/LandingPage";
 import { FisconformeTab } from "./components/tabs/FisconformeTab";
+import { LogsTab } from "./components/tabs/LogsTab";
 import { DossieTab } from "./features/dossie/components/DossieTab";
+import {
+  ler_bootstrap_dossie_da_url,
+  limpar_bootstrap_dossie_da_url,
+} from "./features/dossie/navegacao";
+import { useAppStore } from "./store/appStore";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -27,31 +33,69 @@ const TABS = [
 ];
 
 function MainContent() {
-  const { activeTab, setActiveTab, leftPanelVisible, toggleLeftPanel, selectedFile, selectedCnpj, appMode, setAppMode } = useAppStore();
+  const {
+    activeTab,
+    setActiveTab,
+    leftPanelVisible,
+    toggleLeftPanel,
+    selectedFile,
+    selectedCnpj,
+    setSelectedCnpj,
+    appMode,
+    setAppMode,
+  } = useAppStore();
+  const bootstrapAplicadoRef = useRef(false);
+  const bootstrapPendente = appMode === null && Boolean(ler_bootstrap_dossie_da_url());
+
+  useEffect(() => {
+    if (bootstrapAplicadoRef.current) {
+      return;
+    }
+
+    bootstrapAplicadoRef.current = true;
+
+    const bootstrap = ler_bootstrap_dossie_da_url();
+    if (bootstrap) {
+      if (bootstrap.modoAplicacao) {
+        setAppMode(bootstrap.modoAplicacao);
+      }
+      if (bootstrap.abaAtiva) {
+        setActiveTab(bootstrap.abaAtiva);
+      }
+      if (bootstrap.cnpjSelecionado) {
+        setSelectedCnpj(bootstrap.cnpjSelecionado);
+      }
+      limpar_bootstrap_dossie_da_url();
+    }
+  }, [setActiveTab, setAppMode, setSelectedCnpj]);
 
   const { data: cnpjs = [] } = useQuery({
     queryKey: ["cnpjs"],
     queryFn: cnpjApi.list,
   });
 
-  const selectedRecord = cnpjs.find((r) => r.cnpj === selectedCnpj) ?? null;
+  const selectedRecord = cnpjs.find((registro) => registro.cnpj === selectedCnpj) ?? null;
+
+  if (bootstrapPendente) {
+    return <div className="h-screen w-screen" style={{ background: "#0a1628" }} />;
+  }
 
   if (appMode === null) {
     return <LandingPage onSelect={setAppMode} />;
   }
 
-  if (appMode === 'fisconforme') {
+  if (appMode === "fisconforme") {
     return (
       <div className="flex h-screen overflow-hidden" style={{ background: "#0a1628" }}>
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden">
           <div
-            className="flex items-center justify-between px-3 py-1 border-b border-slate-700"
+            className="flex items-center justify-between border-b border-slate-700 px-3 py-1"
             style={{ background: "#0d1f3c", minHeight: 32 }}
           >
-            <span className="text-xs text-slate-400 font-semibold">Fisconforme — Análise em Lote</span>
+            <span className="text-xs font-semibold text-slate-400">Fisconforme — Análise em Lote</span>
             <button
               onClick={() => setAppMode(null)}
-              className="text-xs text-blue-400 hover:text-blue-200 px-2 py-1 rounded bg-slate-800 border border-slate-700"
+              className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-blue-400 hover:text-blue-200"
             >
               ← Voltar ao Início
             </button>
@@ -66,78 +110,68 @@ function MainContent() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "#0a1628" }}>
-      {/* Left panel */}
       {leftPanelVisible && <LeftPanel />}
 
-      {/* Main area */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Top bar */}
+      <div className="flex flex-1 flex-col overflow-hidden">
         <div
-          className="flex items-center justify-between px-3 py-1 border-b border-slate-700"
+          className="flex items-center justify-between border-b border-slate-700 px-3 py-1"
           style={{ background: "#0d1f3c", minHeight: 32 }}
         >
-          <div className="text-xs text-slate-400 flex items-center gap-2 min-w-0 overflow-hidden">
+          <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-slate-400">
             {selectedCnpj && (
               <>
                 <button
                   onClick={() => setActiveTab("dossie")}
-                  className={`font-mono shrink-0 px-2 py-0.5 rounded transition-colors ${activeTab === 'dossie' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                  className={`font-mono shrink-0 rounded px-2 py-0.5 transition-colors ${
+                    activeTab === "dossie" ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                  }`}
                   title="Ir para o Dossiê"
                 >
                   {selectedCnpj}
                 </button>
                 {selectedRecord?.razao_social && (
-                  <span className="text-slate-400 truncate max-w-[280px]" title={selectedRecord.razao_social}>
+                  <span className="max-w-[280px] truncate text-slate-400" title={selectedRecord.razao_social}>
                     | {selectedRecord.razao_social}
                   </span>
                 )}
                 {selectedRecord?.nome_fantasia && selectedRecord.nome_fantasia !== selectedRecord.razao_social && (
-                  <span className="text-slate-500 truncate max-w-[200px]" title={selectedRecord.nome_fantasia}>
+                  <span className="max-w-[200px] truncate text-slate-500" title={selectedRecord.nome_fantasia}>
                     ({selectedRecord.nome_fantasia})
                   </span>
                 )}
-                {selectedFile && (
-                  <span className="text-slate-500 truncate shrink-0">| {selectedFile.name}</span>
-                )}
+                {selectedFile && <span className="shrink-0 truncate text-slate-500">| {selectedFile.name}</span>}
               </>
             )}
           </div>
           <button
             onClick={toggleLeftPanel}
-            className="text-xs text-blue-400 hover:text-blue-200 px-2 py-1 rounded bg-slate-800 border border-slate-700"
+            className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-blue-400 hover:text-blue-200"
           >
             {leftPanelVisible ? "<< Ocultar Painel Lateral" : ">> Mostrar Painel Lateral"}
           </button>
           <button
             onClick={() => setAppMode(null)}
-            className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1 rounded bg-slate-800 border border-slate-700 ml-2"
+            className="ml-2 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-400 hover:text-slate-200"
           >
             ← Início
           </button>
         </div>
 
-        {/* Tab bar */}
-        <div
-          className="flex items-center gap-1 px-3 pt-2 border-b border-slate-700"
-          style={{ background: "#0a1628" }}
-        >
-          {TABS.map((t) => (
+        <div className="flex items-center gap-1 border-b border-slate-700 px-3 pt-2" style={{ background: "#0a1628" }}>
+          {TABS.map((tab) => (
             <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={`px-4 py-1.5 text-xs font-medium rounded-t transition-colors border-t border-l border-r ${
-                activeTab === t.id
-                  ? "border-slate-600 text-white"
-                  : "border-transparent text-slate-400 hover:text-slate-200"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`rounded-t border-l border-r border-t px-4 py-1.5 text-xs font-medium transition-colors ${
+                activeTab === tab.id ? "border-slate-600 text-white" : "border-transparent text-slate-400 hover:text-slate-200"
               }`}
-              style={activeTab === t.id ? { background: "#0f1b33" } : {}}
+              style={activeTab === tab.id ? { background: "#0f1b33" } : {}}
             >
-              {t.label}
+              {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Tab content */}
         <div className="flex-1 overflow-hidden" style={{ background: "#0a1628" }}>
           {activeTab === "dossie" && <DossieTab cnpj={selectedCnpj} razaoSocial={selectedRecord?.razao_social} />}
           {activeTab === "consulta" && <ConsultaTab />}

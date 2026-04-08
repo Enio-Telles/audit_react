@@ -37,6 +37,62 @@ SECOES_DOSSIE: tuple[DossieSecao, ...] = (
         tipo_fonte="mixed",
         sql_ids_prioritarios=(),
     ),
+    DossieSecao(
+        id="enderecos",
+        titulo="Endereços",
+        descricao="Histórico de endereços vinculados e mapeados das notas fiscais.",
+        tipo_fonte="sql_catalog",
+        sql_ids_prioritarios=("dossie_enderecos.sql",),
+    ),
+    DossieSecao(
+        id="historico_situacao",
+        titulo="Histórico de Situação",
+        descricao="Histórico completo de alterações de status e situação cadastral.",
+        tipo_fonte="sql_catalog",
+        sql_ids_prioritarios=("dossie_historico_situacao.sql",),
+    ),
+    DossieSecao(
+        id="regime_pagamento",
+        titulo="Regime de Pagamento",
+        descricao="Evolução e períodos de regimes de pagamento (ex: Simples Nacional, Normal).",
+        tipo_fonte="sql_catalog",
+        sql_ids_prioritarios=("dossie_regime_pagamento.sql",),
+    ),
+    DossieSecao(
+        id="atividades",
+        titulo="Atividades Econômicas",
+        descricao="Mapeamento de CNAEs principal e secundárias do CNPJ.",
+        tipo_fonte="sql_catalog",
+        sql_ids_prioritarios=("dossie_atividades.sql",),
+    ),
+    DossieSecao(
+        id="contador",
+        titulo="Contador",
+        descricao="Histórico de contabilidade vinculada ao contribuinte.",
+        tipo_fonte="sql_catalog",
+        sql_ids_prioritarios=("dossie_contador.sql",),
+    ),
+    DossieSecao(
+        id="historico_fac",
+        titulo="Histórico FAC",
+        descricao="Evolução das Fichas de Atualização Cadastral.",
+        tipo_fonte="sql_catalog",
+        sql_ids_prioritarios=("dossie_historico_fac.sql",),
+    ),
+    DossieSecao(
+        id="vistorias",
+        titulo="Vistorias",
+        descricao="Histórico de vistorias associadas ao contribuinte.",
+        tipo_fonte="sql_catalog",
+        sql_ids_prioritarios=("dossie_vistorias.sql",),
+    ),
+    DossieSecao(
+        id="socios",
+        titulo="Quadro Societário",
+        descricao="Histórico e situação atual dos sócios da empresa.",
+        tipo_fonte="sql_catalog",
+        sql_ids_prioritarios=("dossie_historico_socios.sql",),
+    ),
 )
 
 

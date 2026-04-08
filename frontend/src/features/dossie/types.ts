@@ -15,3 +15,12 @@ export interface DossieTabProps {
   razaoSocial?: string | null;
   sections?: DossieSectionSummary[];
 }
+
+export interface DossieSyncResponse {
+  status: string;
+  cnpj: string;
+  secao_id: string;
+  linhas_extraidas: number;
+  cache_file: string;
+  updatedAt?: number | null;
+}

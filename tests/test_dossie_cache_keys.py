@@ -3,6 +3,7 @@ import sys
 
 sys.path.insert(0, str(Path("src").resolve()))
 
+from interface_grafica.services.dossie_cache_keys import criar_chave_cache_secao
 from interface_grafica.services.dossie_cache_keys import gerar_chave_cache_dossie
 from interface_grafica.services.dossie_cache_keys import gerar_nome_arquivo_cache_dossie
 from interface_grafica.services.dossie_cache_keys import normalizar_parametros_dossie
@@ -56,10 +57,29 @@ def test_chave_muda_quando_secao_ou_versao_mudam():
 def test_nome_arquivo_cache_retem_contexto_basico():
     nome = gerar_nome_arquivo_cache_dossie(
         cnpj="12345678000190",
-        secao="NFe Saída",
+        secao="NFe Saida",
         parametros={"ano": 2025},
         versao_consulta="v1",
     )
 
-    assert nome.startswith("dossie_12345678000190_nfe_saída_") or nome.startswith("dossie_12345678000190_nfe_saida_")
+    assert nome.startswith("dossie_12345678000190_nfe_saida_")
     assert nome.endswith(".parquet")
+
+
+def test_alias_legado_de_secao_gera_mesma_chave_do_nome_canonico():
+    parametros = {"ano": 2025, "uf": ["GO", "TO"]}
+
+    chave_canonica = gerar_chave_cache_dossie(
+        cnpj="12345678000190",
+        secao="nfe-saida",
+        parametros=parametros,
+        versao_consulta="v3",
+    )
+    chave_legada = criar_chave_cache_secao(
+        secao="nfe-saida",
+        cnpj="12345678000190",
+        parametros=parametros,
+        versao_consulta="v3",
+    )
+
+    assert chave_legada == chave_canonica

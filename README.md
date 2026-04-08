@@ -36,8 +36,13 @@ Os wrappers em `src/transformacao/` existem em boa parte para compatibilidade. A
 InstalaÃ§Ã£o mÃ­nima:
 
 ```bash
-pip install polars PySide6 openpyxl python-docx python-dotenv rich oracledb
+pip install polars PySide6 openpyxl python-docx docxtpl python-dotenv rich oracledb
 ```
+
+Observação:
+
+- o endpoint `POST /api/fisconforme/gerar-docx` depende de `docxtpl`;
+- se a dependência não estiver instalada, a API continua subindo, mas esse endpoint retorna erro explícito ao ser acionado.
 
 Abrir a aplicaÃ§Ã£o:
 

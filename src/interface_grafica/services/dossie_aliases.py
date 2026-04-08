@@ -32,6 +32,14 @@ ALIASES_DOSSIE_SQL: tuple[DossieAliasSql, ...] = (
         prioridade=15,
         observacao="Consulta complementar de NFC-e para o dossiê.",
     ),
+    DossieAliasSql(secao_id="enderecos", sql_id="dossie_enderecos.sql", prioridade=10),
+    DossieAliasSql(secao_id="historico_situacao", sql_id="dossie_historico_situacao.sql", prioridade=10),
+    DossieAliasSql(secao_id="regime_pagamento", sql_id="dossie_regime_pagamento.sql", prioridade=10),
+    DossieAliasSql(secao_id="atividades", sql_id="dossie_atividades.sql", prioridade=10),
+    DossieAliasSql(secao_id="contador", sql_id="dossie_contador.sql", prioridade=10),
+    DossieAliasSql(secao_id="historico_fac", sql_id="dossie_historico_fac.sql", prioridade=10),
+    DossieAliasSql(secao_id="vistorias", sql_id="dossie_vistorias.sql", prioridade=10),
+    DossieAliasSql(secao_id="socios", sql_id="dossie_historico_socios.sql", prioridade=10),
 )
 
 

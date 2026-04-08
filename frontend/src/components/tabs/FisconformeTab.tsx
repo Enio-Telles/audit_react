@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { InputHTMLAttributes, ReactNode } from "react";
 
 import { fisconformeApi } from "../../api/client";
+import { abrir_dossie_em_nova_aba } from "../../features/dossie/navegacao";
 import type {
   AuditorConfig,
   FisconformeConsultaResult,
@@ -13,6 +14,16 @@ import type {
 
 type Step = "home" | "input" | "results" | "auditor";
 type ConsultaMode = "single" | "lote";
+type FiltroResultados = "todos" | "com_pendencia" | "sem_pendencia" | "com_erro";
+
+interface ResumoCnpjsConsulta {
+  totalInformado: number;
+  totalValidos: number;
+  totalInvalidos: number;
+  totalDuplicados: number;
+  cnpjsValidos: string[];
+  cnpjsInvalidos: string[];
+}
 
 interface FisconformeDraft {
   id: string | null;
@@ -204,6 +215,57 @@ function normalizeDraftCnpjs(draft: FisconformeDraft): string[] {
     .filter(Boolean);
 }
 
+function normalizar_cnpj_lote(cnpj: string): string {
+  return cnpj.replace(/\D/g, "");
+}
+
+function validar_cnpj_lote(cnpj: string): boolean {
+  return normalizar_cnpj_lote(cnpj).length === 14;
+}
+
+function resumir_cnpjs_do_rascunho(draft: FisconformeDraft): ResumoCnpjsConsulta {
+  const entradas = normalizeDraftCnpjs(draft).map(normalizar_cnpj_lote).filter(Boolean);
+  const contagemPorCnpj = new Map<string, number>();
+
+  for (const cnpj of entradas) {
+    contagemPorCnpj.set(cnpj, (contagemPorCnpj.get(cnpj) ?? 0) + 1);
+  }
+
+  const cnpjsValidos = Array.from(new Set(entradas.filter(validar_cnpj_lote)));
+  const cnpjsInvalidos = Array.from(new Set(entradas.filter((cnpj) => !validar_cnpj_lote(cnpj))));
+  const totalDuplicados = Array.from(contagemPorCnpj.values()).reduce((acumulado, quantidade) => {
+    return quantidade > 1 ? acumulado + (quantidade - 1) : acumulado;
+  }, 0);
+
+  return {
+    totalInformado: entradas.length,
+    totalValidos: cnpjsValidos.length,
+    totalInvalidos: cnpjsInvalidos.length,
+    totalDuplicados,
+    cnpjsValidos,
+    cnpjsInvalidos,
+  };
+}
+
+function obter_resultados_filtrados(
+  resultados: FisconformeConsultaResult[],
+  filtro: FiltroResultados,
+): FisconformeConsultaResult[] {
+  if (filtro === "com_erro") {
+    return resultados.filter((item) => Boolean(item.error));
+  }
+
+  if (filtro === "com_pendencia") {
+    return resultados.filter((item) => !item.error && (item.malhas?.length ?? 0) > 0);
+  }
+
+  if (filtro === "sem_pendencia") {
+    return resultados.filter((item) => !item.error && (item.malhas?.length ?? 0) === 0);
+  }
+
+  return resultados;
+}
+
 async function fileToBase64(file: File | null): Promise<string | undefined> {
   if (!file) return undefined;
 
@@ -305,12 +367,12 @@ function HomeStep({
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
                 Organize o acervo por DSF, reabra consultas com os campos já
                 preenchidos e mantenha o destino das notificações definido antes
-                de entrar nas etapas de Consulta, Resultados e Dados do Auditor.
+                de entrar nas etapas de Consulta, Resultados e Para Notificações.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
-              {["1. Consulta", "2. Resultados", "3. Dados do Auditor"].map(
+              {["1. Consulta", "2. Resultados", "3. Para Notificações"].map(
                 (item) => (
                   <span
                     key={item}
@@ -448,6 +510,7 @@ function CnpjInputStep({
   onDraftChange,
   onAuditorChange,
   onPdfChange,
+  onSaveAuditor,
   onSaveDraft,
   onConsultar,
 }: {
@@ -460,14 +523,17 @@ function CnpjInputStep({
   ) => void;
   onAuditorChange: (field: keyof AuditorConfig, value: string) => void;
   onPdfChange: (file: File | null) => void;
+  onSaveAuditor: () => Promise<void>;
   onSaveDraft: () => Promise<void>;
   onConsultar: () => Promise<void>;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [salvandoAuditor, setSalvandoAuditor] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
+  const resumoCnpjs = useMemo(() => resumir_cnpjs_do_rascunho(draft), [draft]);
 
   async function handleSave() {
     setSaving(true);
@@ -495,6 +561,21 @@ function CnpjInputStep({
       setError(message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSalvarAuditor() {
+    setSalvandoAuditor(true);
+    setError("");
+    setFeedback("");
+    try {
+      await onSaveAuditor();
+      setFeedback("Dados do auditor salvos e vinculados à DSF atual.");
+    } catch (exc: unknown) {
+      const message = exc instanceof Error ? exc.message : String(exc);
+      setError(message);
+    } finally {
+      setSalvandoAuditor(false);
     }
   }
 
@@ -641,6 +722,19 @@ function CnpjInputStep({
             />
           </div>
         </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-slate-500">
+            Estes dados ficam salvos como padrão do auditor e também na DSF atual.
+          </div>
+          <PrimaryBtn
+            onClick={handleSalvarAuditor}
+            loading={salvandoAuditor}
+            disabled={saving || loading}
+          >
+            Salvar dados do auditor
+          </PrimaryBtn>
+        </div>
       </Card>
 
       <Card>
@@ -721,6 +815,47 @@ function CnpjInputStep({
           Forçar atualização e ignorar o cache da consulta
         </label>
 
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+              Informados
+            </div>
+            <div className="mt-2 text-xl font-semibold text-white">
+              {resumoCnpjs.totalInformado}
+            </div>
+          </div>
+          <div className="rounded-lg border border-emerald-900/60 bg-emerald-950/20 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-emerald-400/80">
+              Válidos
+            </div>
+            <div className="mt-2 text-xl font-semibold text-white">
+              {resumoCnpjs.totalValidos}
+            </div>
+          </div>
+          <div className="rounded-lg border border-amber-900/60 bg-amber-950/20 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-amber-400/80">
+              Duplicados
+            </div>
+            <div className="mt-2 text-xl font-semibold text-white">
+              {resumoCnpjs.totalDuplicados}
+            </div>
+          </div>
+          <div className="rounded-lg border border-rose-900/60 bg-rose-950/20 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-rose-400/80">
+              Inválidos
+            </div>
+            <div className="mt-2 text-xl font-semibold text-white">
+              {resumoCnpjs.totalInvalidos}
+            </div>
+          </div>
+        </div>
+
+        {resumoCnpjs.cnpjsInvalidos.length > 0 && (
+          <div className="mt-4 rounded-lg bg-rose-950/30 px-3 py-2 text-xs text-rose-300">
+            CNPJs inválidos ignorados na consulta: {resumoCnpjs.cnpjsInvalidos.join(", ")}
+          </div>
+        )}
+
         {feedback && (
           <div className="mt-4 rounded-lg bg-emerald-950/30 px-3 py-2 text-xs text-emerald-300">
             {feedback}
@@ -748,25 +883,35 @@ function CnpjInputStep({
 function ResultsStep({
   draft,
   results,
+  expandedCnpj,
+  filtroResultados,
   onBackHome,
   onBackInput,
-  onAuditoria,
+  onChangeFiltroResultados,
+  onToggleExpandedCnpj,
+  onParaNotificacoes,
 }: {
   draft: FisconformeDraft;
   results: FisconformeConsultaResult[];
+  expandedCnpj: string | null;
+  filtroResultados: FiltroResultados;
   onBackHome: () => void;
   onBackInput: () => void;
-  onAuditoria: () => void;
+  onChangeFiltroResultados: (filtro: FiltroResultados) => void;
+  onToggleExpandedCnpj: (cnpj: string) => void;
+  onParaNotificacoes: () => void;
 }) {
-  const [expandedCnpj, setExpandedCnpj] = useState<string | null>(
-    results.length === 1 ? (results[0]?.cnpj ?? null) : null,
-  );
-
   const totalMalhas = results.reduce(
     (sum, item) => sum + (item.malhas?.length ?? 0),
     0,
   );
   const totalErros = results.filter((item) => item.error).length;
+  const totalComPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) > 0).length;
+  const totalSemPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) === 0).length;
+  const resultadosFiltrados = useMemo(
+    () => obter_resultados_filtrados(results, filtroResultados),
+    [filtroResultados, results],
+  );
 
   return (
     <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-6 overflow-y-auto px-6 py-8">
@@ -786,47 +931,83 @@ function ResultsStep({
         <div className="flex flex-wrap gap-2">
           <SecondaryBtn onClick={onBackHome}>Acervos</SecondaryBtn>
           <SecondaryBtn onClick={onBackInput}>Editar consulta</SecondaryBtn>
-          <PrimaryBtn onClick={onAuditoria}>Dados do Auditor</PrimaryBtn>
+          <PrimaryBtn onClick={onParaNotificacoes}>Para Notificações</PrimaryBtn>
         </div>
       </div>
 
+      <div className="grid gap-3 md:grid-cols-4">
+        <Card className="p-4">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Consultados</div>
+          <div className="mt-2 text-2xl font-semibold text-white">{results.length}</div>
+        </Card>
+        <Card className="border-amber-900/60 bg-amber-950/10 p-4">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-amber-400/80">Com pendência</div>
+          <div className="mt-2 text-2xl font-semibold text-white">{totalComPendencia}</div>
+        </Card>
+        <Card className="border-emerald-900/60 bg-emerald-950/10 p-4">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-emerald-400/80">Sem pendência</div>
+          <div className="mt-2 text-2xl font-semibold text-white">{totalSemPendencia}</div>
+        </Card>
+        <Card className="border-rose-900/60 bg-rose-950/10 p-4">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-rose-400/80">Com erro</div>
+          <div className="mt-2 text-2xl font-semibold text-white">{totalErros}</div>
+        </Card>
+      </div>
+
       <Card>
-        <div className="flex flex-wrap gap-4 text-xs text-slate-400">
-          <span>
-            <span className="font-semibold text-white">{results.length}</span>{" "}
-            CNPJs consultados
-          </span>
-          <span>
-            <span className="font-semibold text-white">{totalMalhas}</span>{" "}
-            pendência(s)
-          </span>
-          <span>
-            <span className="font-semibold text-white">
-              {results.filter((item) => item.from_cache).length}
-            </span>{" "}
-            carregados do cache
-          </span>
-          {totalErros > 0 && (
-            <span className="text-red-400">
-              <span className="font-semibold">{totalErros}</span> erro(s)
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-4 text-xs text-slate-400">
+            <span>
+              <span className="font-semibold text-white">{totalMalhas}</span>{" "}
+              pendência(s)
             </span>
-          )}
+            <span>
+              <span className="font-semibold text-white">
+                {results.filter((item) => item.from_cache).length}
+              </span>{" "}
+              carregados do cache
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["todos", "Todos"],
+              ["com_pendencia", "Com pendência"],
+              ["sem_pendencia", "Sem pendência"],
+              ["com_erro", "Com erro"],
+            ] as const).map(([filtro, rotulo]) => (
+              <button
+                key={filtro}
+                onClick={() => onChangeFiltroResultados(filtro)}
+                className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                  filtroResultados === filtro
+                    ? "bg-sky-500/20 text-sky-200"
+                    : "bg-slate-800/80 text-slate-400 hover:text-white"
+                }`}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
         </div>
       </Card>
 
       <div className="flex flex-col gap-3">
-        {results.map((result) => (
-          <ResultCard
-            key={result.cnpj}
-            result={result}
-            expanded={expandedCnpj === result.cnpj}
-            onToggle={() =>
-              setExpandedCnpj((current) =>
-                current === result.cnpj ? null : result.cnpj,
-              )
-            }
-          />
-        ))}
+        {resultadosFiltrados.length === 0 ? (
+          <Card>
+            <div className="text-sm text-slate-400">
+              Nenhum CNPJ corresponde ao filtro selecionado.
+            </div>
+          </Card>
+        ) : (
+          resultadosFiltrados.map((result) => (
+            <ResultCard
+              key={result.cnpj}
+              result={result}
+              expanded={expandedCnpj === result.cnpj}
+              onToggle={() => onToggleExpandedCnpj(result.cnpj)}
+            />
+          ))
+        )}
       </div>
     </div>
   );
@@ -855,11 +1036,11 @@ function ResultCard({
 
   return (
     <Card className={result.error ? "border-red-800/60" : ""}>
-      <button
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-3 text-left"
-      >
-        <div className="min-w-0">
+      <div className="flex items-start justify-between gap-3">
+        <button
+          onClick={onToggle}
+          className="min-w-0 flex-1 text-left"
+        >
           <div className="flex flex-wrap items-center gap-3">
             <span className="font-mono text-xs font-semibold text-white">
               {result.cnpj}
@@ -875,9 +1056,12 @@ function ResultCard({
               </span>
             )}
           </div>
-        </div>
+        </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
+          <SecondaryBtn onClick={() => abrir_dossie_em_nova_aba(result.cnpj)}>
+            Abrir Dossiê
+          </SecondaryBtn>
           {result.error ? (
             <span className="text-xs text-red-400">{result.error}</span>
           ) : (
@@ -891,9 +1075,11 @@ function ResultCard({
                 : "Sem pendências"}
             </span>
           )}
-          <span className="text-xs text-slate-500">{expanded ? "▲" : "▼"}</span>
+          <button onClick={onToggle} className="text-xs text-slate-500">
+            {expanded ? "▲" : "▼"}
+          </button>
         </div>
-      </button>
+      </div>
 
       {expanded && !result.error && (
         <div className="mt-4 flex flex-col gap-4 border-t border-slate-800 pt-4">
@@ -1023,22 +1209,19 @@ function DadosAuditorStep({
   results,
   pdfFile,
   onBackHome,
+  onBackInput,
   onBackResults,
-  onAuditorChange,
-  onSaveAuditor,
 }: {
   draft: FisconformeDraft;
   results: FisconformeConsultaResult[];
   pdfFile: File | null;
   onBackHome: () => void;
+  onBackInput: () => void;
   onBackResults: () => void;
-  onAuditorChange: (field: keyof AuditorConfig, value: string) => void;
-  onSaveAuditor: () => Promise<void>;
 }) {
   const [gerando, setGerando] = useState<string | null>(null);
   const [gerandoDocx, setGerandoDocx] = useState<string | null>(null);
   const [gerandoLote, setGerandoLote] = useState(false);
-  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [statusPerfil, setStatusPerfil] = useState("");
   const [erroLote, setErroLote] = useState("");
   const [erros, setErros] = useState<Record<string, string>>({});
@@ -1047,6 +1230,24 @@ function DadosAuditorStep({
     () => results.filter((item) => !item.error),
     [results],
   );
+  const checklistPronto = [
+    { id: "dsf", label: "DSF preenchida", pronto: Boolean(draft.dsf.trim()) },
+    {
+      id: "auditor",
+      label: "Auditor preenchido",
+      pronto: Boolean(draft.auditorData.auditor.trim()),
+    },
+    {
+      id: "pdf",
+      label: "PDF disponível ou dispensado",
+      pronto: Boolean(pdfFile || draft.pdfStoredAvailable || !draft.pdfStoredName),
+    },
+    {
+      id: "saida",
+      label: "Saída definida ou download no navegador",
+      pronto: true,
+    },
+  ];
 
   async function montarPayloadBase() {
     const pdf_base64 = await fileToBase64(pdfFile);
@@ -1061,20 +1262,6 @@ function DadosAuditorStep({
       output_dir: draft.outputDir || undefined,
       pdf_base64,
     };
-  }
-
-  async function handleSalvarAuditor() {
-    setSalvandoPerfil(true);
-    setStatusPerfil("");
-    try {
-      await onSaveAuditor();
-      setStatusPerfil("Dados do auditor e da DSF salvos com sucesso.");
-    } catch (exc: unknown) {
-      const message = exc instanceof Error ? exc.message : String(exc);
-      setStatusPerfil(`Erro ao salvar os dados do auditor: ${message}`);
-    } finally {
-      setSalvandoPerfil(false);
-    }
   }
 
   async function handleGerar(result: FisconformeConsultaResult) {
@@ -1180,11 +1367,12 @@ function DadosAuditorStep({
             })}
           </div>
           <h2 className="mt-2 text-lg font-semibold text-white">
-            3. Dados do Auditor
+            3. Para Notificações
           </h2>
         </div>
         <div className="flex flex-wrap gap-2">
           <SecondaryBtn onClick={onBackHome}>Acervos</SecondaryBtn>
+          <SecondaryBtn onClick={onBackInput}>Consulta</SecondaryBtn>
           <SecondaryBtn onClick={onBackResults}>Resultados</SecondaryBtn>
         </div>
       </div>
@@ -1193,11 +1381,11 @@ function DadosAuditorStep({
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <div className="text-xs font-semibold text-slate-400">
-              Dados do auditor e do órgão
+              Resumo usado nas notificações
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              Estes dados ficam salvos na DSF atual e também como padrão para
-              novas DSFs.
+              Esta etapa não edita os dados do auditor. Se precisar ajustar os
+              campos da DSF, volte para a etapa 1. Consulta.
             </p>
           </div>
           <div className="rounded-full bg-slate-800/70 px-3 py-1 text-[11px] text-slate-300">
@@ -1206,66 +1394,32 @@ function DadosAuditorStep({
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <Label>Nome do Auditor</Label>
-            <Input
-              value={draft.auditorData.auditor}
-              onChange={(event) =>
-                onAuditorChange("auditor", event.target.value)
-              }
-              placeholder="Nome completo do auditor"
-            />
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Auditor</div>
+            <div className="mt-2 text-sm text-white">{draft.auditorData.auditor || "não preenchido"}</div>
           </div>
-          <div>
-            <Label>Cargo / Título</Label>
-            <Input
-              value={draft.auditorData.cargo_titulo}
-              onChange={(event) =>
-                onAuditorChange("cargo_titulo", event.target.value)
-              }
-              placeholder="Ex: Auditor"
-            />
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cargo / Título</div>
+            <div className="mt-2 text-sm text-white">{draft.auditorData.cargo_titulo || "não preenchido"}</div>
           </div>
-          <div>
-            <Label>Matrícula</Label>
-            <Input
-              value={draft.auditorData.matricula}
-              onChange={(event) =>
-                onAuditorChange("matricula", event.target.value)
-              }
-              placeholder="Número da matrícula"
-            />
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Matrícula</div>
+            <div className="mt-2 text-sm text-white">{draft.auditorData.matricula || "não preenchido"}</div>
           </div>
-          <div>
-            <Label>Contato</Label>
-            <Input
-              value={draft.auditorData.contato}
-              onChange={(event) =>
-                onAuditorChange("contato", event.target.value)
-              }
-              placeholder="E-mail ou telefone"
-            />
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Contato</div>
+            <div className="mt-2 text-sm text-white">{draft.auditorData.contato || "não preenchido"}</div>
           </div>
-          <div>
-            <Label>Órgão de origem</Label>
-            <Input
-              value={draft.auditorData.orgao_origem}
-              onChange={(event) =>
-                onAuditorChange("orgao_origem", event.target.value)
-              }
-              placeholder="Ex: SEFIN / RO"
-            />
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Órgão de origem</div>
+            <div className="mt-2 text-sm text-white">{draft.auditorData.orgao_origem || "não preenchido"}</div>
           </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs text-slate-500">
-            As notificações serão associadas à DSF atual e reutilizadas no
-            acervo.
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">PDF da DSF</div>
+            <div className="mt-2 text-sm text-white">
+              {pdfFile?.name || draft.pdfStoredName || "download pelo navegador"}
+            </div>
           </div>
-          <PrimaryBtn onClick={handleSalvarAuditor} loading={salvandoPerfil}>
-            Salvar dados do auditor
-          </PrimaryBtn>
         </div>
 
         {statusPerfil && (
@@ -1279,6 +1433,26 @@ function DadosAuditorStep({
             {statusPerfil}
           </div>
         )}
+      </Card>
+
+      <Card>
+        <div className="mb-3 text-xs font-semibold text-slate-400">
+          Checklist de prontidão
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          {checklistPronto.map((item) => (
+            <div
+              key={item.id}
+              className={`rounded-lg border px-3 py-3 text-sm ${
+                item.pronto
+                  ? "border-emerald-900/60 bg-emerald-950/10 text-emerald-300"
+                  : "border-amber-900/60 bg-amber-950/10 text-amber-300"
+              }`}
+            >
+              {item.pronto ? "Pronto" : "Pendente"}: {item.label}
+            </div>
+          ))}
+        </div>
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1394,13 +1568,18 @@ function DadosAuditorStep({
 
           return (
             <Card key={result.cnpj}>
-              <div className="mb-3 flex flex-wrap items-center gap-3">
-                <span className="font-mono text-xs font-semibold text-white">
-                  {result.cnpj}
-                </span>
-                {razaoSocial !== "-" && (
-                  <span className="text-xs text-slate-300">{razaoSocial}</span>
-                )}
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-mono text-xs font-semibold text-white">
+                    {result.cnpj}
+                  </span>
+                  {razaoSocial !== "-" && (
+                    <span className="text-xs text-slate-300">{razaoSocial}</span>
+                  )}
+                </div>
+                <SecondaryBtn onClick={() => abrir_dossie_em_nova_aba(result.cnpj)}>
+                  Abrir Dossiê
+                </SecondaryBtn>
               </div>
 
               <div className="mb-4">
@@ -1490,6 +1669,8 @@ export function FisconformeTab() {
   const [results, setResults] = useState<FisconformeConsultaResult[]>([]);
   const [draft, setDraft] = useState<FisconformeDraft>(EMPTY_DRAFT);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [expandedResultCnpj, setExpandedResultCnpj] = useState<string | null>(null);
+  const [filtroResultados, setFiltroResultados] = useState<FiltroResultados>("todos");
   const [auditorDefaults, setAuditorDefaults] =
     useState<AuditorConfig>(EMPTY_AUDITOR_FORM);
   const [dsfs, setDsfs] = useState<FisconformeDsfSummary[]>([]);
@@ -1550,6 +1731,8 @@ export function FisconformeTab() {
   function resetForNewDsf() {
     setResults([]);
     setPdfFile(null);
+    setExpandedResultCnpj(null);
+    setFiltroResultados("todos");
     setDraft({
       ...EMPTY_DRAFT,
       auditorData: auditorDefaults,
@@ -1563,6 +1746,8 @@ export function FisconformeTab() {
       const record = await fisconformeApi.getDsf(id);
       setResults([]);
       setPdfFile(null);
+      setExpandedResultCnpj(null);
+      setFiltroResultados("todos");
       setDraft(buildDraftFromRecord(record, auditorDefaults));
       setStep("input");
     } catch (exc: unknown) {
@@ -1634,6 +1819,7 @@ export function FisconformeTab() {
         draft.forcar,
       );
       setResults([result]);
+      setExpandedResultCnpj(result.cnpj);
     } else {
       const response = await fisconformeApi.consultaLote(
         cnpjs,
@@ -1642,6 +1828,7 @@ export function FisconformeTab() {
         draft.forcar,
       );
       setResults(response.resultados);
+      setExpandedResultCnpj(response.resultados.length === 1 ? (response.resultados[0]?.cnpj ?? null) : null);
     }
 
     setStep("results");
@@ -1655,7 +1842,7 @@ export function FisconformeTab() {
   const stepLabels: Record<Exclude<Step, "home">, string> = {
     input: "1. Consulta",
     results: "2. Resultados",
-    auditor: "3. Dados do Auditor",
+    auditor: "3. Para Notificações",
   };
 
   return (
@@ -1720,6 +1907,7 @@ export function FisconformeTab() {
             onDraftChange={updateDraft}
             onAuditorChange={updateAuditor}
             onPdfChange={setPdfFile}
+            onSaveAuditor={handleSaveAuditor}
             onSaveDraft={async () => { await persistCurrentDsf(); }}
             onConsultar={handleConsultar}
           />
@@ -1729,9 +1917,15 @@ export function FisconformeTab() {
           <ResultsStep
             draft={draft}
             results={results}
+            expandedCnpj={expandedResultCnpj}
+            filtroResultados={filtroResultados}
             onBackHome={() => setStep("home")}
             onBackInput={() => setStep("input")}
-            onAuditoria={() => setStep("auditor")}
+            onChangeFiltroResultados={setFiltroResultados}
+            onToggleExpandedCnpj={(cnpj) =>
+              setExpandedResultCnpj((atual) => (atual === cnpj ? null : cnpj))
+            }
+            onParaNotificacoes={() => setStep("auditor")}
           />
         )}
 
@@ -1741,9 +1935,8 @@ export function FisconformeTab() {
             results={results}
             pdfFile={pdfFile}
             onBackHome={() => setStep("home")}
+            onBackInput={() => setStep("input")}
             onBackResults={() => setStep("results")}
-            onAuditorChange={updateAuditor}
-            onSaveAuditor={handleSaveAuditor}
           />
         )}
       </div>
