@@ -161,7 +161,18 @@ def inicializar_produtos_agrupados(cnpj: str, pasta_cnpj: Path | None = None) ->
         
         if desc_norms:
             df_base_filtered = df_base.filter(
-                pl.col("descricao").map_elements(_normalizar_descricao_para_match, return_dtype=pl.String).is_in(desc_norms)
+                pl.col("descricao")
+                .str.to_uppercase()
+                .str.replace_all(r"[ÁÀÂÃÄ]", "A")
+                .str.replace_all(r"[ÉÈÊË]", "E")
+                .str.replace_all(r"[ÍÌÎÏ]", "I")
+                .str.replace_all(r"[ÓÒÔÕÖ]", "O")
+                .str.replace_all(r"[ÚÙÛÜ]", "U")
+                .str.replace_all(r"[Ç]", "C")
+                .str.replace_all(r"[Ñ]", "N")
+                .str.strip_chars()
+                .str.replace_all(r"\s+", " ")
+                .is_in(desc_norms)
             )
         else:
             df_base_filtered = df_base.filter(pl.lit(False))
