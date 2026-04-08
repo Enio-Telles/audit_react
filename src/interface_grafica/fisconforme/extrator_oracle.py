@@ -17,6 +17,7 @@ import os
 import time
 import logging
 import oracledb
+import re
 import pandas as pd
 from pathlib import Path
 from dotenv import load_dotenv
@@ -175,6 +176,14 @@ class ExtratorOracle:
         Returns:
             True se a extração foi bem-sucedida, False caso contrário
         """
+        # Validate schema, table, and column names to prevent SQL Injection
+        if not re.match(r"^[A-Za-z0-9_]+$", schema):
+            raise ValueError("Schema inválido.")
+        if not re.match(r"^[A-Za-z0-9_]+$", tabela):
+            raise ValueError("Tabela inválida.")
+        if filtro_coluna and not re.match(r"^[A-Za-z0-9_]+$", filtro_coluna):
+            raise ValueError("Coluna de filtro inválida.")
+
         nome_completo = f"{schema}.{tabela}"
         arquivo_saida = self.pasta_dados / f"{schema}_{tabela}.parquet"
 
