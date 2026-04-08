@@ -53,7 +53,7 @@ export function DossieTab({ cnpj, razaoSocial }: DossieTabProps) {
 
       {!isLoading && !isError && sections && (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {sections.map((section: any) => (
+          {sections.map((section: { id: string; title: string; subtitle: string; status: "ok" | "warning" | "alert" | "loading" }) => (
             <div key={section.id} className="rounded-2xl border border-slate-700 bg-slate-900/50 p-4 hover:bg-slate-800/80 transition-colors cursor-pointer border-t-2 hover:border-t-blue-500">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <h3 className="text-sm font-semibold text-white">{section.title}</h3>
