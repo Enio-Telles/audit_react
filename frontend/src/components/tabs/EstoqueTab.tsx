@@ -5,6 +5,14 @@ import { estoqueApi } from "../../api/client";
 // ⚡ Bolt Optimization: Use cached Intl.NumberFormat instance instead of Number.prototype.toLocaleString()
 // This avoids repeatedly allocating locale data and parsing options on every render, improving performance.
 const intlInteger = new Intl.NumberFormat("pt-BR");
+const intlCurrency = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+const intlDateTime = new Intl.DateTimeFormat("pt-BR", {
+  dateStyle: "short",
+  timeStyle: "medium",
+});
 import { useAppStore } from "../../store/appStore";
 import { DataTable } from "../table/DataTable";
 import { ColumnToggle } from "../table/ColumnToggle";
@@ -110,7 +118,7 @@ function openTableInNewTab(
   </head>
   <body>
     <h1>${escapeHtml(title)}</h1>
-    <div class="meta">Gerado em ${escapeHtml(new Date().toLocaleString("pt-BR"))} | Registros: ${escapeHtml(rows.length)}</div>
+    <div class="meta">Gerado em ${escapeHtml(intlDateTime.format(new Date()))} | Registros: ${escapeHtml(rows.length)}</div>
     <table>
       <thead><tr>${headerHtml}</tr></thead>
       <tbody>${rowsHtml}</tbody>
@@ -296,7 +304,8 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
   }[sub];
 
   const visibleColumns = useMemo(
-    () => getVisibleOrderedColumns(colunasDisponiveis, ordemColunas, hiddenCols),
+    () =>
+      getVisibleOrderedColumns(colunasDisponiveis, ordemColunas, hiddenCols),
     [colunasDisponiveis, ordemColunas, hiddenCols],
   );
 
@@ -462,7 +471,10 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
               >
                 <option value="">Motivo: todos</option>
                 {(blocoHResumo?.motivos ?? []).map((m) => (
-                  <option key={`${m.cod_mot_inv}-${m.mot_inv_desc ?? ""}`} value={m.cod_mot_inv}>
+                  <option
+                    key={`${m.cod_mot_inv}-${m.mot_inv_desc ?? ""}`}
+                    value={m.cod_mot_inv}
+                  >
                     {m.cod_mot_inv} - {m.mot_inv_desc ?? "Sem descricao"}
                   </option>
                 ))}
@@ -475,7 +487,10 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
                 >
                   <option value="">Propriedade: todos</option>
                   {(blocoHResumo?.propriedade ?? []).map((p) => (
-                    <option key={`${p.indicador_propriedade}`} value={p.indicador_propriedade}>
+                    <option
+                      key={`${p.indicador_propriedade}`}
+                      value={p.indicador_propriedade}
+                    >
                       {p.indicador_propriedade || "(vazio)"}
                     </option>
                   ))}
@@ -532,65 +547,84 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
           )}
         </div>
 
-        {sub === "bloco_h" && blocoHSubTab === "h005_resumo" && blocoHResumo && (
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2">
-            <div className="bg-slate-900 border border-slate-700 rounded px-2 py-2">
-              <div className="text-[11px] text-slate-400">Inventarios H005</div>
-              <div className="text-sm font-semibold text-slate-200">
-                {intlInteger.format(blocoHResumo.inventarios_h005 ?? 0)}
+        {sub === "bloco_h" &&
+          blocoHSubTab === "h005_resumo" &&
+          blocoHResumo && (
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2">
+              <div className="bg-slate-900 border border-slate-700 rounded px-2 py-2">
+                <div className="text-[11px] text-slate-400">
+                  Inventarios H005
+                </div>
+                <div className="text-sm font-semibold text-slate-200">
+                  {intlInteger.format(blocoHResumo.inventarios_h005 ?? 0)}
+                </div>
+              </div>
+              <div className="bg-slate-900 border border-slate-700 rounded px-2 py-2">
+                <div className="text-[11px] text-slate-400">
+                  Produtos distintos (codigo_produto)
+                </div>
+                <div className="text-sm font-semibold text-slate-200">
+                  {intlInteger.format(
+                    blocoHResumo.total_produtos_codigo_produto ?? 0,
+                  )}
+                </div>
+              </div>
+              <div className="bg-slate-900 border border-slate-700 rounded px-2 py-2">
+                <div className="text-[11px] text-slate-400">
+                  Detalhamentos H010
+                </div>
+                <div className="text-sm font-semibold text-slate-200">
+                  {intlInteger.format(blocoHResumo.total_linhas_h010 ?? 0)}
+                </div>
+              </div>
+              <div className="bg-slate-900 border border-slate-700 rounded px-2 py-2">
+                <div className="text-[11px] text-slate-400">
+                  Valor total dos itens (H010)
+                </div>
+                <div className="text-sm font-semibold text-slate-200">
+                  {intlCurrency.format(blocoHResumo.valor_total_itens ?? 0)}
+                </div>
+              </div>
+              <div className="md:col-span-2 bg-slate-900 border border-slate-700 rounded px-2 py-2">
+                <div className="text-[11px] text-slate-400 mb-1">
+                  Motivos de inventario
+                </div>
+                <div className="max-h-24 overflow-auto pr-1 space-y-1">
+                  {(blocoHResumo.motivos ?? []).map((m) => (
+                    <div
+                      key={`${m.cod_mot_inv}-${m.mot_inv_desc ?? ""}`}
+                      className="text-xs text-slate-300 flex items-center justify-between"
+                    >
+                      <span>
+                        {m.cod_mot_inv} - {m.mot_inv_desc ?? "Sem descricao"}
+                      </span>
+                      <span className="text-slate-400">
+                        {intlInteger.format(m.qtd_itens)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="md:col-span-2 bg-slate-900 border border-slate-700 rounded px-2 py-2">
+                <div className="text-[11px] text-slate-400 mb-1">
+                  Indicador de propriedade
+                </div>
+                <div className="max-h-24 overflow-auto pr-1 space-y-1">
+                  {(blocoHResumo.propriedade ?? []).map((p) => (
+                    <div
+                      key={`${p.indicador_propriedade}`}
+                      className="text-xs text-slate-300 flex items-center justify-between"
+                    >
+                      <span>{p.indicador_propriedade || "(vazio)"}</span>
+                      <span className="text-slate-400">
+                        {intlInteger.format(p.qtd_itens)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="bg-slate-900 border border-slate-700 rounded px-2 py-2">
-              <div className="text-[11px] text-slate-400">Produtos distintos (codigo_produto)</div>
-              <div className="text-sm font-semibold text-slate-200">
-                {intlInteger.format(blocoHResumo.total_produtos_codigo_produto ?? 0)}
-              </div>
-            </div>
-            <div className="bg-slate-900 border border-slate-700 rounded px-2 py-2">
-              <div className="text-[11px] text-slate-400">Detalhamentos H010</div>
-              <div className="text-sm font-semibold text-slate-200">
-                {intlInteger.format(blocoHResumo.total_linhas_h010 ?? 0)}
-              </div>
-            </div>
-            <div className="bg-slate-900 border border-slate-700 rounded px-2 py-2">
-              <div className="text-[11px] text-slate-400">Valor total dos itens (H010)</div>
-              <div className="text-sm font-semibold text-slate-200">
-                {(blocoHResumo.valor_total_itens ?? 0).toLocaleString("pt-BR", {
-                  style: "currency",
-                  currency: "BRL",
-                })}
-              </div>
-            </div>
-            <div className="md:col-span-2 bg-slate-900 border border-slate-700 rounded px-2 py-2">
-              <div className="text-[11px] text-slate-400 mb-1">Motivos de inventario</div>
-              <div className="max-h-24 overflow-auto pr-1 space-y-1">
-                {(blocoHResumo.motivos ?? []).map((m) => (
-                  <div
-                    key={`${m.cod_mot_inv}-${m.mot_inv_desc ?? ""}`}
-                    className="text-xs text-slate-300 flex items-center justify-between"
-                  >
-                    <span>{m.cod_mot_inv} - {m.mot_inv_desc ?? "Sem descricao"}</span>
-                    <span className="text-slate-400">{intlInteger.format(m.qtd_itens)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="md:col-span-2 bg-slate-900 border border-slate-700 rounded px-2 py-2">
-              <div className="text-[11px] text-slate-400 mb-1">Indicador de propriedade</div>
-              <div className="max-h-24 overflow-auto pr-1 space-y-1">
-                {(blocoHResumo.propriedade ?? []).map((p) => (
-                  <div
-                    key={`${p.indicador_propriedade}`}
-                    className="text-xs text-slate-300 flex items-center justify-between"
-                  >
-                    <span>{p.indicador_propriedade || "(vazio)"}</span>
-                    <span className="text-slate-400">{intlInteger.format(p.qtd_itens)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+          )}
       </div>
 
       <div className="flex-1 overflow-hidden">
