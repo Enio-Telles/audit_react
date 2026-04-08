@@ -204,7 +204,7 @@ def get_secoes(cnpj: str):
         if secao.exige_cnpj and not cnpj_normalizado:
             continue
 
-<<<<<<< HEAD        status_secao, quantidade_linhas, data_atualizacao = montar_resumo_secao(secao.id, cnpj_normalizado)
+        status_secao, quantidade_linhas, data_atualizacao = montar_resumo_secao(secao.id, cnpj_normalizado)
         resultado.append(
             DossieSectionSummaryResponse(
                 id=secao.id,

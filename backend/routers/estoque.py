@@ -132,32 +132,35 @@ def _ler_tabela_estoque_ou_vazia(path: Path, page: int = 1, page_size: int = 500
     """
     if not path.exists():
         return _resposta_paginada_vazia(page, page_size)
-    df = pl.read_parquet(path)
+
+    # ⚡ Bolt Optimization: Use scan_parquet for lazy evaluation to improve performance
+    df = pl.scan_parquet(path).collect()
     return _df_to_response(df, page, page_size)
 
 
 def _aplicar_filtros_bloco_h(
-    df: pl.DataFrame,
+    lf: pl.LazyFrame,
     dt_inv: str | None = None,
     cod_mot_inv: str | None = None,
     indicador_propriedade: str | None = None,
-) -> pl.DataFrame:
-    if dt_inv and "dt_inv" in df.columns:
+) -> pl.LazyFrame:
+    columns = lf.collect_schema().names()
+    if dt_inv and "dt_inv" in columns:
         dt_inv_norm = dt_inv.strip()
         if dt_inv_norm:
-            df = df.filter(pl.col("dt_inv").cast(pl.Utf8).str.contains(dt_inv_norm, literal=True))
+            lf = lf.filter(pl.col("dt_inv").cast(pl.Utf8).str.contains(dt_inv_norm, literal=True))
 
-    if cod_mot_inv and "cod_mot_inv" in df.columns:
+    if cod_mot_inv and "cod_mot_inv" in columns:
         cod_mot_inv_norm = cod_mot_inv.strip()
         if cod_mot_inv_norm:
-            df = df.filter(pl.col("cod_mot_inv").cast(pl.Utf8) == cod_mot_inv_norm)
+            lf = lf.filter(pl.col("cod_mot_inv").cast(pl.Utf8) == cod_mot_inv_norm)
 
-    if indicador_propriedade and "indicador_propriedade" in df.columns:
+    if indicador_propriedade and "indicador_propriedade" in columns:
         indicador_norm = indicador_propriedade.strip()
         if indicador_norm:
-            df = df.filter(pl.col("indicador_propriedade").cast(pl.Utf8) == indicador_norm)
+            lf = lf.filter(pl.col("indicador_propriedade").cast(pl.Utf8) == indicador_norm)
 
-    return df
+    return lf
 
 
 @router.get("/{cnpj}/mov_estoque")
@@ -209,9 +212,10 @@ def get_bloco_h(
     if not path.exists():
         return _resposta_paginada_vazia(page, page_size)
 
-    df = pl.read_parquet(path)
-    df = _aplicar_filtros_bloco_h(df, dt_inv, cod_mot_inv, indicador_propriedade)
-    return _df_to_response(df, page, page_size)
+    # ⚡ Bolt Optimization: Use scan_parquet for lazy evaluation to improve performance
+    lf = pl.scan_parquet(path)
+    lf = _aplicar_filtros_bloco_h(lf, dt_inv, cod_mot_inv, indicador_propriedade)
+    return _df_to_response(lf.collect(), page, page_size)
 
 
 @router.get("/{cnpj}/bloco_h_h005")
@@ -228,42 +232,44 @@ def get_bloco_h_h005(
     if not path.exists():
         return _resposta_paginada_vazia(page, page_size)
 
-    df = pl.read_parquet(path)
-    df = _aplicar_filtros_bloco_h(df, dt_inv, cod_mot_inv, indicador_propriedade)
+    # ⚡ Bolt Optimization: Use scan_parquet for lazy evaluation to improve performance
+    lf = pl.scan_parquet(path)
+    lf = _aplicar_filtros_bloco_h(lf, dt_inv, cod_mot_inv, indicador_propriedade)
+    columns = lf.collect_schema().names()
 
-    if "dt_inv" not in df.columns:
+    if "dt_inv" not in columns:
         return _resposta_paginada_vazia(page, page_size)
 
-    if "mot_inv_desc" not in df.columns:
-        df = df.with_columns(pl.lit(None).alias("mot_inv_desc"))
-    if "valor_total_inventario_h005" not in df.columns:
-        df = df.with_columns(pl.lit(0.0).alias("valor_total_inventario_h005"))
+    if "mot_inv_desc" not in columns:
+        lf = lf.with_columns(pl.lit(None).alias("mot_inv_desc"))
+    if "valor_total_inventario_h005" not in columns:
+        lf = lf.with_columns(pl.lit(0.0).alias("valor_total_inventario_h005"))
 
     agg_exprs: list[pl.Expr] = [
         pl.len().alias("qtd_linhas_h010"),
     ]
-    if "codigo_produto" in df.columns:
+    if "codigo_produto" in columns:
         agg_exprs.append(pl.col("codigo_produto").n_unique().alias("qtd_produtos_codigo_produto"))
     else:
         agg_exprs.append(pl.lit(0).alias("qtd_produtos_codigo_produto"))
 
-    if "quantidade" in df.columns:
+    if "quantidade" in columns:
         agg_exprs.append(pl.col("quantidade").cast(pl.Float64).fill_null(0).sum().alias("quantidade_total"))
     else:
         agg_exprs.append(pl.lit(0.0).alias("quantidade_total"))
 
-    if "valor_item" in df.columns:
+    if "valor_item" in columns:
         agg_exprs.append(pl.col("valor_item").cast(pl.Float64).fill_null(0).sum().alias("valor_total_itens_h010"))
     else:
         agg_exprs.append(pl.lit(0.0).alias("valor_total_itens_h010"))
 
-    resumo = (
-        df.group_by(["dt_inv", "cod_mot_inv", "mot_inv_desc", "valor_total_inventario_h005"])
+    resumo_lf = (
+        lf.group_by(["dt_inv", "cod_mot_inv", "mot_inv_desc", "valor_total_inventario_h005"])
         .agg(agg_exprs)
         .sort("dt_inv", descending=True)
     )
 
-    return _df_to_response(resumo, page, page_size)
+    return _df_to_response(resumo_lf.collect(), page, page_size)
 
 
 @router.get("/{cnpj}/bloco_h_resumo")
@@ -286,8 +292,10 @@ def get_bloco_h_resumo(
             "propriedade": [],
         }
 
-    df = pl.read_parquet(path)
-    df = _aplicar_filtros_bloco_h(df, dt_inv, cod_mot_inv, indicador_propriedade)
+    # ⚡ Bolt Optimization: Use scan_parquet for lazy evaluation to improve performance
+    lf = pl.scan_parquet(path)
+    lf = _aplicar_filtros_bloco_h(lf, dt_inv, cod_mot_inv, indicador_propriedade)
+    df = lf.collect()
     total_linhas = df.height
 
     inventarios_h005 = 0
