@@ -128,29 +128,31 @@ def get_resumo(cnpj: str):
 
     df = pl.read_parquet(path_item)
     total = df.height
-    pendencias = df.filter(pl.col("status_calculo") == "pendente_conversao").height
-    parciais = df.filter(pl.col("status_calculo") == "parcial_pos_2022").height
-    com_calc = df.filter(pl.col("possui_st_calc_ate_2022") == True).height
-    com_fronteira = df.filter(pl.col("possui_fronteira") == True).height
+    # ⚡ Bolt Optimization: Compute multiple counts in a single pass over the dataframe to prevent performance bottlenecks.
+    aggs = df.select([
+        (pl.col("status_calculo") == "pendente_conversao").sum().alias("pendencias"),
+        (pl.col("status_calculo") == "parcial_pos_2022").sum().alias("parciais"),
+        pl.col("possui_st_calc_ate_2022").sum().alias("com_calc"),
+        pl.col("possui_fronteira").sum().alias("com_fronteira"),
 
-    pre_2023 = df.filter(pl.col("ano_ref") <= 2022)
-    pos_2023 = df.filter(pl.col("ano_ref") > 2022)
+        (pl.col("ano_ref") <= 2022).sum().alias("pre_2023_height"),
+        ((pl.col("ano_ref") <= 2022) & pl.col("possui_st_calc_ate_2022")).sum().alias("pre_2023_com_calc"),
 
-    cobertura_pre = 0.0
-    if pre_2023.height > 0:
-        cobertura_pre = round(
-            (pre_2023.filter(pl.col("possui_st_calc_ate_2022") == True).height * 100.0)
-            / pre_2023.height,
-            2,
-        )
+        (pl.col("ano_ref") > 2022).sum().alias("pos_2023_height"),
+        ((pl.col("ano_ref") > 2022) & pl.col("possui_fronteira")).sum().alias("pos_2023_com_fronteira"),
+    ]).row(0)
 
-    cobertura_pos = 0.0
-    if pos_2023.height > 0:
-        cobertura_pos = round(
-            (pos_2023.filter(pl.col("possui_fronteira") == True).height * 100.0)
-            / pos_2023.height,
-            2,
-        )
+    pendencias = aggs[0]
+    parciais = aggs[1]
+    com_calc = aggs[2]
+    com_fronteira = aggs[3]
+    pre_2023_height = aggs[4]
+    pre_2023_com_calc = aggs[5]
+    pos_2023_height = aggs[6]
+    pos_2023_com_fronteira = aggs[7]
+
+    cobertura_pre = round((pre_2023_com_calc * 100.0) / pre_2023_height, 2) if pre_2023_height > 0 else 0.0
+    cobertura_pos = round((pos_2023_com_fronteira * 100.0) / pos_2023_height, 2) if pos_2023_height > 0 else 0.0
 
     return {
         "ready": total > 0 and not faltantes,
