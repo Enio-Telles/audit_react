@@ -13,7 +13,6 @@ const inputCls =
 const btnCls =
   "px-3 py-1.5 rounded text-xs font-medium cursor-pointer transition-colors";
 
-
 export function LeftPanel() {
   const queryClient = useQueryClient();
   const {
@@ -35,7 +34,10 @@ export function LeftPanel() {
   const [showSqlSelector, setShowSqlSelector] = useState(false);
   const [showExtrairModal, setShowExtrairModal] = useState(false);
   const [showGerenciarModal, setShowGerenciarModal] = useState(false);
-  const [gerenciarCnpj, setGerenciarCnpj] = useState<{ cnpj: string; razaoSocial: string | null } | null>(null);
+  const [gerenciarCnpj, setGerenciarCnpj] = useState<{
+    cnpj: string;
+    razaoSocial: string | null;
+  } | null>(null);
 
   const { data: cnpjs = [] } = useQuery({
     queryKey: ["cnpjs"],
@@ -72,7 +74,7 @@ export function LeftPanel() {
     } catch {
       // ignorar erros de parse
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sqlFiles]);
 
   const addMutation = useMutation({
@@ -91,9 +93,7 @@ export function LeftPanel() {
     return selectedCnpj;
   };
 
-  const runPipeline = async (
-    modo: "full" | "extract" | "process",
-  ) => {
+  const runPipeline = async (modo: "full" | "extract" | "process") => {
     const cnpj = await ensureSelectedCnpj();
     if (!cnpj) return;
 
@@ -110,8 +110,7 @@ export function LeftPanel() {
 
     await pipelineApi.run({
       cnpj,
-      data_limite:
-        modo === "process" ? undefined : dataLimite,
+      data_limite: modo === "process" ? undefined : dataLimite,
       incluir_extracao: modo !== "process",
       incluir_processamento: modo !== "extract",
       consultas:
@@ -129,7 +128,9 @@ export function LeftPanel() {
       const s = await pipelineApi.status(pipelineWatchCnpj);
       updatePipelineStatus(s);
       if (s.status === "done" || s.status === "error") {
-        queryClient.invalidateQueries({ queryKey: ["files", pipelineWatchCnpj] });
+        queryClient.invalidateQueries({
+          queryKey: ["files", pipelineWatchCnpj],
+        });
       }
     }, 1500);
     return () => clearInterval(id);
@@ -279,7 +280,9 @@ export function LeftPanel() {
                 ? `Consultas SQL: todas (${sqlFiles.length})`
                 : `Consultas SQL: ${selectedConsultas.length} de ${sqlFiles.length}`}
             </span>
-            <span className="text-slate-500">{showSqlSelector ? "▲" : "▼"}</span>
+            <span className="text-slate-500">
+              {showSqlSelector ? "▲" : "▼"}
+            </span>
           </button>
           {showSqlSelector && (
             <div className="border-t border-slate-700 p-1.5">
@@ -304,7 +307,10 @@ export function LeftPanel() {
                   ⚙ Gerenciar
                 </button>
               </div>
-              <div className="overflow-y-auto flex flex-col gap-0.5" style={{ maxHeight: 200 }}>
+              <div
+                className="overflow-y-auto flex flex-col gap-0.5"
+                style={{ maxHeight: 200 }}
+              >
                 {sqlFiles.map((f) => {
                   const checked =
                     selectedConsultas === null ||
@@ -321,10 +327,14 @@ export function LeftPanel() {
                         onChange={() => {
                           if (selectedConsultas === null) {
                             setSelectedConsultas(
-                              sqlFiles.map((x) => x.path).filter((p) => p !== f.path),
+                              sqlFiles
+                                .map((x) => x.path)
+                                .filter((p) => p !== f.path),
                             );
                           } else if (checked) {
-                            const next = selectedConsultas.filter((p) => p !== f.path);
+                            const next = selectedConsultas.filter(
+                              (p) => p !== f.path,
+                            );
                             setSelectedConsultas(next.length === 0 ? [] : next);
                           } else {
                             const next = [...selectedConsultas, f.path];
@@ -365,6 +375,10 @@ export function LeftPanel() {
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-slate-800">
               <div
+                role="progressbar"
+                aria-valuenow={Math.round(progressValue)}
+                aria-valuemin={0}
+                aria-valuemax={100}
                 className={`h-full rounded-full transition-all duration-500 ${progressBarCls} ${
                   pipelineStatus.status === "queued" ||
                   pipelineStatus.status === "running"
@@ -428,7 +442,9 @@ export function LeftPanel() {
                     ? "bg-blue-700 text-white"
                     : "text-slate-300 hover:bg-slate-700"
                 }`}
-                title={r.razao_social ? `${r.cnpj} - ${r.razao_social}` : r.cnpj}
+                title={
+                  r.razao_social ? `${r.cnpj} - ${r.razao_social}` : r.cnpj
+                }
               >
                 <div className="font-semibold">{r.cnpj}</div>
                 <div className="truncate text-[11px] text-slate-400">
@@ -436,8 +452,14 @@ export function LeftPanel() {
                 </div>
               </button>
               <button
-                onClick={() => setGerenciarCnpj({ cnpj: r.cnpj, razaoSocial: r.razao_social })}
+                onClick={() =>
+                  setGerenciarCnpj({
+                    cnpj: r.cnpj,
+                    razaoSocial: r.razao_social,
+                  })
+                }
                 title="Gerenciar dados do CNPJ"
+                aria-label="Gerenciar dados do CNPJ"
                 className="shrink-0 px-1.5 py-1.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-opacity text-[11px]"
               >
                 ⚙
