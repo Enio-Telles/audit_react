@@ -10,3 +10,6 @@
 ## 2024-05-26 - Polars vectorization for complex accent removal
 **Learning:** Using Python functions for complex accent removal inside `.map_elements()` breaks Polars vectorization and severely degrades performance. A fully vectorized approach using chained `.str.replace_all()` with regex groups (e.g., `r"[ÁÀÂÃÄ]", "A"`) and `.str.to_uppercase()` performs over 3x faster than the Python-based counterpart.
 **Action:** Always refactor text normalization functions that remove accents or normalize spacing to use native Polars string manipulation methods to fully utilize the Rust backend optimizations.
+## 2026-04-09 - Date.prototype.toLocaleString performance
+**Learning:** Calling `Date.prototype.toLocaleString()` repeatedly (e.g., in a render loop or formatting multiple rows) degrades performance significantly due to repeated object allocation and option parsing.
+**Action:** Always instantiate and cache `Intl.DateTimeFormat` objects outside of components or render loops when repeatedly formatting dates in the frontend.
