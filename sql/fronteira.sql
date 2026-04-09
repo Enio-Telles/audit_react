@@ -6,10 +6,13 @@ WITH
     PARAMETROS AS (
         SELECT
 :CNPJ AS cnpj_filtro,
-            NVL (
-                TO_DATE(
+            LEAST(
+                NVL (
+                    TO_DATE(
 :data_limite_processamento,
-                    'DD/MM/YYYY'
+                        'DD/MM/YYYY'
+                    ),
+                    TRUNC(SYSDATE)
                 ),
                 TRUNC(SYSDATE)
             ) AS dt_corte

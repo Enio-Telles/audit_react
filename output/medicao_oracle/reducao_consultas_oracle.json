@@ -1,0 +1,291 @@
+{
+  "gerado_em": "2026-04-09T10:11:29.992687",
+  "resumos": [
+    {
+      "cnpj": "37671507000187",
+      "secoes_medidas": 11,
+      "baseline_sqls": 20,
+      "sqls_executadas_oracle": 4,
+      "sqls_reutilizadas": 16,
+      "percentual_reducao_consultas": 80.0
+    },
+    {
+      "cnpj": "84654326000394",
+      "secoes_medidas": 11,
+      "baseline_sqls": 20,
+      "sqls_executadas_oracle": 4,
+      "sqls_reutilizadas": 16,
+      "percentual_reducao_consultas": 80.0
+    }
+  ],
+  "medicoes_por_cnpj": {
+    "37671507000187": [
+      {
+        "cnpj": "37671507000187",
+        "secao_id": "cadastro",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "37671507000187",
+        "secao_id": "documentos_fiscais",
+        "estrategia_execucao": "composicao_polars",
+        "baseline_sqls": 2,
+        "sqls_executadas_oracle": 2,
+        "sqls_reutilizadas": 0,
+        "percentual_reuso_sql": 0.0,
+        "percentual_reducao_consultas": 0.0,
+        "impacto_cache_first": "sem_reuso",
+        "erro": null
+      },
+      {
+        "cnpj": "37671507000187",
+        "secao_id": "enderecos",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "37671507000187",
+        "secao_id": "historico_situacao",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "37671507000187",
+        "secao_id": "regime_pagamento",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "37671507000187",
+        "secao_id": "atividades",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "37671507000187",
+        "secao_id": "contador",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "37671507000187",
+        "secao_id": "historico_fac",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "37671507000187",
+        "secao_id": "vistorias",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "37671507000187",
+        "secao_id": "socios",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "37671507000187",
+        "secao_id": "contato",
+        "estrategia_execucao": "composicao_polars",
+        "baseline_sqls": 9,
+        "sqls_executadas_oracle": 2,
+        "sqls_reutilizadas": 7,
+        "percentual_reuso_sql": 77.78,
+        "percentual_reducao_consultas": 77.78,
+        "impacto_cache_first": "reuso_parcial",
+        "erro": null
+      }
+    ],
+    "84654326000394": [
+      {
+        "cnpj": "84654326000394",
+        "secao_id": "cadastro",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "84654326000394",
+        "secao_id": "documentos_fiscais",
+        "estrategia_execucao": "composicao_polars",
+        "baseline_sqls": 2,
+        "sqls_executadas_oracle": 2,
+        "sqls_reutilizadas": 0,
+        "percentual_reuso_sql": 0.0,
+        "percentual_reducao_consultas": 0.0,
+        "impacto_cache_first": "sem_reuso",
+        "erro": null
+      },
+      {
+        "cnpj": "84654326000394",
+        "secao_id": "enderecos",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "84654326000394",
+        "secao_id": "historico_situacao",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "84654326000394",
+        "secao_id": "regime_pagamento",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "84654326000394",
+        "secao_id": "atividades",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "84654326000394",
+        "secao_id": "contador",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "84654326000394",
+        "secao_id": "historico_fac",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "84654326000394",
+        "secao_id": "vistorias",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "84654326000394",
+        "secao_id": "socios",
+        "estrategia_execucao": "sql_direto",
+        "baseline_sqls": 1,
+        "sqls_executadas_oracle": 0,
+        "sqls_reutilizadas": 1,
+        "percentual_reuso_sql": 100.0,
+        "percentual_reducao_consultas": 100.0,
+        "impacto_cache_first": "reuso_total",
+        "erro": null
+      },
+      {
+        "cnpj": "84654326000394",
+        "secao_id": "contato",
+        "estrategia_execucao": "composicao_polars",
+        "baseline_sqls": 9,
+        "sqls_executadas_oracle": 2,
+        "sqls_reutilizadas": 7,
+        "percentual_reuso_sql": 77.78,
+        "percentual_reducao_consultas": 77.78,
+        "impacto_cache_first": "reuso_parcial",
+        "erro": null
+      }
+    ]
+  }
+}

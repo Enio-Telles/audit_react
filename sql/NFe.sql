@@ -248,3 +248,4 @@ FROM
 WHERE
     ( d.co_destinatario = p.cnpj_filtro OR d.co_emitente = p.cnpj_filtro )
       AND d.dhemi >= DATE '2020-01-01'
+      AND d.dhemi <= SYSDATE

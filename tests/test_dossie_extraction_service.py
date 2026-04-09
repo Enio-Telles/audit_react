@@ -108,6 +108,48 @@ def test_executar_sync_secao_reutiliza_datasets_e_compacta_multiplas_fontes(tmp_
     assert parametros_salvos["metadata"]["parametros"]["UF"] == "TO"
 
 
+def test_executar_sync_secao_repassa_parametros_para_reuso_da_sql(tmp_path, monkeypatch):
+    cnpj_root_teste = tmp_path / "CNPJ"
+    monkeypatch.setattr(extraction_service, "CNPJ_ROOT", cnpj_root_teste)
+
+    class ResolucaoFake:
+        secao_id = "enderecos"
+        cache_key = "parametros_reuso"
+        cache_file_name = "dossie_12345678000190_enderecos_parametros_reuso.parquet"
+        sql_ids = ("fronteira.sql",)
+
+    monkeypatch.setattr(extraction_service, "resolver_secao_dossie", lambda **_: ResolucaoFake())
+
+    chamadas: list[dict] = []
+
+    def carregar_dataset_fake(cnpj: str, sql_id: str, parametros=None):
+        chamadas.append({"cnpj": cnpj, "sql_id": sql_id, "parametros": parametros})
+        return extraction_service.DatasetCompartilhadoDossie(
+            sql_id=sql_id,
+            dataframe=pl.DataFrame({"linha": [1]}),
+            caminho_origem=tmp_path / "fronteira.parquet",
+            reutilizado=True,
+        )
+
+    monkeypatch.setattr(extraction_service, "carregar_dataset_reutilizavel", carregar_dataset_fake)
+    monkeypatch.setattr(extraction_service, "compor_secao_dossie", lambda **kwargs: pl.DataFrame({"linha": [1]}))
+
+    resultado = extraction_service.executar_sync_secao_sync(
+        "12345678000190",
+        "enderecos",
+        parametros={"data_limite_processamento": "31/03/2024"},
+    )
+
+    assert resultado["status"] == "success"
+    assert chamadas == [
+        {
+            "cnpj": "12345678000190",
+            "sql_id": "fronteira.sql",
+            "parametros": {"data_limite_processamento": "31/03/2024"},
+        }
+    ]
+
+
 def test_executar_sync_secao_reaproveita_todas_as_fontes_sem_consultar_oracle(tmp_path, monkeypatch):
     cnpj_root_teste = tmp_path / "CNPJ"
     monkeypatch.setattr(extraction_service, "CNPJ_ROOT", cnpj_root_teste)

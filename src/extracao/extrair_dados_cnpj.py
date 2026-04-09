@@ -9,6 +9,7 @@ from rich import print as rprint
 
 from extracao.extracao_oracle_eficiente import (
     CNPJ_ROOT,
+    _normalizar_data_limite_padrao,
     descobrir_consultas_sql,
     executar_extracao_oracle,
     imprimir_resumo_extracao,
@@ -28,10 +29,9 @@ def extrair_dados(
         return False
 
     cnpj_limpo = re.sub(r"[^0-9]", "", cnpj_input)
+    data_limite_efetiva = _normalizar_data_limite_padrao(data_limite_input)
     msg_inicio = f"[bold green]Iniciando extracao para o CNPJ: {cnpj_limpo}[/bold green]"
-    if data_limite_input:
-        msg_inicio += f" [cyan](Data Limite: {data_limite_input})[/cyan]"
-    rprint(msg_inicio)
+    rprint(f"{msg_inicio} [cyan](Data Limite: {data_limite_efetiva})[/cyan]")
 
     pasta_saida = CNPJ_ROOT / cnpj_limpo / "arquivos_parquet"
     pasta_saida.mkdir(parents=True, exist_ok=True)
@@ -44,7 +44,7 @@ def extrair_dados(
     rprint(f"[cyan]Encontradas {len(consultas)} consultas SQL para execucao.[/cyan]")
     resultados = executar_extracao_oracle(
         cnpj_input=cnpj_limpo,
-        data_limite_input=data_limite_input,
+        data_limite_input=data_limite_efetiva,
         consultas_selecionadas=[consulta.caminho for consulta in consultas],
         pasta_saida_base=pasta_saida,
         max_workers=5,

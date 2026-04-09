@@ -338,7 +338,12 @@ def _executar_sql_ou_reutilizar(
 ) -> tuple[DatasetCompartilhadoDossie, bool]:
     """Carrega o dataset de uma SQL por reuso e executa Oracle apenas quando necessario."""
 
-    dataset_reutilizado = carregar_dataset_reutilizavel(cnpj, sql_id)
+    try:
+        dataset_reutilizado = carregar_dataset_reutilizavel(cnpj, sql_id, parametros=parametros)
+    except TypeError as exc:
+        if "parametros" not in str(exc):
+            raise
+        dataset_reutilizado = carregar_dataset_reutilizavel(cnpj, sql_id)
     if dataset_reutilizado is not None and not _deve_materializar_shared_sql_atual(cnpj, sql_id, dataset_reutilizado):
         return dataset_reutilizado, False
 

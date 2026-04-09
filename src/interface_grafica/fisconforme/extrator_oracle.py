@@ -359,6 +359,48 @@ class ExtratorOracle:
     # ORQUESTRAÇÃO — EXTRAÇÃO COMPLETA POR CNPJ
     # =========================================================================
 
+    def _reutilizar_dimensao_do_registry(self, schema, tabela, dataset_id):
+        """Tenta reutilizar uma dimensão global do registry centralizado.
+
+        Se o registro está disponível e o Parquet existe, copia para a pasta
+        local do Fisconforme. Retorna True se conseguiu reutilizar.
+        """
+        try:
+            from utilitarios import dataset_registry as registry
+            localizado = registry.encontrar_dataset("", dataset_id)
+            if localizado is not None and localizado.caminho.exists():
+                import shutil
+                destino = self.pasta_dados / f"{schema}_{tabela}.parquet"
+                shutil.copy2(localizado.caminho, destino)
+                logger.info(
+                    f"[REUSO] {schema}.{tabela} reutilizado do registry: {localizado.caminho.name}"
+                )
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _reutilizar_dm_pessoa_do_registry(self, cnpj):
+        """Tenta reutilizar BI.DM_PESSOA do registry (dados_cadastrais).
+
+        Se o Parquet de dados cadastrais já existe para o CNPJ,
+        reutiliza-o ao invés de extrair BI.DM_PESSOA integralmente.
+        """
+        try:
+            from utilitarios import dataset_registry as registry
+            localizado = registry.encontrar_dataset(cnpj, "cadastral")
+            if localizado is not None and localizado.caminho.exists():
+                destino = self.pasta_dados / "BI_DM_PESSOA.parquet"
+                import shutil
+                shutil.copy2(localizado.caminho, destino)
+                logger.info(
+                    f"[REUSO] BI.DM_PESSOA reutilizado do cadastral: {localizado.caminho.name}"
+                )
+                return True
+        except Exception:
+            pass
+        return False
+
     def extrair_conjunto_dados_contribuinte(self, cnpj):
         """
         Executa a extração em paralelo de todas as tabelas necessárias
@@ -368,6 +410,10 @@ class ExtratorOracle:
         1. Tabelas-fato filtradas por CNPJ (4 tabelas)
         2. Tabelas-dimensão integrais (4 tabelas pequenas)
         3. Tabelas com SQL customizado via subquery (2 tabelas grandes)
+
+        Otimização: dimensões globais (DM_LOCALIDADE, DM_REGIME,
+        DM_SITUACAO) e dados cadastrais (DM_PESSOA) são reutilizados
+        do registry centralizado quando disponíveis.
 
         Args:
             cnpj: CNPJ do contribuinte (apenas números)
@@ -381,23 +427,33 @@ class ExtratorOracle:
 
         # -----------------------------------------------------------------
         # GRUPO 1: Tabelas-fato com filtro simples por CNPJ
+        # Otimização: DM_PESSOA pode ser reutilizada do registry
         # -----------------------------------------------------------------
         tabelas_filtradas = [
             ("APP_PENDENCIA", "PENDENCIAS", "CPF_CNPJ"),
             ("BI", "FATO_DET_NOTIFICACAO", "CPF_CNPJ"),
             ("APP_PENDENCIA", "VW_FISCONFORME_CHAVE_NOTA", "CPF_CNPJ"),
-            ("BI", "DM_PESSOA", "CO_CNPJ_CPF"),
         ]
+        # DM_PESSOA: tentar reusar do registry (dados cadastrais do pipeline)
+        dm_pessoa_reutilizada = self._reutilizar_dm_pessoa_do_registry(cnpj)
+        if not dm_pessoa_reutilizada:
+            tabelas_filtradas.append(("BI", "DM_PESSOA", "CO_CNPJ_CPF"))
 
         # -----------------------------------------------------------------
         # GRUPO 2: Tabelas-dimensão (extração integral, < 100K linhas)
+        # Otimização: dimensões estáticas são reutilizadas do registry
         # -----------------------------------------------------------------
-        tabelas_full = [
-            ("APP_PENDENCIA", "MALHAS"),
-            ("BI", "DM_LOCALIDADE"),
-            ("BI", "DM_REGIME_PAGTO_DESCRICAO"),
-            ("BI", "DM_SITUACAO_CONTRIBUINTE"),
-        ]
+        dimensoes_registry = {
+            ("BI", "DM_LOCALIDADE"): "dim_localidade",
+            ("BI", "DM_REGIME_PAGTO_DESCRICAO"): "dim_regime",
+            ("BI", "DM_SITUACAO_CONTRIBUINTE"): "dim_situacao",
+        }
+
+        tabelas_full = [("APP_PENDENCIA", "MALHAS")]  # sempre extrair (específica)
+        for (schema, tabela), dataset_id in dimensoes_registry.items():
+            if not self._reutilizar_dimensao_do_registry(schema, tabela, dataset_id):
+                tabelas_full.append((schema, tabela))
+            # Se reutilizou, já copiou para self.pasta_dados — não precisa extrair.
 
         # -----------------------------------------------------------------
         # GRUPO 3: Tabelas grandes com SQL customizado (subquery por CNPJ)
@@ -436,6 +492,18 @@ class ExtratorOracle:
         # EXECUÇÃO PARALELA (max_workers=4 conforme capacidade do DW)
         # -----------------------------------------------------------------
         tarefas = []
+        # Contar quantas foram reutilizadas do registry
+        reutilizadas = 0
+        for (schema, tabela), dataset_id in dimensoes_registry.items():
+            destino = self.pasta_dados / f"{schema}_{tabela}.parquet"
+            if destino.exists():
+                reutilizadas += 1
+        if dm_pessoa_reutilizada:
+            reutilizadas += 1
+
+        if reutilizadas > 0:
+            logger.info(f"[OTIMIZAÇÃO] {reutilizadas} tabela(s) reutilizada(s) do registry")
+
         with ThreadPoolExecutor(max_workers=4) as executor:
             # Grupo 1: filtro simples
             for schema, tabela, coluna_filtro in tabelas_filtradas:
@@ -445,7 +513,7 @@ class ExtratorOracle:
                     )
                 )
 
-            # Grupo 2: dimensões integrais
+            # Grupo 2: dimensões integrais (apenas as não reutilizadas)
             for schema, tabela in tabelas_full:
                 tarefas.append(
                     executor.submit(self.extrair_tabela, schema, tabela)
@@ -466,15 +534,19 @@ class ExtratorOracle:
         # COLETA DE RESULTADOS
         # -----------------------------------------------------------------
         resultados = [t.result() for t in tarefas]
-        total = len(resultados)
-        ok = sum(1 for r in resultados if r)
-        falhas = total - ok
+        total_extraidas = len(resultados)
+        total_geral = total_extraidas + reutilizadas
+        ok = sum(1 for r in resultados if r) + reutilizadas
+        falhas = total_geral - ok
 
         logger.info(f"{'='*60}")
-        logger.info(f"Extração concluída: {ok}/{total} tabelas OK, {falhas} falha(s)")
+        logger.info(
+            f"Extração concluída: {ok}/{total_geral} tabelas OK "
+            f"({reutilizadas} reutilizada(s)), {falhas} falha(s)"
+        )
         logger.info(f"{'='*60}")
 
-        return ok == total
+        return ok == total_geral
 
 
 if __name__ == "__main__":

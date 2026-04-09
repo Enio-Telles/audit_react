@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path("src").resolve()))
 from extracao.extracao_oracle_eficiente import (
     ConsultaSql,
     _criar_dataframe_lote,
+    _normalizar_data_limite_padrao,
     descobrir_consultas_sql,
     obter_caminho_saida_parquet,
 )
@@ -108,3 +109,9 @@ def test_criar_dataframe_lote_em_modo_texto_converte_tudo_para_string():
         {"codigo": "1", "nome": "Empresa A"},
         {"codigo": "2", "nome": None},
     ]
+
+
+def test_normalizar_data_limite_padrao_preenche_data_atual_quando_ausente():
+    data_limite = _normalizar_data_limite_padrao(None)
+    assert len(data_limite) == 10
+    assert data_limite.count("/") == 2

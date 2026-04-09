@@ -87,5 +87,10 @@ def salvar_para_parquet(
 
     except Exception as e:
         nome = arquivo.name if "arquivo" in locals() else str(nome_arquivo or caminho_saida)
+        if "arquivo" in locals():
+            try:
+                arquivo.unlink(missing_ok=True)
+            except OSError:
+                pass
         _safe_print(f"   [ERRO] Erro ao salvar arquivo Parquet {nome}: {e}")
         return False

@@ -27,6 +27,7 @@ SELECT * FROM (
         UPPER(co_uf_dest) uf
     FROM bi.fato_nfe_detalhe t
     WHERE t.co_destinatario = :CNPJ
+      AND t.dhemi <= SYSDATE
     GROUP BY
         UPPER(xlgr_dest), UPPER(nro_dest), UPPER(xcpl_dest), UPPER(xbairro_dest),
         UPPER(fone_dest), UPPER(xmun_dest), UPPER(cep_dest), UPPER(co_uf_dest),

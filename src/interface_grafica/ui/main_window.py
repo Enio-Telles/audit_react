@@ -5559,12 +5559,10 @@ class MainWindow(QMainWindow):
         self.atualizar_tabelas_agregacao()
         self.recarregar_historico_agregacao(cnpj)
 
-        # Automacao de Data limite EFD baseada nao reg_0000
-        data_efd = self.servico_pipeline_funcoes.servico_extracao.obter_data_entrega_reg0000(cnpj)
-        if data_efd:
-            qdate = QDate.fromString(data_efd, "dd/MM/yyyy")
-            if qdate.isValid():
-                self.date_input.setDate(qdate)
+        # O limite padrao de extracao deve permanecer sempre na data atual.
+        # Nao sobrescrevemos mais com a ultima entrega da EFD para evitar que
+        # o campo nasca com datas futuras ou historicas ao trocar de CNPJ.
+        self.date_input.setDate(QDate.currentDate())
 
 
     def refresh_file_tree(self, cnpj: str) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,8 +32,17 @@ class PipelineService:
             raise ValueError("Informe um CPF com 11 digitos ou um CNPJ com 14 digitos.")
         return digits
 
+    @staticmethod
+    def normalizar_data_limite(data_limite: str | None) -> str:
+        """Aplica o mesmo default da UI: data atual quando nada for informado."""
+
+        if data_limite and str(data_limite).strip():
+            return str(data_limite).strip()
+        return datetime.now().strftime("%d/%m/%Y")
+
     def run_for_cnpj(self, cnpj: str, data_limite: str | None = None) -> PipelineResult:
         cnpj = self.sanitize_cnpj(cnpj)
+        data_limite_normalizada = self.normalizar_data_limite(data_limite)
         if not self.pipeline_script.exists():
             raise FileNotFoundError(f"Pipeline nao encontrado: {self.pipeline_script}")
 
@@ -45,9 +55,9 @@ class PipelineService:
             str(self.sql_dir),
             "--saida",
             str(self.output_root),
+            "--data-limite",
+            data_limite_normalizada,
         ]
-        if data_limite:
-            cmd.extend(["--data-limite", data_limite])
 
         proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
         return PipelineResult(

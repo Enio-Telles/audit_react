@@ -12,6 +12,23 @@ import polars as pl
 
 from utilitarios.project_paths import CNPJ_ROOT
 from utilitarios.salvar_para_parquet import salvar_para_parquet
+from transformacao.composicao_dif_icms import atualizar_composicao_dif_icms
+from transformacao.composicao_enderecos import atualizar_composicao_enderecos
+from transformacao.composicao_fronteira import atualizar_composicao_fronteira
+
+# Integração com o registry centralizado (lazy para evitar circular).
+_registry_modulo = None
+
+
+def _get_registry():
+    global _registry_modulo
+    if _registry_modulo is None:
+        try:
+            from utilitarios import dataset_registry
+            _registry_modulo = dataset_registry
+        except ImportError:
+            pass
+    return _registry_modulo
 
 
 @dataclass(frozen=True)
@@ -50,6 +67,14 @@ def obter_caminho_metadata_dataset_compartilhado(cnpj: str, sql_id: str) -> Path
     """Retorna o caminho do metadata sidecar do dataset compartilhado."""
 
     return obter_caminho_dataset_compartilhado(cnpj, sql_id).with_suffix(".metadata.json")
+
+
+def obter_caminho_metadata_por_dataset(caminho_dataset: Path | None) -> Path | None:
+    """Resolve o sidecar do caminho efetivamente reutilizado."""
+
+    if caminho_dataset is None:
+        return None
+    return caminho_dataset.with_suffix(".metadata.json")
 
 
 def _caminhos_canonicos_por_sql(cnpj: str, sql_id: str) -> list[Path]:
@@ -96,18 +121,38 @@ def _caminhos_canonicos_por_sql(cnpj: str, sql_id: str) -> list[Path]:
 
 
 def listar_caminhos_reutilizaveis(cnpj: str, sql_id: str) -> list[Path]:
-    """Lista caminhos candidatos para reuso antes de nova consulta Oracle."""
+    """Lista caminhos candidatos para reuso antes de nova consulta Oracle.
 
-    candidatos = [obter_caminho_dataset_compartilhado(cnpj, sql_id)]
-    candidatos.extend(_caminhos_canonicos_por_sql(cnpj, sql_id))
+    Ordem de prioridade:
+    1. Caminhos do registry centralizado (shared_sql/ + legados mapeados)
+    2. Caminho do dataset compartilhado do dossie (shared_sql/ por sql_id)
+    3. Caminhos legados manuais deste módulo
+    """
 
-    vistos: set[Path] = set()
+    vistos: set[str] = set()
     ordenados: list[Path] = []
-    for caminho in candidatos:
-        if caminho in vistos:
-            continue
-        vistos.add(caminho)
-        ordenados.append(caminho)
+
+    def _add(caminho: Path) -> None:
+        chave = str(caminho).lower()
+        if chave not in vistos:
+            vistos.add(chave)
+            ordenados.append(caminho)
+
+    # Prioridade 1: registry centralizado (inclui shared_sql/ + legados)
+    registry = _get_registry()
+    if registry is not None:
+        dataset_id = registry.resolver_dataset_por_sql_id(sql_id)
+        if dataset_id is not None:
+            for caminho in registry.listar_caminhos_com_fallback(cnpj, dataset_id):
+                _add(caminho)
+
+    # Prioridade 2: caminho do dossie dataset compartilhado
+    _add(obter_caminho_dataset_compartilhado(cnpj, sql_id))
+
+    # Prioridade 3: caminhos legados deste módulo
+    for caminho in _caminhos_canonicos_por_sql(cnpj, sql_id):
+        _add(caminho)
+
     return ordenados
 
 
@@ -124,29 +169,97 @@ def carregar_metadata_dataset_compartilhado(cnpj: str, sql_id: str) -> dict[str,
         return None
 
 
+def carregar_metadata_dataset_por_caminho(caminho_dataset: Path | None) -> dict[str, Any] | None:
+    """Carrega o metadata do arquivo realmente reutilizado."""
+
+    caminho_metadata = obter_caminho_metadata_por_dataset(caminho_dataset)
+    if caminho_metadata is None or not caminho_metadata.exists():
+        return None
+
+    try:
+        return json.loads(caminho_metadata.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
 def carregar_lazyframe_reutilizavel(cnpj: str, sql_id: str) -> tuple[pl.LazyFrame, Path] | None:
     """Retorna uma leitura lazy do primeiro dataset reutilizavel encontrado."""
 
     for caminho in listar_caminhos_reutilizaveis(cnpj, sql_id):
-        if caminho.exists():
-            return pl.scan_parquet(caminho), caminho
+        if not caminho.exists():
+            continue
+        if not _parquet_reutilizavel_esta_integro(caminho):
+            continue
+        return pl.scan_parquet(caminho), caminho
     return None
 
 
-def carregar_dataset_reutilizavel(cnpj: str, sql_id: str) -> DatasetCompartilhadoDossie | None:
-    """Carrega um dataset compartilhado quando ele ja existe materializado."""
+def _parquet_reutilizavel_esta_integro(caminho: Path) -> bool:
+    """Descarta artefatos parciais para forcar rematerializacao segura."""
 
+    try:
+        if caminho.stat().st_size < 12:
+            return False
+        pl.scan_parquet(caminho).collect_schema()
+        return True
+    except Exception:
+        return False
+
+
+
+def _tentar_gerar_composicao(
+    cnpj: str,
+    sql_id: str,
+    parametros: dict[str, Any] | None = None,
+) -> bool:
+    """Tenta gerar o dataset via composição Polars baseada em outros Parquets."""
+    sid = sql_id.lower().strip()
+    
+    try:
+        if sid == "dif_icms_nfe_efd.sql":
+            return atualizar_composicao_dif_icms(cnpj) is not None
+        if sid == "dossie_enderecos.sql":
+            return atualizar_composicao_enderecos(cnpj) is not None
+        if sid == "fronteira.sql":
+            return atualizar_composicao_fronteira(
+                cnpj,
+                data_limite_processamento=(parametros or {}).get("data_limite_processamento"),
+            ) is not None
+    except Exception:
+        return False
+        
+    return False
+
+
+def carregar_dataset_reutilizavel(
+    cnpj: str,
+    sql_id: str,
+    parametros: dict[str, Any] | None = None,
+) -> DatasetCompartilhadoDossie | None:
+    """Carrega um dataset compartilhado quando ele ja existe materializado.
+    
+    Se não existir, tenta compor via Polars antes de desistir.
+    """
+
+    # 1. Tentar carregar direto do filesystem (reuso simples)
     resultado_lazy = carregar_lazyframe_reutilizavel(cnpj, sql_id)
+    
+    # 2. Se não encontrou, tenta compor localmente
+    if resultado_lazy is None:
+        if _tentar_gerar_composicao(cnpj, sql_id, parametros=parametros):
+            resultado_lazy = carregar_lazyframe_reutilizavel(cnpj, sql_id)
+
     if resultado_lazy is None:
         return None
 
     lazyframe, caminho = resultado_lazy
+    metadata = carregar_metadata_dataset_por_caminho(caminho) or carregar_metadata_dataset_compartilhado(cnpj, sql_id)
     return DatasetCompartilhadoDossie(
         sql_id=sql_id,
         dataframe=lazyframe.collect(),
         caminho_origem=caminho,
         reutilizado=True,
-        metadata=carregar_metadata_dataset_compartilhado(cnpj, sql_id),
+        metadata=metadata,
     )
 
 

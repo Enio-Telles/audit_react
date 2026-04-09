@@ -3,6 +3,7 @@ from __future__ import annotations
 import concurrent.futures
 import re
 import threading
+from datetime import datetime
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -18,6 +19,71 @@ from utilitarios.ler_sql import ler_sql
 from utilitarios.project_paths import CNPJ_ROOT, SQL_ARCHIVE_ROOT, SQL_ROOT
 from utilitarios.sql_catalog import get_sql_id, list_sql_entries, resolve_sql_path
 from utilitarios.validar_cnpj import validar_cnpj
+
+# Registro centralizado de datasets para reuso entre módulos.
+# Importação lazy para evitar dependência circular em testes isolados.
+_dataset_registry = None
+
+
+def _get_registry():
+    global _dataset_registry
+    if _dataset_registry is None:
+        try:
+            from utilitarios import dataset_registry
+            _dataset_registry = dataset_registry
+        except ImportError:
+            pass
+    return _dataset_registry
+
+
+def _registrar_no_registry(
+    consulta: ConsultaSql,
+    cnpj_limpo: str,
+    arquivo_saida: Path,
+    total_linhas: int,
+) -> None:
+    """Registra o Parquet extraído no registry para reuso entre módulos.
+
+    Grava uma cópia no caminho canônico (shared_sql/) quando o arquivo de
+    saída é diferente do canônico. Se o registry não estiver disponível,
+    a operação é silenciosamente ignorada.
+    """
+    registry = _get_registry()
+    if registry is None:
+        return
+
+    sql_name = consulta.caminho.name
+    dataset_id = registry.resolver_dataset_por_sql_id(sql_name)
+    if dataset_id is None:
+        return
+
+    # Se o arquivo já está no caminho canônico, apenas gravar metadata.
+    caminho_canonico = registry.obter_caminho(cnpj_limpo, dataset_id)
+    if arquivo_saida.resolve() == caminho_canonico.resolve():
+        metadata = registry.criar_metadata(
+            cnpj=cnpj_limpo,
+            dataset_id=dataset_id,
+            sql_id=sql_name,
+            linhas=total_linhas,
+        )
+        registry._gravar_metadata(caminho_canonico, metadata)
+        return
+
+    # Copiar para shared_sql/ se ainda não existe ou se é mais recente.
+    try:
+        caminho_canonico.parent.mkdir(parents=True, exist_ok=True)
+        import shutil
+        shutil.copy2(arquivo_saida, caminho_canonico)
+        metadata = registry.criar_metadata(
+            cnpj=cnpj_limpo,
+            dataset_id=dataset_id,
+            sql_id=sql_name,
+            linhas=total_linhas,
+        )
+        registry._gravar_metadata(caminho_canonico, metadata)
+    except Exception:
+        pass  # Falha silenciosa — a extração legada já está salva.
+
 
 TAMANHO_LOTE_PADRAO = 50_000
 MAX_WORKERS_PADRAO = 5
@@ -192,6 +258,19 @@ def _montar_binds_cursor(cursor, cnpj_limpo: str, data_limite_input: str | None)
         elif nome_maiusculo in aliases_padrao:
             binds[nome_bind] = aliases_padrao[nome_maiusculo]
     return binds, tem_bind_cnpj
+
+
+def _normalizar_data_limite_padrao(data_limite_input: str | None) -> str:
+    """
+    Garante um teto temporal explicito para todas as extracoes.
+
+    Quando nenhum valor e informado, assume a data atual no formato
+    `DD/MM/YYYY`, que e o contrato esperado pelas SQLs existentes.
+    """
+
+    if data_limite_input and str(data_limite_input).strip():
+        return str(data_limite_input).strip()
+    return datetime.now().strftime("%d/%m/%Y")
 
 
 def _normalizar_valores_coluna(valores: list[object | None], forcar_texto: bool = False) -> list[object | None]:
@@ -409,6 +488,9 @@ def processar_consulta_oracle(
             if progresso:
                 progresso(f"OK {rotulo_consulta}: {total_linhas:,} linhas -> {arquivo_saida.name}")
 
+            # Registrar no registry centralizado para reuso entre módulos.
+            _registrar_no_registry(consulta, cnpj_limpo, arquivo_saida, total_linhas)
+
             return ResultadoConsultaExtracao(
                 consulta=consulta,
                 ok=True,
@@ -439,6 +521,7 @@ def executar_extracao_oracle(
         raise ValueError(f"CNPJ invalido: {cnpj_input}")
 
     cnpj_limpo = re.sub(r"[^0-9]", "", cnpj_input)
+    data_limite_input = _normalizar_data_limite_padrao(data_limite_input)
     consultas = descobrir_consultas_sql(
         consultas_selecionadas=consultas_selecionadas,
         diretorios_sql=diretorios_sql,
@@ -446,7 +529,7 @@ def executar_extracao_oracle(
     if not consultas:
         return []
 
-    pasta_saida = pasta_saida_base or (CNPJ_ROOT / cnpj_limpo)
+    pasta_saida = pasta_saida_base or (CNPJ_ROOT / cnpj_limpo / "arquivos_parquet")
     pasta_saida.mkdir(parents=True, exist_ok=True)
 
     resultados: list[ResultadoConsultaExtracao] = []
