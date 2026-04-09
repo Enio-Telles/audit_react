@@ -7,11 +7,13 @@ Emite sinais de progresso, sucesso e falha.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from time import perf_counter
 from typing import Any
 
 import polars as pl
 from PySide6.QtCore import QThread, Signal
+from interface_grafica.services.sql_service import SqlService
 from utilitarios.perf_monitor import registrar_evento_performance
 from utilitarios.project_paths import ENV_PATH
 
@@ -143,9 +145,8 @@ class QueryWorker(QThread):
                 self.progress.emit("Consulta retornou 0 linhas.")
                 df = pl.DataFrame({col: [] for col in columns})
             else:
-                # Converter para Polars via dicts, mais seguro com tipos mistos.
                 records = [dict(zip(columns, row)) for row in all_rows]
-                df = pl.DataFrame(records, infer_schema_length=min(len(records), 1000))
+                df = SqlService.construir_dataframe_resultado(records)
             registrar_evento_performance(
                 "query_worker.build_dataframe",
                 perf_counter() - inicio_dataframe,

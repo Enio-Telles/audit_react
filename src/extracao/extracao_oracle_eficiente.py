@@ -12,6 +12,7 @@ import polars as pl
 import pyarrow.parquet as pq
 from rich import print as rprint
 
+from interface_grafica.services.sql_service import SqlService
 from utilitarios.conectar_oracle import conectar
 from utilitarios.ler_sql import ler_sql
 from utilitarios.project_paths import CNPJ_ROOT, SQL_ARCHIVE_ROOT, SQL_ROOT
@@ -207,6 +208,12 @@ def _normalizar_valores_coluna(valores: list[object | None], forcar_texto: bool 
     return [None if valor is None else str(valor) for valor in valores]
 
 
+def _montar_registros_lote(lote: list[tuple], colunas: list[str]) -> list[dict[str, object | None]]:
+    """Converte o lote bruto do Oracle em registros nomeados por coluna."""
+
+    return [dict(zip(colunas, linha)) for linha in lote]
+
+
 def _criar_dataframe_lote(
     lote: list[tuple],
     colunas: list[str],
@@ -218,14 +225,20 @@ def _criar_dataframe_lote(
             raise TypeError("Modo texto solicitado.")
         df_lote = pl.DataFrame(lote, schema=colunas, orient="row")
     except Exception:
-        colunas_dict = {
-            coluna: _normalizar_valores_coluna(
-                [linha[indice] for linha in lote],
-                forcar_texto=forcar_texto,
-            )
-            for indice, coluna in enumerate(colunas)
-        }
-        df_lote = pl.DataFrame(colunas_dict)
+        registros_lote = _montar_registros_lote(lote, colunas)
+        if forcar_texto:
+            colunas_dict = {
+                coluna: _normalizar_valores_coluna(
+                    [linha[indice] for linha in lote],
+                    forcar_texto=True,
+                )
+                for indice, coluna in enumerate(colunas)
+            }
+            df_lote = pl.DataFrame(colunas_dict)
+        else:
+            # Reaproveita a mesma rotina resiliente do executor SQL para reduzir
+            # divergencia de comportamento em lotes Oracle com schema instavel.
+            df_lote = SqlService.construir_dataframe_resultado(registros_lote)
     if schema_polars is not None:
         df_lote = df_lote.cast(schema_polars, strict=False)
     return df_lote

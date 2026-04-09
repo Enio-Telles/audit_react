@@ -19,3 +19,17 @@ def test_listar_sql_ids_por_secao_retorna_vazio_quando_inexistente():
 
 def test_alias_de_cadastro_prioriza_sql_existente():
     assert listar_sql_ids_por_secao("cadastro") == ["dados_cadastrais.sql"]
+
+
+def test_alias_de_contato_usa_fontes_multiplas_em_ordem():
+    assert listar_sql_ids_por_secao("contato") == [
+        "dados_cadastrais.sql",
+        "dossie_filiais_raiz.sql",
+        "dossie_contador.sql",
+        "dossie_historico_fac.sql",
+        "dossie_rascunho_fac_contador.sql",
+        "dossie_req_inscricao_contador.sql",
+        "dossie_historico_socios.sql",
+        "NFe.sql",
+        "NFCe.sql",
+    ]

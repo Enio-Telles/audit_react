@@ -21,7 +21,14 @@ import type {
   OracleTestarResponse,
   RessarcimentoResumo,
 } from "./types";
-import type { DossieSectionSummary, DossieSyncResponse } from "../features/dossie/types";
+import type {
+  DossieComparisonHistory,
+  DossieComparisonReport,
+  DossieComparisonSummary,
+  DossieSectionData,
+  DossieSectionSummary,
+  DossieSyncResponse,
+} from "../features/dossie/types";
 
 const api = axios.create({ baseURL: "/api" });
 
@@ -396,6 +403,14 @@ export const oracleApi = {
 export const dossieApi = {
   getSecoes: (cnpj: string) =>
     api.get<DossieSectionSummary[]>(`/dossie/${cnpj}/secoes`).then((r) => r.data),
+  getDadosSecao: (cnpj: string, secaoId: string, limite = 500) =>
+    api.get<DossieSectionData>(`/dossie/${cnpj}/secoes/${secaoId}/dados`, { params: { limite } }).then((r) => r.data),
+  getHistoricoComparacoesContato: (cnpj: string, limite = 20) =>
+    api.get<DossieComparisonHistory>(`/dossie/${cnpj}/secoes/contato/comparacoes`, { params: { limite } }).then((r) => r.data),
+  getResumoComparacoesContato: (cnpj: string) =>
+    api.get<DossieComparisonSummary>(`/dossie/${cnpj}/secoes/contato/comparacoes/resumo`).then((r) => r.data),
+  gerarRelatorioComparacoesContato: (cnpj: string) =>
+    api.post<DossieComparisonReport>(`/dossie/${cnpj}/secoes/contato/comparacoes/relatorio`).then((r) => r.data),
   syncSecao: (cnpj: string, secaoId: string, parametros?: Record<string, unknown>) =>
     api
       .post<DossieSyncResponse>(`/dossie/${cnpj}/secoes/${secaoId}/sync`, { parametros })

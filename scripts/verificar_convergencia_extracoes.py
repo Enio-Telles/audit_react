@@ -4,11 +4,18 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
 import polars as pl
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from interface_grafica.services.dossie_convergencia_report import gerar_relatorio_mestre_convergencia
 
 
 @dataclass
@@ -157,6 +164,15 @@ def montar_parser() -> argparse.ArgumentParser:
         "--comparar-com",
         help="Caminho de um baseline JSON anterior para comparar com o estado atual.",
     )
+    parser.add_argument(
+        "--gerar-relatorio-mestre",
+        action="store_true",
+        help="Quando usado junto com --comparar-com, gera tambem um relatorio mestre markdown de convergencia.",
+    )
+    parser.add_argument(
+        "--saida-relatorio-mestre",
+        help="Caminho opcional do relatorio mestre markdown. Se omitido, sera salvo ao lado da comparacao.",
+    )
     return parser
 
 
@@ -192,11 +208,31 @@ def main() -> int:
         print("\n=== COMPARACAO ===")
         print(json.dumps(comparacao, ensure_ascii=False, indent=2))
 
+        caminho_comparacao = None
         if argumentos.salvar_baseline:
             caminho_comparacao = Path(argumentos.salvar_baseline).with_name(
                 Path(argumentos.salvar_baseline).stem + "_comparacao.json"
             )
             caminho_comparacao.write_text(json.dumps(comparacao, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        if argumentos.gerar_relatorio_mestre:
+            if caminho_comparacao is None:
+                caminho_comparacao = ROOT / "output" / "verificacao_convergencia" / "comparacao_convergencia.json"
+                caminho_comparacao.parent.mkdir(parents=True, exist_ok=True)
+                caminho_comparacao.write_text(json.dumps(comparacao, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            caminho_relatorio_mestre = (
+                Path(argumentos.saida_relatorio_mestre)
+                if argumentos.saida_relatorio_mestre
+                else caminho_comparacao.with_name("relatorio_mestre_convergencia.md")
+            )
+            conteudo_relatorio = gerar_relatorio_mestre_convergencia(
+                comparacao_json=caminho_comparacao,
+                raiz_cnpj=raiz_cnpj,
+                caminho_saida=caminho_relatorio_mestre,
+            )
+            print("\n=== RELATORIO MESTRE ===")
+            print(conteudo_relatorio)
 
     return 0
 

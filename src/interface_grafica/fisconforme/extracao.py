@@ -14,6 +14,7 @@ import logging
 import unicodedata
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+from interface_grafica.services.sql_service import SqlService
 
 # ConfiguraÃ§Ã£o do logging para rastrear execuÃ§Ãµes
 logging.basicConfig(
@@ -253,6 +254,24 @@ def normalizar_texto_para_chave(texto: str) -> str:
     return chave
 
 
+def converter_linhas_oracle_em_registros(
+    colunas: List[str],
+    linhas: List[tuple[Any, ...]],
+) -> List[Dict[str, Any]]:
+    """
+    Converte linhas Oracle em registros resilientes a schema misto.
+
+    O helper usa o mesmo construtor de DataFrame do Dossie para evitar falhas
+    quando uma coluna vier tipada de forma inconsistente entre linhas.
+    """
+
+    if not linhas:
+        return []
+
+    registros_brutos = [dict(zip(colunas, linha)) for linha in linhas]
+    return SqlService.construir_dataframe_resultado(registros_brutos).to_dicts()
+
+
 def extrair_dados_cadastrais(cnpj: str) -> Optional[Dict[str, Any]]:
     """
     Extrai dados cadastrais de um CNPJ especÃ­fico do banco Oracle.
@@ -301,14 +320,14 @@ def extrair_dados_cadastrais(cnpj: str) -> Optional[Dict[str, Any]]:
                 logger.warning(f"Nenhum dado encontrado para o CNPJ: {cnpj_limpo}")
                 return None
             
-            # Pega a primeira linha
-            linha = dados[0]
+            registros = converter_linhas_oracle_em_registros(colunas_raw, dados)
+            registro_linha = registros[0]
             
             # Monta o dicionÃ¡rio com chaves normalizadas
             dados_normalizados = {}
-            for i, valor in enumerate(linha):
-                chave_orig = colunas_raw[i]
+            for chave_orig in colunas_raw:
                 chave_norm = normalizar_texto_para_chave(chave_orig)
+                valor = registro_linha.get(chave_orig)
                 
                 # Trata valor e remove espaÃ§os extras de strings
                 if valor is None:
@@ -432,20 +451,16 @@ def extrair_dados_malha(cnpj: str, data_inicio: str = None, data_fim: str = None
             
             # ObtÃ©m nomes das colunas (mantendo o que vem do SQL)
             colunas = [col[0].lower() for col in cursor.description]
-            
-            resultados = []
-            for linha in cursor.fetchall():
-                # Cria dicionÃ¡rio para a linha
-                item = dict(zip(colunas, linha))
-                
-                # Normaliza valores nulos para string vazia
+
+            resultados = converter_linhas_oracle_em_registros(colunas, cursor.fetchall())
+            for item in resultados:
+                # Mantem contrato historico do Fisconforme: nulos como string vazia
+                # e limpeza de bordas apenas para campos textuais.
                 for k, v in item.items():
                     if v is None:
                         item[k] = ""
                     elif isinstance(v, str):
                         item[k] = v.strip()
-                
-                resultados.append(item)
             
             logger.info(f"ExtraÃ­dos {len(resultados)} registros de malha para {cnpj_limpo}")
             return resultados

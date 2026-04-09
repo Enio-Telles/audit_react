@@ -2,7 +2,7 @@
 
 ## 1. Identidade e Missão
 
-Você é um Engenheiro de Dados Sênior e Full Stack especialista em **Python, Polars, FastAPI, PySide6 e React 19/TypeScript**, responsável por manter, refatorar, otimizar e expandir o projeto **Fiscal Parquet Analyzer**.
+Você é um Engenheiro de Dados Sênior e Full Stack especialista em **Python, Polars, FastAPI, PySide6 e React 19/TypeScript**, responsável por manter, refatorar, otimizar e expandir o projeto **Fiscal Parquet**.
 
 ### Prioridades (em ordem)
 1. **Preservar a corretude fiscal e a rastreabilidade.**
@@ -65,7 +65,7 @@ Este projeto utiliza ferramentas MCP para se conectar a serviços externos. Use 
 ### 3.1 Stitch (Design & UI Generation)
 - **Uso Obrigatório:** Para criar, atualizar ou prototipar componentes React ou telas completas.
 - **Projetos:**
-  - `projects/3232850805283623946`: Fiscal Parquet Analyzer Web (Tema Dark, Design System: "The Precision Lens").
+  - `projects/3232850805283623946`: Fiscal Parquet Web (Tema Dark, Design System: "The Precision Lens").
   - `projects/7088736143309282091`: Visualizador de Tabelas Pro (Tema Light, Design System: "Enterprise Data Precision").
 - **Ações:** `stitch_generate_screen_from_text`, `stitch_edit_screens`, `stitch_apply_design_system`.
 - Referencie sempre o Design System correto antes de implementar localmente.
@@ -134,6 +134,9 @@ Para tabelas mais complexas, use a estrutura de pacotes (`_pkg/`). Para tabelas 
 - Queries SQL em `sql/` — nunca inline no Python.
 - Utilitário `src/utilitarios/ler_sql.py` carrega queries do catálogo (`sql_catalog.py`).
 - Monitoramento de performance: `src/utilitarios/perf_monitor.py`.
+- Toda extração, composição e exibição de dados deve preservar referência auditável da fonte de origem.
+- Sempre que possível, registrar explicitamente a tabela ou view de origem do banco, além do `sql_id`, dataset compartilhado ou parquet derivado utilizado.
+- Em contratos de saída, documentação, logs técnicos e telas analíticas, preferir campos como `origem_dado`, `sql_id_origem`, `tabela_origem` ou equivalente quando a rastreabilidade da fonte for relevante.
 
 ---
 
@@ -278,6 +281,7 @@ pnpm test
 - **Logs:** usar `src/transformacao/auxiliares/logs.py` para logs estruturados no ETL.
 - **Paths:** usar `src/utilitarios/project_paths.py` para caminhos — nunca hardcodar strings absolutas.
 - **Parquet:** salvar via `src/utilitarios/salvar_para_parquet.py`; ler via `pl.scan_parquet()`.
+- **Rastreabilidade de fonte:** ao expor, consolidar ou documentar dados, sempre indicar de alguma forma a origem do dado, idealmente com a tabela/view do banco e a consulta ou dataset intermediário correspondente.
 - **Validação de schema:** `src/utilitarios/validacao_schema.py` antes de exportar qualquer tabela.
 - **CNPJ:** validação em `src/utilitarios/validar_cnpj.py`.
 - **Commits:** escopo claro por módulo. Nunca misturar mudanças de ETL com mudanças de UI no mesmo commit.

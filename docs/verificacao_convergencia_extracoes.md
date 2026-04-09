@@ -41,6 +41,41 @@ Exemplo para comparar o "depois" contra o baseline:
 python scripts/verificar_convergencia_extracoes.py 37671507000187 84654326000394 --comparar-com output/verificacao_convergencia/baseline_extracao_atual.json --salvar-baseline output/verificacao_convergencia/baseline_extracao_depois.json
 ```
 
+Exemplo para comparar o "depois" e gerar automaticamente o relatorio mestre na mesma execucao:
+
+```powershell
+python scripts/verificar_convergencia_extracoes.py 37671507000187 84654326000394 --comparar-com output/verificacao_convergencia/baseline_extracao_atual.json --salvar-baseline output/verificacao_convergencia/baseline_extracao_depois.json --gerar-relatorio-mestre
+```
+
+Exemplo para gerar o relatorio mestre consolidado, cruzando a comparacao estrutural com os relatorios da secao `contato` por CNPJ:
+
+```powershell
+python scripts/gerar_relatorio_mestre_convergencia.py --comparacao-json output/verificacao_convergencia/baseline_extracao_depois_comparacao.json --saida output/verificacao_convergencia/relatorio_mestre_convergencia.md
+```
+
 ## Observacao importante
 
 Se houver reorganizacao fisica de pastas, mas sem alteracao funcional, a migracao precisa ser documentada antes. Sem isso, a verificacao deve tratar diferenca de caminho como divergencia.
+
+## Resultado Executado em 2026-04-08
+
+Arquivos gerados:
+
+- `output/verificacao_convergencia/baseline_extracao_depois.json`
+- `output/verificacao_convergencia/baseline_extracao_depois_comparacao.json`
+- `output/verificacao_convergencia/relatorio_mestre_convergencia.md`
+
+Resultado observado:
+
+- `37671507000187`: convergencia total
+- `84654326000394`: convergencia total
+- nenhum arquivo apenas no "antes"
+- nenhum arquivo apenas no "depois"
+- nenhum arquivo com divergencia de linhas, colunas ou schema
+
+Observacao:
+
+- a partir da materializacao real da secao `contato`, os dois CNPJs passaram a ter relatorio tecnico proprio do Dossie.
+- a convergencia estrutural permaneceu total.
+- apos a materializacao real de `dossie_filiais_raiz.sql` no caminho Polars e a promocao de `NFe/NFCe` para `shared_sql` atual, a comparacao funcional entre `composicao_polars` e `sql_consolidado` tambem passou a registrar convergencia total nos dois CNPJs.
+- os relatorios tecnicos da secao `contato` e o relatorio mestre consolidado ja passaram a registrar `convergencia_funcional` como ultimo status nos CNPJs de referencia.

@@ -73,6 +73,8 @@ Os documentos ativos do projeto ficam na raiz de `docs/`:
 - [Tabela Anual](docs/tabela_anual.md)
 - [ConversÃ£o de Unidades](docs/conversao_unidades.md)
 - [AgregaÃ§Ã£o de Produtos](docs/agregacao_produtos.md)
+- [Dossie - Direcao e Contrato](docs/dossie_main.md)
+- [Dossie - Cache Canonico](docs/dossie_cache.md)
 
 ## ConvenÃ§Ãµes importantes
 

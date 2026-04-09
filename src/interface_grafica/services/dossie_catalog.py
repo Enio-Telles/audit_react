@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class DossieSecao:
-    """Representa uma seção navegável do dossiê."""
+    """Representa uma secao navegavel do dossie."""
 
     id: str
     titulo: str
@@ -19,98 +19,129 @@ SECOES_DOSSIE: tuple[DossieSecao, ...] = (
     DossieSecao(
         id="cadastro",
         titulo="Cadastro",
-        descricao="Dados cadastrais, situação e histórico básico do contribuinte.",
+        descricao="Dados cadastrais, situacao e historico basico do contribuinte.",
         tipo_fonte="mixed",
         sql_ids_prioritarios=("dados_cadastrais.sql",),
     ),
     DossieSecao(
         id="documentos_fiscais",
         titulo="Documentos fiscais",
-        descricao="Visões de NF-e e NFC-e com prioridade para reaproveitamento do catálogo SQL.",
+        descricao="Visoes de NF-e e NFC-e com prioridade para reaproveitamento do catalogo SQL.",
         tipo_fonte="sql_catalog",
         sql_ids_prioritarios=("NFe.sql", "NFCe.sql"),
     ),
     DossieSecao(
         id="arrecadacao",
-        titulo="Arrecadação e conta corrente",
-        descricao="Situação fiscal, arrecadação e conta corrente do contribuinte.",
-        tipo_fonte="mixed",
+        titulo="Arrecadacao e conta corrente",
+        descricao="Situacao fiscal, arrecadacao e conta corrente do contribuinte.",
+        tipo_fonte="cache_catalog",
         sql_ids_prioritarios=(),
     ),
     DossieSecao(
         id="enderecos",
-        titulo="Endereços",
-        descricao="Histórico de endereços vinculados e mapeados das notas fiscais.",
+        titulo="Enderecos",
+        descricao="Historico de enderecos vinculados e mapeados das notas fiscais.",
         tipo_fonte="sql_catalog",
         sql_ids_prioritarios=("dossie_enderecos.sql",),
     ),
     DossieSecao(
         id="historico_situacao",
-        titulo="Histórico de Situação",
-        descricao="Histórico completo de alterações de status e situação cadastral.",
+        titulo="Historico de Situacao",
+        descricao="Historico completo de alteracoes de status e situacao cadastral.",
         tipo_fonte="sql_catalog",
         sql_ids_prioritarios=("dossie_historico_situacao.sql",),
     ),
     DossieSecao(
         id="regime_pagamento",
         titulo="Regime de Pagamento",
-        descricao="Evolução e períodos de regimes de pagamento (ex: Simples Nacional, Normal).",
+        descricao="Evolucao e periodos de regimes de pagamento.",
         tipo_fonte="sql_catalog",
         sql_ids_prioritarios=("dossie_regime_pagamento.sql",),
     ),
     DossieSecao(
         id="atividades",
-        titulo="Atividades Econômicas",
-        descricao="Mapeamento de CNAEs principal e secundárias do CNPJ.",
+        titulo="Atividades Economicas",
+        descricao="Mapeamento de CNAEs principal e secundarias do CNPJ.",
         tipo_fonte="sql_catalog",
         sql_ids_prioritarios=("dossie_atividades.sql",),
     ),
     DossieSecao(
         id="contador",
         titulo="Contador",
-        descricao="Histórico de contabilidade vinculada ao contribuinte.",
+        descricao="Historico de contabilidade vinculada ao contribuinte.",
         tipo_fonte="sql_catalog",
         sql_ids_prioritarios=("dossie_contador.sql",),
     ),
     DossieSecao(
         id="historico_fac",
-        titulo="Histórico FAC",
-        descricao="Evolução das Fichas de Atualização Cadastral.",
+        titulo="Historico FAC",
+        descricao="Evolucao das fichas de atualizacao cadastral.",
         tipo_fonte="sql_catalog",
         sql_ids_prioritarios=("dossie_historico_fac.sql",),
     ),
     DossieSecao(
         id="vistorias",
         titulo="Vistorias",
-        descricao="Histórico de vistorias associadas ao contribuinte.",
+        descricao="Historico de vistorias associadas ao contribuinte.",
         tipo_fonte="sql_catalog",
         sql_ids_prioritarios=("dossie_vistorias.sql",),
     ),
     DossieSecao(
         id="socios",
-        titulo="Quadro Societário",
-        descricao="Histórico e situação atual dos sócios da empresa.",
+        titulo="Quadro Societario",
+        descricao="Historico e situacao atual dos socios da empresa.",
         tipo_fonte="sql_catalog",
         sql_ids_prioritarios=("dossie_historico_socios.sql",),
+    ),
+    DossieSecao(
+        id="contato",
+        titulo="Contato",
+        descricao="Composicao de empresa, filiais, contador, socios e sinais operacionais de contato.",
+        tipo_fonte="composed",
+        sql_ids_prioritarios=(
+            "dados_cadastrais.sql",
+            "dossie_filiais_raiz.sql",
+            "dossie_contador.sql",
+            "dossie_historico_fac.sql",
+            "dossie_rascunho_fac_contador.sql",
+            "dossie_req_inscricao_contador.sql",
+            "dossie_historico_socios.sql",
+            "NFe.sql",
+            "NFCe.sql",
+        ),
+    ),
+    DossieSecao(
+        id="estoque",
+        titulo="Estoque Analitico",
+        descricao="Leitura reutilizavel da `mov_estoque` ja materializada para o CNPJ, sem nova extracao Oracle.",
+        tipo_fonte="cache_catalog",
+        sql_ids_prioritarios=(),
+    ),
+    DossieSecao(
+        id="ressarcimento_st",
+        titulo="Ressarcimento ST",
+        descricao="Leitura reutilizavel dos artefatos analiticos de ressarcimento ST ja materializados no workspace.",
+        tipo_fonte="cache_catalog",
+        sql_ids_prioritarios=(),
     ),
 )
 
 
 def listar_secoes_dossie() -> list[DossieSecao]:
-    """Retorna as seções do dossiê em ordem de navegação."""
+    """Retorna as secoes do dossie em ordem de navegacao."""
 
     return list(SECOES_DOSSIE)
 
 
 def obter_secao_dossie(secao_id: str) -> DossieSecao | None:
-    """Localiza uma seção do dossiê por identificador."""
+    """Localiza uma secao do dossie por identificador."""
 
     chave = secao_id.strip().lower()
     return next((secao for secao in SECOES_DOSSIE if secao.id == chave), None)
 
 
 def listar_sql_prioritarias(secao_id: str) -> list[str]:
-    """Retorna os SQL IDs prioritários para reuso por seção."""
+    """Retorna os SQL IDs prioritarios para reuso por secao."""
 
     secao = obter_secao_dossie(secao_id)
     if secao is None:

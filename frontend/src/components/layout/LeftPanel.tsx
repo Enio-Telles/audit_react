@@ -182,7 +182,7 @@ export function LeftPanel() {
       {/* Header */}
       <div className="text-center py-2 border-b border-slate-700">
         <div className="text-sm font-bold text-blue-300">
-          Fiscal Parquet Analyzer
+          Fiscal Parquet
         </div>
       </div>
 

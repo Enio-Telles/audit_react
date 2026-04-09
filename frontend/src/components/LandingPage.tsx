@@ -13,7 +13,7 @@ export function LandingPage({ onSelect }: LandingPageProps) {
     >
       <div className="mb-8 text-center">
         <div className="mb-1 text-3xl font-bold tracking-wide text-white">
-          Fiscal Parquet Analyzer
+          Fiscal Parquet
         </div>
         <div className="text-sm text-slate-400">
           Selecione o modulo de analise

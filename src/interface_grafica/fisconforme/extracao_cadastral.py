@@ -10,11 +10,13 @@ Data: 2026-04-03
 
 import os
 import logging
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 import polars as pl
+from interface_grafica.services.sql_service import SqlService
 
 # ConfiguraÃ§Ã£o de logging
 logger = logging.getLogger(__name__)
@@ -37,6 +39,24 @@ SQL_MALHA_CNPJ = resolve_sql_path("Fisconforme_malha_cnpj.sql")
 # Arquivos Parquet de cache
 PARQUET_CADASTRAIS = PARQUET_DIR / "dados_cadastrais.parquet"
 PARQUET_MALHAS = PARQUET_DIR / "malhas_pendencias.parquet"
+
+
+def converter_linha_oracle_em_dicionario(
+    colunas: List[str],
+    linha: tuple[Any, ...],
+) -> Dict[str, Any]:
+    """
+    Converte uma linha Oracle em dicionario resiliente a schema instavel.
+
+    Mesmo sendo um resultado unitario, reutilizamos o mesmo construtor do
+    `SqlService` para manter coerencia com os demais fluxos Oracle do projeto.
+    """
+
+    if not linha:
+        return {}
+
+    dataframe = SqlService.construir_dataframe_resultado([dict(zip(colunas, linha))])
+    return dataframe.to_dicts()[0] if dataframe.height else {}
 
 
 def ler_sql(caminho_sql: Path) -> Optional[str]:
@@ -132,11 +152,14 @@ def extrair_dados_cadastrais_oracle(cnpj: str) -> Optional[Dict[str, Any]]:
             if not resultado:
                 logger.warning(f"Nenhum dado encontrado para CNPJ {cnpj}")
                 return None
-            
-            # Converte para dicionÃ¡rio
+
+            registro_resultado = converter_linha_oracle_em_dicionario(colunas, resultado)
+
+            # Converte para dicionario preservando o contrato historico do cache.
             dados = {}
-            for i, valor in enumerate(resultado):
-                chave = colunas[i].upper().replace(" ", "_")
+            for coluna in colunas:
+                chave = coluna.upper().replace(" ", "_")
+                valor = registro_resultado.get(coluna)
                 if valor is None:
                     dados[chave] = ""
                 elif isinstance(valor, str):
@@ -309,11 +332,14 @@ def exportar_cache_completo(caminho_saida: Optional[Path] = None) -> Optional[Pa
         if not caminho_saida:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             caminho_saida = PARQUET_DIR / f"dados_cadastrais_export_{timestamp}.parquet"
-        
-        df = pl.read_parquet(PARQUET_CADASTRAIS)
-        df.write_parquet(caminho_saida)
-        
-        logger.info(f"Cache exportado: {caminho_saida} ({len(df)} linhas)")
+
+        caminho_saida.parent.mkdir(parents=True, exist_ok=True)
+        # Como o cache ja esta no formato final desejado, copiar o arquivo evita
+        # reabrir e rematerializar todo o Parquet apenas para exportacao.
+        shutil.copy2(PARQUET_CADASTRAIS, caminho_saida)
+
+        total_linhas = pl.scan_parquet(PARQUET_CADASTRAIS).select(pl.len()).collect().item()
+        logger.info(f"Cache exportado: {caminho_saida} ({total_linhas} linhas)")
         return caminho_saida
         
     except Exception as e:
@@ -344,15 +370,17 @@ def obter_estatisticas_cache() -> Dict[str, Any]:
     try:
         if not PARQUET_CADASTRAIS.exists():
             return {"total": 0, "arquivo": str(PARQUET_CADASTRAIS)}
-        
-        df = pl.read_parquet(PARQUET_CADASTRAIS)
+
+        lazyframe = pl.scan_parquet(PARQUET_CADASTRAIS)
+        total_linhas = lazyframe.select(pl.len()).collect().item()
+        colunas = list(lazyframe.collect_schema().names())
         tamanho_mb = PARQUET_CADASTRAIS.stat().st_size / (1024 * 1024)
-        
+
         return {
-            "total": len(df),
+            "total": total_linhas,
             "arquivo": str(PARQUET_CADASTRAIS),
             "tamanho_mb": round(tamanho_mb, 2),
-            "colunas": df.columns,
+            "colunas": colunas,
         }
         
     except Exception as e:

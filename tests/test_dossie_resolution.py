@@ -34,6 +34,27 @@ def test_resolver_secao_dossie_para_cadastro_usa_sql_existente():
     assert resolvido.sql_ids == ("dados_cadastrais.sql",)
 
 
+def test_resolver_secao_dossie_para_contato_reaproveita_multiplas_fontes():
+    resolvido = resolver_secao_dossie(
+        cnpj="12345678000190",
+        secao_id="contato",
+        parametros=None,
+        versao_consulta="v1",
+    )
+
+    assert resolvido.sql_ids == (
+        "dados_cadastrais.sql",
+        "dossie_filiais_raiz.sql",
+        "dossie_contador.sql",
+        "dossie_historico_fac.sql",
+        "dossie_rascunho_fac_contador.sql",
+        "dossie_req_inscricao_contador.sql",
+        "dossie_historico_socios.sql",
+        "NFe.sql",
+        "NFCe.sql",
+    )
+
+
 def test_resolver_secao_dossie_falha_para_secao_inexistente():
     with pytest.raises(DossieResolucaoErro):
         resolver_secao_dossie(

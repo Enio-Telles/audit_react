@@ -122,6 +122,54 @@ class SqlService:
         return binds
 
     @staticmethod
+    def construir_dataframe_resultado(registros: list[dict[str, Any]]) -> pl.DataFrame:
+        """
+        Monta um DataFrame resiliente para resultados Oracle com schema instavel.
+
+        Algumas consultas grandes retornam a mesma coluna com tipos diferentes em
+        linhas distintas. Primeiro tentamos preservar os tipos originais; se o
+        Polars rejeitar o conjunto, normalizamos apenas as colunas mistas para texto.
+        """
+
+        if not registros:
+            return pl.DataFrame()
+
+        try:
+            return pl.DataFrame(registros, infer_schema_length=None)
+        except pl.exceptions.ComputeError:
+            registros_normalizados = SqlService._normalizar_registros_com_tipos_mistos(registros)
+            return pl.DataFrame(registros_normalizados, infer_schema_length=None)
+
+    @staticmethod
+    def _normalizar_registros_com_tipos_mistos(registros: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Converte apenas colunas com tipos conflitantes para texto preservando nulos."""
+
+        colunas_mistas: set[str] = set()
+        tipos_por_coluna: dict[str, set[type[Any]]] = {}
+
+        for registro in registros:
+            for coluna, valor in registro.items():
+                if valor is None:
+                    continue
+                tipos = tipos_por_coluna.setdefault(coluna, set())
+                tipos.add(type(valor))
+                if len(tipos) > 1:
+                    colunas_mistas.add(coluna)
+
+        if not colunas_mistas:
+            return registros
+
+        registros_normalizados: list[dict[str, Any]] = []
+        for registro in registros:
+            registro_normalizado = dict(registro)
+            for coluna in colunas_mistas:
+                valor = registro_normalizado.get(coluna)
+                if valor is not None:
+                    registro_normalizado[coluna] = str(valor)
+            registros_normalizados.append(registro_normalizado)
+        return registros_normalizados
+
+    @staticmethod
     def executar_sql(sql: str, params: dict[str, Any] | None = None, cnpj: str | None = None) -> list[dict[str, Any]]:
         try:
             from interface_grafica.services.query_worker import _conectar_oracle_fallback
@@ -146,7 +194,8 @@ class SqlService:
                 rows = cursor.fetchall()
             if not rows:
                 return []
-            df = pl.DataFrame([dict(zip(columns, row)) for row in rows], infer_schema_length=min(len(rows), 1000))
+            registros = [dict(zip(columns, row)) for row in rows]
+            df = SqlService.construir_dataframe_resultado(registros)
             return df.to_dicts()
         finally:
             conn.close()

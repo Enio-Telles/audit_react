@@ -40,15 +40,20 @@ class ProcessadorPolars:
             "nfe_detalhe": PASTA_DADOS / "BI_DM_NFE_CHAVE_E_FISCONFORME.parquet",
             "consolidado": PASTA_DADOS / "BI_DM_CONSOLIDADO_PENDENCIAS.parquet",
         }
+        self._cache_lazyframes = {}
 
     def carregar_tabela(self, nome):
         """Carrega um arquivo Parquet em modo LazyFrame."""
+        if nome in self._cache_lazyframes:
+            return self._cache_lazyframes[nome]
         caminho = self.tabelas.get(nome)
         if caminho is None:
             raise ValueError(f"Tabela '{nome}' não mapeada no processador")
         if not caminho.exists():
             raise FileNotFoundError(f"Tabela '{nome}' não encontrada: {caminho}")
-        return pl.scan_parquet(caminho)
+        lazyframe = pl.scan_parquet(caminho)
+        self._cache_lazyframes[nome] = lazyframe
+        return lazyframe
 
     # =========================================================================
     # EXPRESSÃO AUXILIAR: CASE WHEN STATUS → DESCRIÇÃO

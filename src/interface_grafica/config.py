@@ -11,7 +11,7 @@ from utilitarios.project_paths import (
     SQL_ROOT,
 )
 
-APP_NAME = "Fiscal Parquet Analyzer"
+APP_NAME = "Fiscal Parquet"
 
 # Load environment variables from .env file in the project root
 if ENV_PATH.exists():

@@ -1,0 +1,69 @@
+{
+  "gerado_em": "2026-04-08T16:49:59.626235",
+  "resultados": [
+    {
+      "cnpj": "37671507000187",
+      "estrategia_solicitada": "composicao_polars",
+      "estrategia_execucao": "composicao_polars",
+      "sql_principal": "dados_cadastrais.sql",
+      "linhas_extraidas": 8,
+      "total_sql_ids": 9,
+      "sql_ids_executados": 0,
+      "sql_ids_reutilizados": 9,
+      "percentual_reuso_sql": 100.0,
+      "impacto_cache_first": "reuso_total",
+      "tempo_materializacao_ms": 18,
+      "tempo_total_sync_ms": 55,
+      "cache_file": "C:\\Sistema_react\\dados\\CNPJ\\37671507000187\\arquivos_parquet\\dossie\\dossie_37671507000187_contato_b2bbc3659154f4641209f161.parquet",
+      "metadata_file": "C:\\Sistema_react\\dados\\CNPJ\\37671507000187\\arquivos_parquet\\dossie\\dossie_37671507000187_contato_b2bbc3659154f4641209f161.metadata.json"
+    },
+    {
+      "cnpj": "37671507000187",
+      "estrategia_solicitada": "sql_consolidado",
+      "estrategia_execucao": "sql_consolidado",
+      "sql_principal": "dossie_contato.sql",
+      "linhas_extraidas": 8,
+      "total_sql_ids": 1,
+      "sql_ids_executados": 0,
+      "sql_ids_reutilizados": 1,
+      "percentual_reuso_sql": 100.0,
+      "impacto_cache_first": "reuso_total",
+      "tempo_materializacao_ms": 1,
+      "tempo_total_sync_ms": 38,
+      "cache_file": "C:\\Sistema_react\\dados\\CNPJ\\37671507000187\\arquivos_parquet\\dossie\\dossie_37671507000187_contato_79f4bdb0f6bed77fb079380c.parquet",
+      "metadata_file": "C:\\Sistema_react\\dados\\CNPJ\\37671507000187\\arquivos_parquet\\dossie\\dossie_37671507000187_contato_79f4bdb0f6bed77fb079380c.metadata.json"
+    },
+    {
+      "cnpj": "84654326000394",
+      "estrategia_solicitada": "composicao_polars",
+      "estrategia_execucao": "composicao_polars",
+      "sql_principal": "dados_cadastrais.sql",
+      "linhas_extraidas": 1505,
+      "total_sql_ids": 9,
+      "sql_ids_executados": 0,
+      "sql_ids_reutilizados": 9,
+      "percentual_reuso_sql": 100.0,
+      "impacto_cache_first": "reuso_total",
+      "tempo_materializacao_ms": 134,
+      "tempo_total_sync_ms": 268,
+      "cache_file": "C:\\Sistema_react\\dados\\CNPJ\\84654326000394\\arquivos_parquet\\dossie\\dossie_84654326000394_contato_e7043a66a7b712812e428487.parquet",
+      "metadata_file": "C:\\Sistema_react\\dados\\CNPJ\\84654326000394\\arquivos_parquet\\dossie\\dossie_84654326000394_contato_e7043a66a7b712812e428487.metadata.json"
+    },
+    {
+      "cnpj": "84654326000394",
+      "estrategia_solicitada": "sql_consolidado",
+      "estrategia_execucao": "sql_consolidado",
+      "sql_principal": "dossie_contato.sql",
+      "linhas_extraidas": 1505,
+      "total_sql_ids": 1,
+      "sql_ids_executados": 0,
+      "sql_ids_reutilizados": 1,
+      "percentual_reuso_sql": 100.0,
+      "impacto_cache_first": "reuso_total",
+      "tempo_materializacao_ms": 1,
+      "tempo_total_sync_ms": 47,
+      "cache_file": "C:\\Sistema_react\\dados\\CNPJ\\84654326000394\\arquivos_parquet\\dossie\\dossie_84654326000394_contato_8308b8b34d673231b4680388.parquet",
+      "metadata_file": "C:\\Sistema_react\\dados\\CNPJ\\84654326000394\\arquivos_parquet\\dossie\\dossie_84654326000394_contato_8308b8b34d673231b4680388.metadata.json"
+    }
+  ]
+}

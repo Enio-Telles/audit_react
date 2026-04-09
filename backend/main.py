@@ -14,8 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import cnpj, parquet, pipeline, estoque, aggregation, sql_query, fisconforme, oracle, ressarcimento, dossie
 
 app = FastAPI(
-    title="Fiscal Parquet Analyzer API",
-    description="REST API para o Fiscal Parquet Analyzer",
+    title="Fiscal Parquet API",
+    description="REST API para o Fiscal Parquet",
     version="1.0.0",
 )
 

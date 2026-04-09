@@ -1,11 +1,13 @@
 from pathlib import Path
 import sys
 
+import polars as pl
 
 sys.path.insert(0, str(Path("src").resolve()))
 
 from extracao.extracao_oracle_eficiente import (
     ConsultaSql,
+    _criar_dataframe_lote,
     descobrir_consultas_sql,
     obter_caminho_saida_parquet,
 )
@@ -71,3 +73,38 @@ def test_obter_caminho_saida_parquet_mantem_hierarquia_relativa(tmp_path: Path):
         / "c100"
         / "10_c100_raw_12345678000190.parquet"
     )
+
+
+def test_criar_dataframe_lote_normaliza_coluna_mista_sem_forcar_texto():
+    dataframe = _criar_dataframe_lote(
+        lote=[
+            (1, "Empresa A"),
+            ("2", "Empresa B"),
+            (None, "Empresa C"),
+        ],
+        colunas=["codigo", "nome"],
+    )
+
+    assert dataframe.schema["codigo"] == pl.String
+    assert dataframe.to_dicts() == [
+        {"codigo": "1", "nome": "Empresa A"},
+        {"codigo": "2", "nome": "Empresa B"},
+        {"codigo": None, "nome": "Empresa C"},
+    ]
+
+
+def test_criar_dataframe_lote_em_modo_texto_converte_tudo_para_string():
+    dataframe = _criar_dataframe_lote(
+        lote=[
+            (1, "Empresa A"),
+            (2, None),
+        ],
+        colunas=["codigo", "nome"],
+        forcar_texto=True,
+    )
+
+    assert dataframe.schema["codigo"] == pl.String
+    assert dataframe.to_dicts() == [
+        {"codigo": "1", "nome": "Empresa A"},
+        {"codigo": "2", "nome": None},
+    ]

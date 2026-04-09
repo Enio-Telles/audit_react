@@ -17,10 +17,15 @@ import os
 import time
 import logging
 import oracledb
-import pandas as pd
 from pathlib import Path
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal
+
+import polars as pl
+import pyarrow.parquet as pq
+
+from interface_grafica.services.sql_service import SqlService
 
 # Configuração de logging
 logging.basicConfig(
@@ -33,6 +38,96 @@ logger = logging.getLogger(__name__)
 from .path_resolver import get_root_dir, get_env_path
 ROOT_DIR = get_root_dir()
 load_dotenv(dotenv_path=get_env_path(), encoding='latin-1', override=True)
+
+TAMANHO_LOTE_EXTRACAO = 50_000
+
+
+def _normalizar_valores_coluna(valores, forcar_texto=False):
+    """Normaliza colunas problemáticas apenas quando houver tipos mistos no lote."""
+
+    if forcar_texto:
+        return [None if valor is None else str(valor) for valor in valores]
+
+    tipos = {type(valor) for valor in valores if valor is not None}
+    if len(tipos) <= 1:
+        return valores
+
+    if tipos.issubset({int, float, Decimal}):
+        return [None if valor is None else float(valor) for valor in valores]
+
+    return [None if valor is None else str(valor) for valor in valores]
+
+
+def _montar_dataframe_lote(lote, colunas, schema_polars=None, forcar_texto=False):
+    """Monta DataFrame resiliente por lote preservando o máximo de tipagem útil."""
+
+    try:
+        if forcar_texto:
+            raise TypeError("Modo texto solicitado.")
+        dataframe = pl.DataFrame(lote, schema=colunas, orient="row")
+    except Exception:
+        registros_lote = [dict(zip(colunas, linha)) for linha in lote]
+        if forcar_texto:
+            colunas_dict = {
+                coluna: _normalizar_valores_coluna(
+                    [linha[indice] for linha in lote],
+                    forcar_texto=True,
+                )
+                for indice, coluna in enumerate(colunas)
+            }
+            dataframe = pl.DataFrame(colunas_dict)
+        else:
+            dataframe = SqlService.construir_dataframe_resultado(registros_lote)
+
+    if schema_polars is not None:
+        dataframe = dataframe.cast(schema_polars, strict=False)
+    return dataframe
+
+
+def _escrever_dataframe_vazio(colunas, arquivo_saida):
+    pl.DataFrame({coluna: [] for coluna in colunas}).write_parquet(arquivo_saida, compression="snappy")
+
+
+def _gravar_cursor_em_parquet(cursor, arquivo_saida, tamanho_lote=TAMANHO_LOTE_EXTRACAO, forcar_texto=False):
+    """Grava o resultado do cursor em lotes para reduzir memória e padronizar schema."""
+
+    colunas = [coluna[0] for coluna in cursor.description]
+    arquivo_saida.parent.mkdir(parents=True, exist_ok=True)
+
+    writer = None
+    schema_polars = None
+    schema_arrow = None
+
+    try:
+        while True:
+            lote = cursor.fetchmany(tamanho_lote)
+            if not lote:
+                break
+
+            dataframe_lote = _montar_dataframe_lote(
+                lote=lote,
+                colunas=colunas,
+                schema_polars=schema_polars,
+                forcar_texto=forcar_texto,
+            )
+
+            if schema_polars is None:
+                schema_polars = dataframe_lote.schema
+
+            tabela_arrow = dataframe_lote.to_arrow()
+            if schema_arrow is None:
+                schema_arrow = tabela_arrow.schema
+                writer = pq.ParquetWriter(arquivo_saida, schema_arrow, compression="snappy")
+            elif tabela_arrow.schema != schema_arrow:
+                tabela_arrow = tabela_arrow.cast(schema_arrow, safe=False)
+
+            writer.write_table(tabela_arrow)
+    finally:
+        if writer is not None:
+            writer.close()
+
+    if schema_arrow is None:
+        _escrever_dataframe_vazio(colunas, arquivo_saida)
 
 
 class ExtratorOracle:
@@ -189,8 +284,20 @@ class ExtratorOracle:
 
         def _extrair():
             with self.obter_conexao() as conn:
-                df = pd.read_sql(sql, conn, params=params)
-                df.to_parquet(arquivo_saida, index=False)
+                with conn.cursor() as cursor:
+                    cursor.arraysize = TAMANHO_LOTE_EXTRACAO
+                    cursor.prefetchrows = TAMANHO_LOTE_EXTRACAO
+                    cursor.execute(sql, params)
+                    try:
+                        _gravar_cursor_em_parquet(cursor, arquivo_saida)
+                    except Exception:
+                        if arquivo_saida.exists():
+                            arquivo_saida.unlink(missing_ok=True)
+                        with conn.cursor() as cursor_texto:
+                            cursor_texto.arraysize = TAMANHO_LOTE_EXTRACAO
+                            cursor_texto.prefetchrows = TAMANHO_LOTE_EXTRACAO
+                            cursor_texto.execute(sql, params)
+                            _gravar_cursor_em_parquet(cursor_texto, arquivo_saida, forcar_texto=True)
 
         try:
             self._executar_com_retry(_extrair, descricao=nome_completo)
@@ -223,8 +330,20 @@ class ExtratorOracle:
 
         def _extrair():
             with self.obter_conexao() as conn:
-                df = pd.read_sql(sql, conn, params=params)
-                df.to_parquet(arquivo_saida, index=False)
+                with conn.cursor() as cursor:
+                    cursor.arraysize = TAMANHO_LOTE_EXTRACAO
+                    cursor.prefetchrows = TAMANHO_LOTE_EXTRACAO
+                    cursor.execute(sql, params)
+                    try:
+                        _gravar_cursor_em_parquet(cursor, arquivo_saida)
+                    except Exception:
+                        if arquivo_saida.exists():
+                            arquivo_saida.unlink(missing_ok=True)
+                        with conn.cursor() as cursor_texto:
+                            cursor_texto.arraysize = TAMANHO_LOTE_EXTRACAO
+                            cursor_texto.prefetchrows = TAMANHO_LOTE_EXTRACAO
+                            cursor_texto.execute(sql, params)
+                            _gravar_cursor_em_parquet(cursor_texto, arquivo_saida, forcar_texto=True)
 
         try:
             self._executar_com_retry(_extrair, descricao=nome_saida)

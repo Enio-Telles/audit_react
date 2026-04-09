@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
 from interface_grafica.config import CNPJ_ROOT
+from interface_grafica.services.sql_service import SqlService
 from utilitarios.project_paths import APP_STATE_ROOT, ENV_PATH
 from utilitarios.sql_catalog import resolve_sql_path
 
@@ -341,6 +342,37 @@ def _montar_binds_sql(sql: str, candidatos: Dict[str, Any]) -> Dict[str, Any]:
     return binds
 
 
+def _converter_linhas_oracle_em_registros(
+    colunas: List[str],
+    linhas: List[tuple[Any, ...]],
+) -> List[Dict[str, Any]]:
+    """
+    Converte linhas Oracle em registros resilientes a colunas com tipos mistos.
+
+    O contrato publico do Fisconforme continua o mesmo: nulos viram string
+    vazia e valores nao textuais sao serializados para texto no payload final.
+    """
+
+    if not linhas:
+        return []
+
+    registros_brutos = [dict(zip(colunas, linha)) for linha in linhas]
+    dataframe = SqlService.construir_dataframe_resultado(registros_brutos)
+
+    registros_normalizados: List[Dict[str, Any]] = []
+    for registro in dataframe.to_dicts():
+        registro_normalizado: Dict[str, Any] = {}
+        for coluna, valor in registro.items():
+            if valor is None:
+                registro_normalizado[coluna] = ""
+            elif isinstance(valor, str):
+                registro_normalizado[coluna] = valor.strip()
+            else:
+                registro_normalizado[coluna] = str(valor)
+        registros_normalizados.append(registro_normalizado)
+    return registros_normalizados
+
+
 def _extrair_malhas_oracle(cnpj: str, data_inicio: str, data_fim: str) -> List[Dict[str, Any]]:
     sql = _ler_sql(SQL_MALHA)
     if not sql:
@@ -361,13 +393,7 @@ def _extrair_malhas_oracle(cnpj: str, data_inicio: str, data_fim: str) -> List[D
             cur.execute(sql, binds)
             cols = [c[0].upper() for c in cur.description]
             rows = cur.fetchall()
-            resultado = []
-            for row in rows:
-                r: Dict[str, Any] = {}
-                for i, val in enumerate(row):
-                    r[cols[i]] = "" if val is None else (val.strip() if isinstance(val, str) else str(val))
-                resultado.append(r)
-            return resultado
+            return _converter_linhas_oracle_em_registros(cols, rows)
     finally:
         conn.close()
 
