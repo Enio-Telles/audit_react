@@ -286,12 +286,15 @@ export function RessarcimentoTab() {
       </div>
 
       <div
+        role="tablist"
         className="flex items-center gap-1 px-3 pt-2 border-b border-slate-700"
         style={{ background: "#0a1628" }}
       >
         {subtabs.map((tab) => (
           <button
             key={tab.key}
+            role="tab"
+            aria-selected={subTab === tab.key}
             onClick={() => setSubTab(tab.key)}
             className={`px-4 py-1.5 text-xs font-medium rounded-t transition-colors border-t border-l border-r ${
               subTab === tab.key
