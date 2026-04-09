@@ -47,6 +47,9 @@ function formatar_quantidade_linhas(rowCount?: number): string {
   return `${rowCount} ${rowCount === 1 ? 'linha' : 'linhas'}`;
 }
 
+// ⚡ Bolt Optimization: Use cached Intl.DateTimeFormat instance instead of Date.prototype.toLocaleString()
+const dateFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
+
 function formatar_data_atualizacao(updatedAt?: string | null): string | null {
   if (!updatedAt) {
     return null;
@@ -57,7 +60,7 @@ function formatar_data_atualizacao(updatedAt?: string | null): string | null {
     return null;
   }
 
-  return data.toLocaleString('pt-BR');
+  return dateFormatter.format(data);
 }
 
 function extrair_mensagem_erro(error: unknown): string {
