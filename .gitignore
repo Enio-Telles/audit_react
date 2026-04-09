@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+node_modules/
+**/node_modules/
+dist/
+dist-*/
+build/
+.env*
+!.env.example
+
+# Data (CRITICAL: Private tax data)
+CNPJ/
+**/CNPJ/
+*.parquet
+*.xlsx
+*.csv
+*.sql
+!sql/**/*.sql
+!sql/**/*.SQL
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# System
+.DS_Store
+Thumbs.db
+.env
+
+# Logs
+logs/
+*.log
+workspace/

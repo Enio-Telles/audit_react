@@ -1,0 +1,257 @@
+from __future__ import annotations
+
+from datetime import date, datetime
+from decimal import Decimal
+import math
+import numbers
+import re
+import unicodedata
+from typing import Any
+
+STOPWORDS = {
+    "A", "AS", "O", "OS", "DE", "DA", "DO", "DAS", "DOS", "COM", "PARA", "POR",
+    "E", "EM", "NA", "NO", "NAS", "NOS", "UM", "UMA",
+}
+
+
+def remove_accents(text: str | None) -> str | None:
+    if text is None:
+        return None
+    normalized = unicodedata.normalize("NFKD", str(text))
+    return "".join(ch for ch in normalized if not unicodedata.combining(ch))
+
+
+def normalize_text(text: str | None) -> str:
+    if text is None:
+        return ""
+    text = remove_accents(text) or ""
+    text = text.upper()
+    text = re.sub(r"[^A-Z0-9\s]", " ", text)
+    tokens = [token for token in text.split() if token and token not in STOPWORDS]
+    return " ".join(tokens)
+
+
+def natural_sort_key(value: str | None) -> list[Any]:
+    text = "" if value is None else str(value)
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", text)]
+
+
+def _normalizar_nome_coluna(column_name: str | None) -> str:
+    return "" if column_name is None else str(column_name).strip().lower()
+
+
+def is_excel_text_identifier_column_name(column_name: str | None) -> bool:
+    nome = _normalizar_nome_coluna(column_name)
+    if not nome:
+        return False
+
+    if nome in {
+        "cnpj",
+        "cpf",
+        "cpf_cnpj",
+        "cpf_cnpj_referencia",
+        "chave",
+        "chave_acesso",
+        "chv_nfe",
+        "ie",
+        "nsu",
+        "ncm",
+        "cest",
+        "gtin",
+        "cep",
+    }:
+        return True
+
+    padroes = (
+        "cnpj",
+        "cpf",
+        "chave",
+        "chv_",
+        "cod_",
+        "_cod",
+        "codigo",
+        "nsu",
+        "serie",
+        "cfop",
+        "ncm",
+        "cest",
+        "gtin",
+        "cep",
+        "cmun",
+        "cst",
+        "csosn",
+        "id_",
+    )
+    return any(padrao in nome for padrao in padroes)
+
+
+def is_excel_datetime_column_name(column_name: str | None) -> bool:
+    nome = _normalizar_nome_coluna(column_name)
+    if not nome:
+        return False
+    return (
+        nome.startswith("dh_")
+        or "_dh" in nome
+        or "hora" in nome
+        or "datetime" in nome
+        or "atualizacao" in nome
+        or "dhemi" in nome
+        or "dhsaient" in nome
+    )
+
+
+def is_excel_date_column_name(column_name: str | None) -> bool:
+    nome = _normalizar_nome_coluna(column_name)
+    if not nome:
+        return False
+    if is_excel_datetime_column_name(nome):
+        return False
+    return (
+        nome.startswith("dt_")
+        or "_dt" in nome
+        or "data" in nome
+        or "emissao" in nome
+        or "entrada" in nome
+        or "saida" in nome
+        or "entrega" in nome
+        or nome.endswith("_em")
+    )
+
+
+def is_year_column_name(column_name: str | None) -> bool:
+    nome = _normalizar_nome_coluna(column_name)
+    if not nome:
+        return False
+    return nome == "ano" or nome.startswith("ano_") or nome.endswith("_ano")
+
+
+def _formatar_numero_br(valor: numbers.Real | Decimal, casas_decimais: int) -> str:
+    if isinstance(valor, Decimal):
+        numero = float(valor)
+    else:
+        numero = float(valor)
+    texto = f"{numero:,.{casas_decimais}f}"
+    return texto.replace(",", "_").replace(".", ",").replace("_", ".")
+
+
+def _formatar_data(valor: date | datetime) -> str:
+    if isinstance(valor, datetime):
+        return valor.strftime("%d/%m/%Y %H:%M:%S")
+    return valor.strftime("%d/%m/%Y")
+
+
+def _parse_data_iso(texto: str) -> datetime | date | None:
+    texto = texto.strip()
+    if not texto:
+        return None
+
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", texto):
+        try:
+            return datetime.strptime(texto, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?(\.\d{1,6})?", texto):
+        normalizado = texto.replace("T", " ")
+        formatos = ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M")
+        for formato in formatos:
+            try:
+                return datetime.strptime(normalizado, formato)
+            except ValueError:
+                continue
+    return None
+
+
+def parse_data_iso_texto(texto: str) -> datetime | date | None:
+    return _parse_data_iso(texto)
+
+
+def formatar_identificador_excel_texto(value: Any) -> str:
+    if value is None:
+        return ""
+
+    if hasattr(value, "to_list") and callable(getattr(value, "to_list")):
+        try:
+            value = value.to_list()
+        except Exception:
+            pass
+
+    if isinstance(value, (list, tuple)):
+        return ", ".join(
+            formatar_identificador_excel_texto(v) for v in value if v is not None
+        )
+
+    if isinstance(value, bool):
+        return "true" if value else "false"
+
+    if isinstance(value, (datetime, date)):
+        return _formatar_data(value)
+
+    if isinstance(value, Decimal):
+        if math.isnan(float(value)) or math.isinf(float(value)):
+            return ""
+        if float(value).is_integer():
+            return str(int(value))
+        return str(value)
+
+    if isinstance(value, numbers.Real):
+        numero = float(value)
+        if math.isnan(numero) or math.isinf(numero):
+            return ""
+        if numero.is_integer():
+            return str(int(numero))
+        return str(value)
+
+    return str(value)
+
+
+def display_cell(value: Any, column_name: str | None = None) -> str:
+    if value is None:
+        return ""
+
+    # Handle Polars Series or other objects with to_list()
+    if hasattr(value, "to_list") and callable(getattr(value, "to_list")):
+        try:
+            value = value.to_list()
+        except Exception:
+            pass
+
+    if isinstance(value, (list, tuple)):
+        # Join elements, recursively calling display_cell for each
+        return ", ".join(display_cell(v, column_name=column_name) for v in value if v is not None)
+
+    if isinstance(value, bool):
+        return "true" if value else "false"
+
+    if isinstance(value, datetime):
+        return _formatar_data(value)
+
+    if isinstance(value, date):
+        return _formatar_data(value)
+
+    if isinstance(value, str):
+        if is_year_column_name(column_name):
+            return value.strip()
+        valor_data = _parse_data_iso(value)
+        if valor_data is not None:
+            return _formatar_data(valor_data)
+        return value
+
+    if isinstance(value, Decimal):
+        if math.isnan(float(value)) or math.isinf(float(value)):
+            return ""
+        if is_year_column_name(column_name):
+            return str(int(value))
+        return _formatar_numero_br(value, 2)
+
+    if isinstance(value, numbers.Real):
+        numero = float(value)
+        if math.isnan(numero) or math.isinf(numero):
+            return ""
+        if is_year_column_name(column_name):
+            return str(int(numero))
+        if isinstance(value, numbers.Integral):
+            return _formatar_numero_br(value, 0)
+        return _formatar_numero_br(value, 2)
+
+    return str(value)
