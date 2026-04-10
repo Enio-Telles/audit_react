@@ -1,59 +1,185 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
+from typing import Any
+
 from fastapi import APIRouter
 
-from .fiscal_summary import build_dataset_listing, build_domain_summary
+from interface_grafica.config import CNPJ_ROOT
+
+from .fiscal_summary import (
+    build_dataset_listing,
+    build_domain_summary,
+    probe_parquet,
+    stage_label,
+)
 
 router = APIRouter()
 
 
+def _sanitize(cnpj: str | None) -> str | None:
+    if cnpj is None:
+        return None
+    cleaned = re.sub(r"\D", "", cnpj)
+    return cleaned or None
+
+
+def _base_cnpj(cnpj: str) -> Path:
+    return CNPJ_ROOT / cnpj
+
+
+def _first_existing(candidates: list[Path]) -> Path:
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+def _find_c170(cnpj: str) -> Path:
+    return _first_existing(
+        [
+            _base_cnpj(cnpj) / "arquivos_parquet" / f"c170_xml_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"c170_xml_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "analises" / "produtos" / f"c170_xml_{cnpj}.parquet",
+        ]
+    )
+
+
+def _find_c176(cnpj: str) -> Path:
+    return _first_existing(
+        [
+            _base_cnpj(cnpj) / "arquivos_parquet" / f"c176_xml_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"c176_xml_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "analises" / "produtos" / f"c176_xml_{cnpj}.parquet",
+        ]
+    )
+
+
+def _find_bloco_h(cnpj: str) -> Path:
+    return _first_existing(
+        [
+            _base_cnpj(cnpj) / "analises" / "produtos" / f"bloco_h_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / f"bloco_h_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"bloco_h_{cnpj}.parquet",
+        ]
+    )
+
+
+def _find_k200(cnpj: str) -> Path:
+    return _first_existing(
+        [
+            _base_cnpj(cnpj) / "arquivos_parquet" / f"k200_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"k200_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "analises" / "produtos" / f"k200_{cnpj}.parquet",
+        ]
+    )
+
+
+def _find_c197(cnpj: str) -> Path:
+    return _first_existing(
+        [
+            _base_cnpj(cnpj) / "arquivos_parquet" / f"c197_agrupado_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / f"c197_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"c197_agrupado_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"c197_{cnpj}.parquet",
+        ]
+    )
+
+
+def _efd_probes(cnpj: str | None) -> dict[str, dict[str, Any]]:
+    if not cnpj:
+        return {}
+
+    return {
+        "c170_xml": probe_parquet(_find_c170(cnpj)),
+        "c176_xml": probe_parquet(_find_c176(cnpj)),
+        "bloco_h": probe_parquet(_find_bloco_h(cnpj)),
+        "k200": probe_parquet(_find_k200(cnpj)),
+        "c197": probe_parquet(_find_c197(cnpj)),
+    }
+
+
+def _describe_count(probe: dict[str, Any], singular: str, plural: str) -> str:
+    if probe.get("status") == "materializado":
+        rows = int(probe.get("rows", 0))
+        unidade = singular if rows == 1 else plural
+        return f"{rows} {unidade}"
+    if probe.get("status") == "erro":
+        return "erro de leitura"
+    return "não materializado"
+
+
+def _materialized_count(probes: dict[str, dict[str, Any]]) -> int:
+    return sum(1 for probe in probes.values() if probe.get("status") == "materializado")
+
+
 def _payload(cnpj: str | None) -> dict[str, object]:
+    probes = _efd_probes(cnpj)
+    c170 = probes.get("c170_xml", {"status": "ausente", "rows": 0})
+    c176 = probes.get("c176_xml", {"status": "ausente", "rows": 0})
+    bloco_h = probes.get("bloco_h", {"status": "ausente", "rows": 0})
+    k200 = probes.get("k200", {"status": "ausente", "rows": 0})
+    c197 = probes.get("c197", {"status": "ausente", "rows": 0})
+
     cards = [
         {
-            "id": "blocos",
-            "title": "Blocos cobertos",
-            "value": "0, C, D, E, H, K, 1, 9",
-            "description": "A camada EFD deve espelhar a organização oficial por blocos.",
+            "id": "cobertura_real",
+            "title": "Artefatos EFD localizados",
+            "value": f"{_materialized_count(probes)} materializado(s)",
+            "description": "Primeira ponte da EFD baseada nos parquets já produzidos pelo pipeline e pelas camadas legadas.",
         },
         {
-            "id": "registros",
-            "title": "Registros prioritários",
-            "value": "C100, C170, C176, C197, H010, K200",
-            "description": "Os primeiros datasets devem nascer desses registros e seus vínculos.",
+            "id": "itens_efd",
+            "title": "Itens e ajustes",
+            "value": _describe_count(c170, "linha C170", "linhas C170"),
+            "description": "C170 representa itens escriturados e é a base operacional mais forte da ponte inicial da EFD.",
         },
         {
-            "id": "contrato",
-            "title": "Contrato de leitura",
-            "value": "Parquet canônico",
-            "description": "A UI não deve depender de SQL de tela para explicar a escrituração.",
+            "id": "inventario",
+            "title": "Inventário e estoque fiscal",
+            "value": _describe_count(bloco_h, "linha de inventário", "linhas de inventário"),
+            "description": "Bloco H já aparece na camada atual e ajuda a explicar o elo entre EFD e estoque fiscal.",
         },
     ]
     datasets = [
         {
-            "id": "efd_arquivos_validos",
-            "label": "Arquivos válidos",
-            "stage": "planejado",
-            "description": "Seleciona arquivo original ou retificador válido por competência.",
+            "id": "efd_c170_xml_legado",
+            "label": "C170 XML",
+            "stage": stage_label(c170),
+            "description": "Base legada de itens escriturados que alimenta estoque e cruzamentos posteriores.",
         },
         {
-            "id": "efd_resumo_bloco",
-            "label": "Resumo por bloco",
-            "stage": "planejado",
-            "description": "Resume volume e presença de registros por bloco fiscal.",
+            "id": "efd_c176_xml_legado",
+            "label": "C176 XML",
+            "stage": stage_label(c176),
+            "description": "Base legada de ressarcimento e vínculos complementares derivados da EFD.",
         },
         {
-            "id": "efd_c100_c170",
-            "label": "Documentos e itens da EFD",
-            "stage": "planejado",
-            "description": "Base para espelhos de documentos escriturados e cruzamentos posteriores.",
+            "id": "efd_bloco_h_legado",
+            "label": "Bloco H",
+            "stage": stage_label(bloco_h),
+            "description": "Inventário real declarado, já reaproveitado na camada de estoque e auditoria.",
+        },
+        {
+            "id": "efd_c197_legado",
+            "label": "C197",
+            "stage": stage_label(c197),
+            "description": "Ajustes e observações fiscais quando esse artefato estiver materializado no CNPJ.",
+        },
+        {
+            "id": "efd_k200_legado",
+            "label": "K200",
+            "stage": stage_label(k200),
+            "description": "Posição de estoque escriturada quando esse artefato já existir no acervo do contribuinte.",
         },
     ]
     next_steps = [
-        "mapear SQLs base para seleção de EFD válida e extemporâneos",
-        "materializar datasets por bloco e por registro prioritário",
-        "expor detalhe, árvore e dicionário por dataset canônico",
+        "localizar e materializar a camada de arquivos válidos e retificadoras",
+        "abrir visão por bloco e por registro a partir dos parquets já presentes",
+        "expandir a ponte real para C100, C197 e K200 quando esses artefatos estiverem disponíveis",
     ]
-    return build_domain_summary(
+    summary = build_domain_summary(
         domain="efd",
         title="EFD",
         subtitle="Resumo, blocos, registros, árvore e dicionário da escrituração.",
@@ -62,6 +188,9 @@ def _payload(cnpj: str | None) -> dict[str, object]:
         datasets=datasets,
         next_steps=next_steps,
     )
+    if cnpj:
+        summary["status"] = "ponte_legada_ativa"
+    return summary
 
 
 @router.get("/health")
@@ -71,10 +200,11 @@ def health() -> dict[str, str]:
 
 @router.get("/resumo")
 def resumo(cnpj: str | None = None) -> dict[str, object]:
-    return _payload(cnpj)
+    return _payload(_sanitize(cnpj))
 
 
 @router.get("/datasets")
 def datasets(cnpj: str | None = None) -> dict[str, object]:
-    payload = _payload(cnpj)
-    return build_dataset_listing("efd", cnpj, payload["datasets"])
+    cnpj_sanitized = _sanitize(cnpj)
+    payload = _payload(cnpj_sanitized)
+    return build_dataset_listing("efd", cnpj_sanitized, payload["datasets"])
