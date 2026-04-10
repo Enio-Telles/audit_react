@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from observabilidade.openlineage import LineageDataset, get_openlineage_emitter
+from utilitarios.dataset_registry import catalogo_resumido
 from utilitarios.delta_lake import get_delta_runtime_config
 from utilitarios.sql_cache import get_sql_catalog_cache
 
@@ -44,6 +45,7 @@ def status() -> dict:
         "sql_cache": get_sql_catalog_cache().stats(),
         "openlineage": emitter.status(),
         "delta": get_delta_runtime_config(),
+        "dataset_catalog": catalogo_resumido(),
     }
 
 

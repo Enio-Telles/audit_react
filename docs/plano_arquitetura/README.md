@@ -34,6 +34,7 @@ A arquitetura proposta já saiu do plano e entrou em operação inicial dentro d
 - helper Delta Lake com chaveamento por ambiente em `src/utilitarios/delta_lake.py`
 - backend fiscal novo inteiro preparado para ler Parquet ou Delta conforme o dataset materializado
 - `ParquetService` preparado para listar, ler e salvar Parquet ou Delta
+- catálogo canônico de datasets com aliases e resolução Delta/Parquet em `src/utilitarios/dataset_registry.py`
 - stack local de Prometheus/Grafana/Marquez em `infra/observability/`
 
 ## Migração das abas atuais
@@ -63,5 +64,6 @@ Use `00_CONSOLIDADO_MODULO_FISCAL.md` como visão concatenada do estado atual, d
 - `12_VALIDACAO_LOCAL_DELTA_LINEAGE_OBSERVABILIDADE.md`
 - `13_LEITURA_ADAPTATIVA_PARQUET_DELTA.md`
 - `14_COBERTURA_DELTA_NOS_DOMINIOS_FISCAIS.md`
+- `15_CATALOGO_CANONICO_DATASETS.md`
 - `AGENTS_NOVO.md`
 - `AGENTS_SQL_NOVO.md`
