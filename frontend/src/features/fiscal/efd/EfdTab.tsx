@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import type { PageResult } from "../../../api/types";
@@ -105,6 +105,9 @@ export function EfdTab() {
   const selectedCnpj = useAppStore((state) => state.selectedCnpj);
   const [activeDataset, setActiveDataset] = useState<EfdDatasetKey>("c170");
   const [page, setPage] = useState(1);
+  const [filterText, setFilterText] = useState("");
+  const [sortBy, setSortBy] = useState("");
+  const [sortDesc, setSortDesc] = useState(false);
   const pageSize = 50;
 
   const summaryQuery = useQuery({
@@ -113,19 +116,42 @@ export function EfdTab() {
   });
 
   const tableQuery = useQuery({
-    queryKey: ["fiscal", "efd", activeDataset, selectedCnpj ?? "sem-cnpj", page],
+    queryKey: [
+      "fiscal",
+      "efd",
+      activeDataset,
+      selectedCnpj ?? "sem-cnpj",
+      page,
+      filterText,
+      sortBy,
+      sortDesc,
+    ],
     queryFn: () => {
       if (!selectedCnpj) {
         throw new Error("Selecione um CNPJ para carregar a EFD.");
       }
+      const options = {
+        page,
+        pageSize,
+        sortBy: sortBy || undefined,
+        sortDesc,
+        filterText: filterText.trim() || undefined,
+      };
       return activeDataset === "c170"
-        ? fiscalFeatureApi.getEfdC170(selectedCnpj, page, pageSize)
-        : fiscalFeatureApi.getEfdBlocoH(selectedCnpj, page, pageSize);
+        ? fiscalFeatureApi.getEfdC170(selectedCnpj, options)
+        : fiscalFeatureApi.getEfdBlocoH(selectedCnpj, options);
     },
     enabled: Boolean(selectedCnpj),
   });
 
+  useEffect(() => {
+    setPage(1);
+    setSortBy("");
+    setSortDesc(false);
+  }, [activeDataset]);
+
   const totalPages = tableQuery.data?.total_pages ?? 1;
+  const sortColumns = useMemo(() => tableQuery.data?.all_columns ?? [], [tableQuery.data]);
 
   return (
     <FiscalPageShell
@@ -162,6 +188,45 @@ export function EfdTab() {
                 </button>
               );
             })}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-700 bg-slate-900/30 p-4">
+          <div className="mb-3 text-sm font-semibold text-white">Filtro e ordenação</div>
+          <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_auto]">
+            <input
+              value={filterText}
+              onChange={(event) => {
+                setFilterText(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Buscar texto em qualquer coluna"
+              className="rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 outline-none focus:border-blue-500"
+            />
+            <select
+              value={sortBy}
+              onChange={(event) => {
+                setSortBy(event.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 outline-none focus:border-blue-500"
+            >
+              <option value="">Sem ordenação</option>
+              {sortColumns.map((column) => (
+                <option key={column} value={column}>
+                  {column}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => {
+                setSortDesc((current) => !current);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 hover:bg-slate-900/50"
+            >
+              {sortDesc ? "Desc" : "Asc"}
+            </button>
           </div>
         </section>
 

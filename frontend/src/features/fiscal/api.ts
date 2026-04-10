@@ -12,9 +12,27 @@ function getResumo(path: string, cnpj?: string | null) {
     .then((response) => response.data);
 }
 
-function getPage(path: string, cnpj: string, page: number, pageSize: number) {
+interface PageQueryOptions {
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortDesc?: boolean;
+  filterText?: string;
+}
+
+function getPage(path: string, cnpj: string, options: PageQueryOptions = {}) {
+  const { page = 1, pageSize = 50, sortBy, sortDesc, filterText } = options;
   return api
-    .get<PageResult>(path, { params: { cnpj, page, page_size: pageSize } })
+    .get<PageResult>(path, {
+      params: {
+        cnpj,
+        page,
+        page_size: pageSize,
+        ...(sortBy ? { sort_by: sortBy } : {}),
+        ...(sortDesc ? { sort_desc: true } : {}),
+        ...(filterText ? { filter_text: filterText } : {}),
+      },
+    })
     .then((response) => response.data);
 }
 
@@ -26,40 +44,40 @@ export const fiscalFeatureApi = {
     getResumo("/fiscal/fiscalizacao/resumo", cnpj),
   getAnaliseResumo: (cnpj?: string | null) =>
     getResumo("/fiscal/analise/resumo", cnpj),
-  getEfdC170: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/efd/c170", cnpj, page, pageSize),
-  getEfdBlocoH: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/efd/bloco-h", cnpj, page, pageSize),
-  getDocumentosNfe: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/documentos/nfe", cnpj, page, pageSize),
-  getDocumentosNfce: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/documentos/nfce", cnpj, page, pageSize),
-  getDocumentosCte: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/documentos/cte", cnpj, page, pageSize),
-  getDocumentosInfoComplementar: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/documentos/info-complementar", cnpj, page, pageSize),
-  getDocumentosContatos: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/documentos/contatos", cnpj, page, pageSize),
+  getEfdC170: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/efd/c170", cnpj, options),
+  getEfdBlocoH: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/efd/bloco-h", cnpj, options),
+  getDocumentosNfe: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/documentos/nfe", cnpj, options),
+  getDocumentosNfce: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/documentos/nfce", cnpj, options),
+  getDocumentosCte: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/documentos/cte", cnpj, options),
+  getDocumentosInfoComplementar: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/documentos/info-complementar", cnpj, options),
+  getDocumentosContatos: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/documentos/contatos", cnpj, options),
   getFiscalizacaoCadastro: (cnpj: string) =>
     api
       .get<FiscalizacaoCadastroRecord>("/fiscal/fiscalizacao/cadastro", { params: { cnpj } })
       .then((response) => response.data),
   getFiscalizacaoMalhas: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/fiscalizacao/malhas", cnpj, page, pageSize),
+    getPage("/fiscal/fiscalizacao/malhas", cnpj, { page, pageSize }),
   getFiscalizacaoDsfs: (cnpj: string) =>
     api
       .get<FiscalizacaoDsfRecord[]>("/fiscal/fiscalizacao/dsfs", { params: { cnpj } })
       .then((response) => response.data),
   getAnaliseEstoqueMov: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/estoque-mov", cnpj, page, pageSize),
+    getPage("/fiscal/analise/estoque-mov", cnpj, { page, pageSize }),
   getAnaliseEstoqueMensal: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/estoque-mensal", cnpj, page, pageSize),
+    getPage("/fiscal/analise/estoque-mensal", cnpj, { page, pageSize }),
   getAnaliseEstoqueAnual: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/estoque-anual", cnpj, page, pageSize),
+    getPage("/fiscal/analise/estoque-anual", cnpj, { page, pageSize }),
   getAnaliseAgregacao: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/agregacao", cnpj, page, pageSize),
+    getPage("/fiscal/analise/agregacao", cnpj, { page, pageSize }),
   getAnaliseConversao: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/conversao", cnpj, page, pageSize),
+    getPage("/fiscal/analise/conversao", cnpj, { page, pageSize }),
   getAnaliseProdutosBase: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/produtos-base", cnpj, page, pageSize),
+    getPage("/fiscal/analise/produtos-base", cnpj, { page, pageSize }),
 };

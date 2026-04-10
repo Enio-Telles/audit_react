@@ -1,6 +1,6 @@
 # Plano de Arquitetura Fiscal
 
-Este diretório consolida a proposta oficial de reestruturação do módulo fiscal do projeto.
+Este diretório consolida a proposta e o estado atual da reestruturação do módulo fiscal do projeto.
 
 ## Princípio operacional
 
@@ -15,14 +15,28 @@ Este diretório consolida a proposta oficial de reestruturação do módulo fisc
 - Fiscalização
 - Cruzamentos / Verificações / Classificação dos Produtos
 
+## Situação atual de implementação
+
+A arquitetura proposta já saiu do plano e entrou em operação inicial dentro do repositório:
+
+- **EFD**: resumo real + tabela operacional para `C170` e `Bloco H`;
+- **Documentos Fiscais**: resumo real + tabelas operacionais para `NF-e`, `NFC-e`, `CT-e`, `informações complementares` e `contatos`;
+- **Fiscalização**: resumo real + painel de cadastro + tabela de malhas + lista de DSFs relacionadas;
+- **Análise Fiscal**: resumo real + tabelas operacionais para estoque, agregação, conversão e produtos-base.
+
 ## Migração das abas atuais
 
 - Estoque -> Cruzamentos
 - Agregação -> Verificações
 - Conversão -> Verificações
 
+## Documento consolidado
+
+Use `00_CONSOLIDADO_MODULO_FISCAL.md` como visão concatenada do estado atual, da arquitetura alvo, dos contratos e da migração.
+
 ## Arquivos deste diretório
 
+- `00_CONSOLIDADO_MODULO_FISCAL.md`
 - `01_MAPA_ESTRUTURA_FISCAL.md`
 - `02_CATALOGO_DATASETS_PARQUET.md`
 - `03_CONTRATO_ENDPOINTS_FISCAL.md`
@@ -34,5 +48,3 @@ Este diretório consolida a proposta oficial de reestruturação do módulo fisc
 - `09_SEQUENCIA_EXECUCAO.md`
 - `AGENTS_NOVO.md`
 - `AGENTS_SQL_NOVO.md`
-
-> Estes documentos passam a ser a referência arquitetural proposta para a evolução do módulo fiscal. Os arquivos raiz legados podem ser migrados depois sem perda de rastreabilidade.

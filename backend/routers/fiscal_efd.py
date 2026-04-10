@@ -138,17 +138,39 @@ def _empty_page(page: int, page_size: int) -> dict[str, Any]:
     }
 
 
+def _apply_filter(df: pl.DataFrame, filter_text: str | None = None) -> pl.DataFrame:
+    if not filter_text or df.is_empty():
+        return df
+    term = filter_text.strip().lower()
+    if not term:
+        return df
+    try:
+        exprs = [
+            pl.col(column)
+            .cast(pl.Utf8, strict=False)
+            .fill_null("")
+            .str.to_lowercase()
+            .str.contains(term, literal=True)
+            for column in df.columns
+        ]
+        return df.filter(pl.any_horizontal(exprs))
+    except Exception:
+        return df
+
+
 def _page_from_parquet(
     path: Path,
     page: int = 1,
     page_size: int = 50,
     sort_by: str | None = None,
     sort_desc: bool = False,
+    filter_text: str | None = None,
 ) -> dict[str, Any]:
     if not path.exists():
         return _empty_page(page, page_size)
 
     df = pl.read_parquet(path)
+    df = _apply_filter(df, filter_text)
     if sort_by and sort_by in df.columns:
         try:
             df = df.sort(sort_by, descending=sort_desc, nulls_last=True)
@@ -276,6 +298,7 @@ def c170_rows(
     page_size: int = 50,
     sort_by: str | None = None,
     sort_desc: bool = False,
+    filter_text: str | None = None,
 ) -> dict[str, Any]:
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
@@ -286,6 +309,7 @@ def c170_rows(
         page_size=page_size,
         sort_by=sort_by,
         sort_desc=sort_desc,
+        filter_text=filter_text,
     )
 
 
@@ -296,6 +320,7 @@ def bloco_h_rows(
     page_size: int = 50,
     sort_by: str | None = None,
     sort_desc: bool = False,
+    filter_text: str | None = None,
 ) -> dict[str, Any]:
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
@@ -306,4 +331,5 @@ def bloco_h_rows(
         page_size=page_size,
         sort_by=sort_by,
         sort_desc=sort_desc,
+        filter_text=filter_text,
     )
