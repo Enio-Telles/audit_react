@@ -88,6 +88,8 @@ Já implementado no módulo novo:
 - leitura do cache `dados_cadastrais.parquet` do Fisconforme;
 - tabela operacional de `malhas.parquet`;
 - listagem de DSFs relacionadas ao CNPJ;
+- filtro textual global nas malhas;
+- ordenação nas malhas;
 - paginação de malhas.
 
 ### 4.4 Análise Fiscal
@@ -102,6 +104,8 @@ Já implementado no módulo novo:
   - `produtos_agrupados`
   - `fatores_conversao`
   - `produtos_final`
+- filtro textual global;
+- ordenação por coluna;
 - paginação.
 
 ---
@@ -168,7 +172,6 @@ No desenho novo, elas já têm equivalentes ou pontes diretas no módulo fiscal.
 ### Prioridade alta
 
 - adicionar filtros por coluna no backend novo;
-- adicionar ordenação também em Fiscalização e Análise;
 - criar detalhe de linha/registro nas tabelas novas;
 - reduzir a dependência visual das abas legadas.
 

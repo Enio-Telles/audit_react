@@ -62,22 +62,22 @@ export const fiscalFeatureApi = {
     api
       .get<FiscalizacaoCadastroRecord>("/fiscal/fiscalizacao/cadastro", { params: { cnpj } })
       .then((response) => response.data),
-  getFiscalizacaoMalhas: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/fiscalizacao/malhas", cnpj, { page, pageSize }),
+  getFiscalizacaoMalhas: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/fiscalizacao/malhas", cnpj, options),
   getFiscalizacaoDsfs: (cnpj: string) =>
     api
       .get<FiscalizacaoDsfRecord[]>("/fiscal/fiscalizacao/dsfs", { params: { cnpj } })
       .then((response) => response.data),
-  getAnaliseEstoqueMov: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/estoque-mov", cnpj, { page, pageSize }),
-  getAnaliseEstoqueMensal: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/estoque-mensal", cnpj, { page, pageSize }),
-  getAnaliseEstoqueAnual: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/estoque-anual", cnpj, { page, pageSize }),
-  getAnaliseAgregacao: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/agregacao", cnpj, { page, pageSize }),
-  getAnaliseConversao: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/conversao", cnpj, { page, pageSize }),
-  getAnaliseProdutosBase: (cnpj: string, page = 1, pageSize = 50) =>
-    getPage("/fiscal/analise/produtos-base", cnpj, { page, pageSize }),
+  getAnaliseEstoqueMov: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/analise/estoque-mov", cnpj, options),
+  getAnaliseEstoqueMensal: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/analise/estoque-mensal", cnpj, options),
+  getAnaliseEstoqueAnual: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/analise/estoque-anual", cnpj, options),
+  getAnaliseAgregacao: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/analise/agregacao", cnpj, options),
+  getAnaliseConversao: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/analise/conversao", cnpj, options),
+  getAnaliseProdutosBase: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/analise/produtos-base", cnpj, options),
 };

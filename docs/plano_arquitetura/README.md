@@ -19,10 +19,10 @@ Este diretório consolida a proposta e o estado atual da reestruturação do mó
 
 A arquitetura proposta já saiu do plano e entrou em operação inicial dentro do repositório:
 
-- **EFD**: resumo real + tabela operacional para `C170` e `Bloco H`;
-- **Documentos Fiscais**: resumo real + tabelas operacionais para `NF-e`, `NFC-e`, `CT-e`, `informações complementares` e `contatos`;
-- **Fiscalização**: resumo real + painel de cadastro + tabela de malhas + lista de DSFs relacionadas;
-- **Análise Fiscal**: resumo real + tabelas operacionais para estoque, agregação, conversão e produtos-base.
+- **EFD**: resumo real + tabela operacional para `C170` e `Bloco H` + filtro textual + ordenação;
+- **Documentos Fiscais**: resumo real + tabelas operacionais para `NF-e`, `NFC-e`, `CT-e`, `informações complementares` e `contatos` + filtro textual + ordenação;
+- **Fiscalização**: resumo real + painel de cadastro + tabela de malhas + lista de DSFs relacionadas + filtro textual + ordenação nas malhas;
+- **Análise Fiscal**: resumo real + tabelas operacionais para estoque, agregação, conversão e produtos-base + filtro textual + ordenação.
 
 ## Migração das abas atuais
 
