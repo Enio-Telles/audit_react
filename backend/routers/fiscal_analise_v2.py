@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from interface_grafica.config import CNPJ_ROOT
 
+from .fiscal_dataset_locator import locate_dataset
 from .fiscal_storage import read_materialized_frame, resolve_materialized_path
 from .fiscal_summary import (
     build_dataset_listing,
@@ -34,28 +35,25 @@ def _pasta_produtos(cnpj: str) -> Path:
 
 def _path_bloco_h(cnpj: str) -> Path:
     base_cnpj = CNPJ_ROOT / cnpj
-    candidatos = [
+    return locate_dataset(
+        cnpj,
+        "bloco_h",
         _pasta_produtos(cnpj) / f"bloco_h_{cnpj}.parquet",
         base_cnpj / "arquivos_parquet" / f"bloco_h_{cnpj}.parquet",
         base_cnpj / "arquivos_parquet" / "fiscal" / "efd" / f"bloco_h_{cnpj}.parquet",
-    ]
-    for path in candidatos:
-        resolved = resolve_materialized_path(path)
-        if resolved.exists():
-            return resolved
-    return resolve_materialized_path(candidatos[0])
+    )
 
 
 def _analysis_paths(cnpj: str) -> dict[str, Path]:
     pasta_produtos = _pasta_produtos(cnpj)
     return {
-        "mov_estoque": resolve_materialized_path(pasta_produtos / f"mov_estoque_{cnpj}.parquet"),
-        "estoque_mensal": resolve_materialized_path(pasta_produtos / f"aba_mensal_{cnpj}.parquet"),
-        "estoque_anual": resolve_materialized_path(pasta_produtos / f"aba_anual_{cnpj}.parquet"),
+        "mov_estoque": locate_dataset(cnpj, "mov_estoque", pasta_produtos / f"mov_estoque_{cnpj}.parquet"),
+        "estoque_mensal": locate_dataset(cnpj, "aba_mensal", pasta_produtos / f"aba_mensal_{cnpj}.parquet"),
+        "estoque_anual": locate_dataset(cnpj, "aba_anual", pasta_produtos / f"aba_anual_{cnpj}.parquet"),
         "bloco_h": _path_bloco_h(cnpj),
-        "fatores_conversao": resolve_materialized_path(pasta_produtos / f"fatores_conversao_{cnpj}.parquet"),
-        "produtos_agrupados": resolve_materialized_path(pasta_produtos / f"produtos_agrupados_{cnpj}.parquet"),
-        "produtos_final": resolve_materialized_path(pasta_produtos / f"produtos_final_{cnpj}.parquet"),
+        "fatores_conversao": locate_dataset(cnpj, "fatores_conversao", pasta_produtos / f"fatores_conversao_{cnpj}.parquet"),
+        "produtos_agrupados": locate_dataset(cnpj, "produtos_agrupados", pasta_produtos / f"produtos_agrupados_{cnpj}.parquet"),
+        "produtos_final": locate_dataset(cnpj, "produtos_final", pasta_produtos / f"produtos_final_{cnpj}.parquet"),
     }
 
 

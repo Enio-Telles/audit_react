@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from interface_grafica.config import CNPJ_ROOT
 
+from .fiscal_dataset_locator import locate_dataset
 from .fiscal_storage import read_materialized_frame, resolve_materialized_path
 from .fiscal_summary import (
     build_dataset_listing,
@@ -41,32 +42,32 @@ def _first_existing(candidates: list[Path]) -> Path:
 
 
 def _find_c170(cnpj: str) -> Path:
-    return _first_existing(
-        [
-            _base_cnpj(cnpj) / "arquivos_parquet" / f"c170_xml_{cnpj}.parquet",
-            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"c170_xml_{cnpj}.parquet",
-            _base_cnpj(cnpj) / "analises" / "produtos" / f"c170_xml_{cnpj}.parquet",
-        ]
+    return locate_dataset(
+        cnpj,
+        "c170_xml",
+        _base_cnpj(cnpj) / "arquivos_parquet" / f"c170_xml_{cnpj}.parquet",
+        _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"c170_xml_{cnpj}.parquet",
+        _base_cnpj(cnpj) / "analises" / "produtos" / f"c170_xml_{cnpj}.parquet",
     )
 
 
 def _find_c176(cnpj: str) -> Path:
-    return _first_existing(
-        [
-            _base_cnpj(cnpj) / "arquivos_parquet" / f"c176_xml_{cnpj}.parquet",
-            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"c176_xml_{cnpj}.parquet",
-            _base_cnpj(cnpj) / "analises" / "produtos" / f"c176_xml_{cnpj}.parquet",
-        ]
+    return locate_dataset(
+        cnpj,
+        "c176_xml",
+        _base_cnpj(cnpj) / "arquivos_parquet" / f"c176_xml_{cnpj}.parquet",
+        _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"c176_xml_{cnpj}.parquet",
+        _base_cnpj(cnpj) / "analises" / "produtos" / f"c176_xml_{cnpj}.parquet",
     )
 
 
 def _find_bloco_h(cnpj: str) -> Path:
-    return _first_existing(
-        [
-            _base_cnpj(cnpj) / "analises" / "produtos" / f"bloco_h_{cnpj}.parquet",
-            _base_cnpj(cnpj) / "arquivos_parquet" / f"bloco_h_{cnpj}.parquet",
-            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"bloco_h_{cnpj}.parquet",
-        ]
+    return locate_dataset(
+        cnpj,
+        "bloco_h",
+        _base_cnpj(cnpj) / "analises" / "produtos" / f"bloco_h_{cnpj}.parquet",
+        _base_cnpj(cnpj) / "arquivos_parquet" / f"bloco_h_{cnpj}.parquet",
+        _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"bloco_h_{cnpj}.parquet",
     )
 
 
