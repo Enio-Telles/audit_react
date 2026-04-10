@@ -870,7 +870,16 @@ def _salvar_notificacao_em_disco(
     output_dir: str,
 ) -> str:
     try:
-        target_dir = Path(output_dir).expanduser()
+        from utilitarios.project_paths import DATA_ROOT
+        safe_base = (DATA_ROOT / "notificacoes").resolve()
+        folder_norm = Path(output_dir.strip().replace("\\", "/"))
+        if folder_norm.is_absolute() or ".." in folder_norm.parts:
+            return ""
+
+        target_dir = (safe_base / folder_norm).resolve()
+        if not str(target_dir).startswith(str(safe_base)):
+            return ""
+
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / nome_arquivo
         target_path.write_text(conteudo, encoding="utf-8")
@@ -1065,11 +1074,16 @@ def gerar_notificacoes_lote(req: GerarNotificacoesLoteRequest):
     headers = {"Content-Disposition": f'attachment; filename="{nome_zip}"'}
     if output_dir:
         try:
-            target_dir = Path(output_dir).expanduser()
-            target_dir.mkdir(parents=True, exist_ok=True)
-            (target_dir / nome_zip).write_bytes(zip_buffer.getvalue())
-            headers["X-Saved-To"] = str(target_dir)
-            headers["X-Saved-Count"] = str(len(cnpjs_validos))
+            from utilitarios.project_paths import DATA_ROOT
+            safe_base = (DATA_ROOT / "notificacoes").resolve()
+            folder_norm = Path(output_dir.strip().replace("\\", "/"))
+            if not folder_norm.is_absolute() and ".." not in folder_norm.parts:
+                target_dir = (safe_base / folder_norm).resolve()
+                if str(target_dir).startswith(str(safe_base)):
+                    target_dir.mkdir(parents=True, exist_ok=True)
+                    (target_dir / nome_zip).write_bytes(zip_buffer.getvalue())
+                    headers["X-Saved-To"] = str(target_dir)
+                    headers["X-Saved-Count"] = str(len(cnpjs_validos))
         except OSError as exc:
             logger.warning("Não foi possível salvar ZIP em disco (%s): %s", output_dir, exc)
     return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
