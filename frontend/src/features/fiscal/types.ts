@@ -30,3 +30,20 @@ export interface FiscalDomainSummary {
   next_steps: string[];
   legacy_shortcuts: FiscalLegacyShortcut[];
 }
+
+export interface FiscalizacaoCadastroRecord {
+  [key: string]: unknown;
+}
+
+export interface FiscalizacaoDsfRecord {
+  id: string;
+  dsf: string;
+  referencia: string;
+  auditor: string;
+  cargo_titulo: string;
+  orgao_origem: string;
+  updated_at: string;
+  created_at: string;
+  pdf_file_name: string;
+  cnpjs_count: number;
+}
