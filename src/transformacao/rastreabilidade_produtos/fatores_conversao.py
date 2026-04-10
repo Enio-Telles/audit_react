@@ -62,11 +62,17 @@ def _normalizar_descricao_expr(col: str, alias: str = "descricao_normalizada") -
 
 def _salvar_log_sem_compra(df_sem_compra: pl.DataFrame, pasta_analises: Path, cnpj: str) -> None:
     salvar_para_parquet(df_sem_compra, pasta_analises, f"log_sem_preco_medio_compra_{cnpj}.parquet")
+
+    counts = df_sem_compra.select(
+        pl.col("tem_preco_venda").sum().alias("com_fallback"),
+        (~pl.col("tem_preco_venda")).sum().alias("sem_preco")
+    ).row(0)
+
     resumo = {
         "cnpj": cnpj,
         "qtd_itens_sem_preco_compra": int(df_sem_compra.height),
-        "qtd_itens_com_fallback_venda": int(df_sem_compra.filter(pl.col("tem_preco_venda")).height),
-        "qtd_itens_sem_preco_algum": int(df_sem_compra.filter(~pl.col("tem_preco_venda")).height),
+        "qtd_itens_com_fallback_venda": int(counts[0]),
+        "qtd_itens_sem_preco_algum": int(counts[1]),
     }
     with open(pasta_analises / f"log_sem_preco_medio_compra_{cnpj}.json", "w", encoding="utf-8") as f:
         json.dump(resumo, f, ensure_ascii=False, indent=2)
@@ -259,11 +265,17 @@ def _salvar_log_reconciliacao_overrides(df_log: pl.DataFrame, pasta_analises: Pa
         return
 
     salvar_para_parquet(df_log, pasta_analises, f"log_reconciliacao_overrides_fatores_{cnpj}.parquet")
+
+    counts = df_log.select(
+        (pl.col("acao") == "remapeado").sum().alias("remapeado"),
+        (pl.col("acao") == "descartado").sum().alias("descartado")
+    ).row(0)
+
     resumo = {
         "cnpj": cnpj,
         "qtd_registros": int(df_log.height),
-        "qtd_remapeados": int(df_log.filter(pl.col("acao") == "remapeado").height),
-        "qtd_descartados": int(df_log.filter(pl.col("acao") == "descartado").height),
+        "qtd_remapeados": int(counts[0]),
+        "qtd_descartados": int(counts[1]),
     }
     with open(pasta_analises / f"log_reconciliacao_overrides_fatores_{cnpj}.json", "w", encoding="utf-8") as f:
         json.dump(resumo, f, ensure_ascii=False, indent=2)

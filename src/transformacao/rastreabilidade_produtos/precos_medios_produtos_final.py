@@ -173,11 +173,17 @@ def calcular_precos_medios_produtos_final(
 
     if salvar_logs:
         salvar_para_parquet(df_sem_compra, pasta_analises, f"log_sem_preco_medio_compra_{cnpj}.parquet")
+
+        counts = df_sem_compra.select(
+            pl.col("tem_preco_venda").sum().alias("com_fallback"),
+            (~pl.col("tem_preco_venda")).sum().alias("sem_preco")
+        ).row(0)
+
         resumo = {
             "cnpj": cnpj,
             "qtd_itens_sem_preco_compra": int(df_sem_compra.height),
-            "qtd_itens_com_fallback_venda": int(df_sem_compra.filter(pl.col("tem_preco_venda")).height),
-            "qtd_itens_sem_preco_algum": int(df_sem_compra.filter(~pl.col("tem_preco_venda")).height),
+            "qtd_itens_com_fallback_venda": int(counts[0]),
+            "qtd_itens_sem_preco_algum": int(counts[1]),
         }
         with open(pasta_analises / f"log_sem_preco_medio_compra_{cnpj}.json", "w", encoding="utf-8") as f:
             json.dump(resumo, f, ensure_ascii=False, indent=2)
