@@ -24,6 +24,13 @@ A arquitetura proposta já saiu do plano e entrou em operação inicial dentro d
 - **Fiscalização**: resumo real + painel de cadastro + tabela de malhas + lista de DSFs relacionadas + filtro textual + filtro por coluna + ordenação nas malhas + detalhe da malha selecionada;
 - **Análise Fiscal**: resumo real + tabelas operacionais para estoque, agregação, conversão e produtos-base + filtro textual + filtro por coluna + ordenação + detalhe de registro.
 
+## Trilha de infraestrutura já endereçada
+
+- cache L1/L2 para leitura de SQL (`src/utilitarios/sql_cache.py` + `ler_sql.py`)
+- catálogo SQL com índice reutilizável e invalidação (`src/utilitarios/sql_catalog.py`)
+- observabilidade básica reutilizável com logging JSON e métricas opcionais (`src/observabilidade/`)
+- registro versionado de schemas em `workspace/app_state/schema_registry.json`
+
 ## Migração das abas atuais
 
 - Estoque -> Cruzamentos
@@ -46,5 +53,6 @@ Use `00_CONSOLIDADO_MODULO_FISCAL.md` como visão concatenada do estado atual, d
 - `07_BACKLOG_DETALHADO_POR_ETAPA.md`
 - `08_CRITERIOS_ACEITE_TESTES_RISCOS.md`
 - `09_SEQUENCIA_EXECUCAO.md`
+- `10_SQL_CACHE_OBSERVABILIDADE_SCHEMAS.md`
 - `AGENTS_NOVO.md`
 - `AGENTS_SQL_NOVO.md`
