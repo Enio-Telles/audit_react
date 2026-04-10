@@ -39,7 +39,8 @@ A arquitetura proposta já saiu do plano e entrou em operação inicial dentro d
 - wrappers de materialização canônica para `c170_xml`, `c176_xml`, `fatores_conversao`, `produtos_agrupados` e `produtos_final`
 - cache do Fisconforme adaptado para a trilha canônica (`dados_cadastrais`, `malhas`)
 - wrapper de materialização canônica para `bloco_h`
-- resolução centralizada de datasets em parte dos routers fiscais (`EFD`, `Análise` e `Documentos Fiscais`)
+- resolução centralizada de datasets nos routers fiscais principais (`EFD`, `Análise`, `Documentos Fiscais` e `Fiscalização`)
+- catálogo expandido para datasets documentais auxiliares
 - stack local de Prometheus/Grafana/Marquez em `infra/observability/`
 
 ## Migração das abas atuais
@@ -75,5 +76,6 @@ Use `00_CONSOLIDADO_MODULO_FISCAL.md` como visão concatenada do estado atual, d
 - `18_FISCONFORME_BLOCO_H_CANONICOS.md`
 - `19_RESOLUCAO_CENTRALIZADA_ROUTERS.md`
 - `20_DOCUMENTOS_FISCAIS_LOCALIZADOR.md`
+- `21_CATALOGO_DOCUMENTAL_E_FISCALIZACAO.md`
 - `AGENTS_NOVO.md`
 - `AGENTS_SQL_NOVO.md`

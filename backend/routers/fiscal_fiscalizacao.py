@@ -9,9 +9,9 @@ from typing import Any
 import polars as pl
 from fastapi import APIRouter
 
-from interface_grafica.config import CNPJ_ROOT
 from utilitarios.project_paths import APP_STATE_ROOT
 
+from .fiscal_dataset_locator import locate_dataset
 from .fiscal_storage import read_materialized_frame, resolve_materialized_path
 from .fiscal_summary import (
     build_dataset_listing,
@@ -32,16 +32,12 @@ def _sanitize(cnpj: str | None) -> str | None:
     return cleaned or None
 
 
-def _fisconforme_dir(cnpj: str) -> Path:
-    return CNPJ_ROOT / cnpj / "fisconforme"
-
-
 def _dados_cadastrais_path(cnpj: str) -> Path:
-    return resolve_materialized_path(_fisconforme_dir(cnpj) / "dados_cadastrais.parquet")
+    return locate_dataset(cnpj, "dados_cadastrais")
 
 
 def _malhas_path(cnpj: str) -> Path:
-    return resolve_materialized_path(_fisconforme_dir(cnpj) / "malhas.parquet")
+    return locate_dataset(cnpj, "malhas")
 
 
 def _safe_value(v: Any) -> Any:

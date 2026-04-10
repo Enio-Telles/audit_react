@@ -60,6 +60,12 @@ DATASET_ALIASES: dict[str, str] = {
     "movimentacao-estoque": "mov_estoque",
     "tbdocumentos": "tb_documentos",
     "documentos_base": "tb_documentos",
+    "cte": "cte_base",
+    "documentos_cte": "cte_base",
+    "info_complementar": "docs_info_complementar",
+    "informacoes_complementares": "docs_info_complementar",
+    "contatos_documentos": "docs_contatos",
+    "email_nfe": "docs_contatos",
 }
 
 
@@ -179,6 +185,27 @@ CATALOGO: tuple[DatasetDefinicao, ...] = (
         tipo="por_cnpj",
         tabelas_oracle=("BI.FATO_NFCE_DETALHE",),
         descricao="Extração completa de NFCe por CNPJ.",
+    ),
+    DatasetDefinicao(
+        dataset_id="cte_base",
+        sql_id=None,
+        tipo="por_cnpj",
+        tabelas_oracle=(),
+        descricao="Extração documental de CT-e por CNPJ.",
+    ),
+    DatasetDefinicao(
+        dataset_id="docs_info_complementar",
+        sql_id=None,
+        tipo="por_cnpj",
+        tabelas_oracle=(),
+        descricao="Informações complementares extraídas dos documentos fiscais.",
+    ),
+    DatasetDefinicao(
+        dataset_id="docs_contatos",
+        sql_id=None,
+        tipo="por_cnpj",
+        tabelas_oracle=(),
+        descricao="Contatos extraídos dos documentos fiscais.",
     ),
     DatasetDefinicao(
         dataset_id="efd_c100",
@@ -450,6 +477,23 @@ def _caminhos_legados(cnpj: str, dataset_id: str) -> list[Path]:
             base / f"nfce_{cnpj}.parquet",
             base / "fiscal" / "documentos" / f"NFCe_{cnpj}.parquet",
             base / f"nfce_agr_{cnpj}.parquet",
+        ],
+        "cte_base": [
+            base / f"CTe_{cnpj}.parquet",
+            base / f"cte_{cnpj}.parquet",
+            base / "fiscal" / "documentos" / f"CTe_{cnpj}.parquet",
+            base / f"cte_xml_{cnpj}.parquet",
+            base / f"CTe_xml_{cnpj}.parquet",
+        ],
+        "docs_info_complementar": [
+            base / f"nfe_info_compl_{cnpj}.parquet",
+            base / f"NFe_info_compl_{cnpj}.parquet",
+            base / f"docs_nfe_info_complementar_{cnpj}.parquet",
+        ],
+        "docs_contatos": [
+            base / f"email_nfe_{cnpj}.parquet",
+            base / f"Email_NFe_{cnpj}.parquet",
+            base / f"docs_nfe_contatos_{cnpj}.parquet",
         ],
         "efd_c100": [base / f"c100_{cnpj}.parquet"],
         "efd_c170": [base / f"c170_{cnpj}.parquet"],
