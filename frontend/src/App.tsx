@@ -15,6 +15,10 @@ import { ConversaoTab } from "./components/tabs/ConversaoTab";
 import { EstoqueTab } from "./components/tabs/EstoqueTab";
 import { FisconformeTab } from "./components/tabs/FisconformeTab";
 import { LogsTab } from "./components/tabs/LogsTab";
+import { AnaliseFiscalTab } from "./features/fiscal/analise/AnaliseFiscalTab";
+import { DocumentosFiscaisTab } from "./features/fiscal/documentos_fiscais/DocumentosFiscaisTab";
+import { EfdTab } from "./features/fiscal/efd/EfdTab";
+import { FiscalizacaoTab } from "./features/fiscal/fiscalizacao/FiscalizacaoTab";
 import { DossieTab } from "./features/dossie/components/DossieTab";
 import {
   ler_bootstrap_dossie_da_url,
@@ -30,9 +34,13 @@ const TABS = [
   { id: "dossie", label: "Dossiê" },
   { id: "consulta", label: "Consulta" },
   { id: "sql", label: "Consulta SQL" },
-  { id: "agregacao", label: "Agregacao" },
-  { id: "conversao", label: "Conversao" },
-  { id: "estoque", label: "Estoque" },
+  { id: "efd", label: "EFD" },
+  { id: "documentos-fiscais", label: "Documentos Fiscais" },
+  { id: "fiscalizacao", label: "Fiscalização" },
+  { id: "analise-fiscal", label: "Análise Fiscal" },
+  { id: "agregacao", label: "Agregação (legado)" },
+  { id: "conversao", label: "Conversão (legado)" },
+  { id: "estoque", label: "Estoque (legado)" },
   { id: "logs", label: "Logs" },
 ];
 
@@ -229,6 +237,10 @@ function MainContent() {
           )}
           {activeTab === "consulta" && <ConsultaTab />}
           {activeTab === "sql" && <ConsultaSqlTab />}
+          {activeTab === "efd" && <EfdTab />}
+          {activeTab === "documentos-fiscais" && <DocumentosFiscaisTab />}
+          {activeTab === "fiscalizacao" && <FiscalizacaoTab />}
+          {activeTab === "analise-fiscal" && <AnaliseFiscalTab />}
           {activeTab === "agregacao" && <AgregacaoTab />}
           {activeTab === "conversao" && <ConversaoTab />}
           {activeTab === "estoque" && <EstoqueTab />}
