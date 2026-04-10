@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
+
+import polars as pl
 
 
 FiscalPayload = dict[str, Any]
@@ -38,3 +41,43 @@ def build_dataset_listing(domain: str, cnpj: str | None, datasets: list[dict[str
         "count": len(datasets),
         "items": datasets,
     }
+
+
+def probe_parquet(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "exists": False,
+            "rows": 0,
+            "path": str(path),
+            "status": "ausente",
+        }
+
+    try:
+        rows = int(
+            pl.scan_parquet(path)
+            .select(pl.len().alias("rows"))
+            .collect()
+            .item()
+        )
+        return {
+            "exists": True,
+            "rows": rows,
+            "path": str(path),
+            "status": "materializado",
+        }
+    except Exception as exc:
+        return {
+            "exists": True,
+            "rows": 0,
+            "path": str(path),
+            "status": "erro",
+            "error": str(exc),
+        }
+
+
+def stage_label(probe: dict[str, Any]) -> str:
+    if probe["status"] == "materializado":
+        return f"materializado ({probe['rows']} linhas)"
+    if probe["status"] == "erro":
+        return "erro ao ler"
+    return "ausente"

@@ -1,82 +1,176 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
+from typing import Any
+
 from fastapi import APIRouter
 
-from .fiscal_summary import build_dataset_listing, build_domain_summary
+from interface_grafica.config import CNPJ_ROOT
+
+from .fiscal_summary import (
+    build_dataset_listing,
+    build_domain_summary,
+    probe_parquet,
+    stage_label,
+)
 
 router = APIRouter()
 
 
+def _sanitize(cnpj: str | None) -> str | None:
+    if cnpj is None:
+        return None
+    cleaned = re.sub(r"\D", "", cnpj)
+    return cleaned or None
+
+
+def _pasta_produtos(cnpj: str) -> Path:
+    return CNPJ_ROOT / cnpj / "analises" / "produtos"
+
+
+def _path_bloco_h(cnpj: str) -> Path:
+    base_cnpj = CNPJ_ROOT / cnpj
+    candidatos = [
+        _pasta_produtos(cnpj) / f"bloco_h_{cnpj}.parquet",
+        base_cnpj / "arquivos_parquet" / f"bloco_h_{cnpj}.parquet",
+        base_cnpj / "arquivos_parquet" / "fiscal" / "efd" / f"bloco_h_{cnpj}.parquet",
+    ]
+    for path in candidatos:
+        if path.exists():
+            return path
+    return candidatos[0]
+
+
+def _analysis_probes(cnpj: str | None) -> dict[str, dict[str, Any]]:
+    if not cnpj:
+        return {}
+
+    pasta_produtos = _pasta_produtos(cnpj)
+    return {
+        "mov_estoque": probe_parquet(pasta_produtos / f"mov_estoque_{cnpj}.parquet"),
+        "estoque_mensal": probe_parquet(pasta_produtos / f"aba_mensal_{cnpj}.parquet"),
+        "estoque_anual": probe_parquet(pasta_produtos / f"aba_anual_{cnpj}.parquet"),
+        "bloco_h": probe_parquet(_path_bloco_h(cnpj)),
+        "fatores_conversao": probe_parquet(
+            pasta_produtos / f"fatores_conversao_{cnpj}.parquet"
+        ),
+        "produtos_agrupados": probe_parquet(
+            pasta_produtos / f"produtos_agrupados_{cnpj}.parquet"
+        ),
+        "produtos_final": probe_parquet(
+            pasta_produtos / f"produtos_final_{cnpj}.parquet"
+        ),
+    }
+
+
+def _describe_count(probe: dict[str, Any], singular: str, plural: str) -> str:
+    if probe.get("status") == "materializado":
+        rows = int(probe.get("rows", 0))
+        unidade = singular if rows == 1 else plural
+        return f"{rows} {unidade}"
+    if probe.get("status") == "erro":
+        return "erro de leitura"
+    return "não materializado"
+
+
 def _payload(cnpj: str | None) -> dict[str, object]:
+    probes = _analysis_probes(cnpj)
+    mov = probes.get("mov_estoque", {"status": "ausente", "rows": 0})
+    mensal = probes.get("estoque_mensal", {"status": "ausente", "rows": 0})
+    anual = probes.get("estoque_anual", {"status": "ausente", "rows": 0})
+    bloco_h = probes.get("bloco_h", {"status": "ausente", "rows": 0})
+    fatores = probes.get("fatores_conversao", {"status": "ausente", "rows": 0})
+    agrupados = probes.get("produtos_agrupados", {"status": "ausente", "rows": 0})
+    produtos_final = probes.get("produtos_final", {"status": "ausente", "rows": 0})
+
     cards = [
         {
             "id": "cruzamentos",
             "title": "Cruzamentos",
-            "value": "EFD x documentos x demais fontes",
-            "description": "Núcleo analítico para divergências, omissões e correlação entre bases.",
+            "value": _describe_count(mov, "linha legada", "linhas legadas"),
+            "description": "Ponte inicial para Estoque. Considera o parquet de movimentação já usado pela aba legada.",
         },
         {
             "id": "verificacoes",
             "title": "Verificações",
-            "value": "Agregação e conversão",
-            "description": "Camada de consistência estrutural que sustenta estoque e classificação.",
+            "value": _describe_count(fatores, "fator", "fatores"),
+            "description": "Ponte inicial para Conversão. Lê o parquet de fatores de conversão já mantido pela camada atual.",
         },
         {
             "id": "classificacao",
             "title": "Classificação dos produtos",
-            "value": "Catálogo mestre e pendências",
-            "description": "A próxima expansão nasce dessa base, não de telas isoladas.",
+            "value": _describe_count(produtos_final, "produto-base", "produtos-base"),
+            "description": "Base inicial para classificação. Aproveita produtos_final enquanto o catálogo mestre não nasce como dataset próprio.",
         },
     ]
     datasets = [
         {
-            "id": "cross_efd_docs",
-            "label": "Cruzamentos EFD x documentos",
-            "stage": "planejado",
-            "description": "Base para omissões, divergências e diferenças de escrituração.",
+            "id": "cross_estoque_legado_mov",
+            "label": "Movimentação de estoque",
+            "stage": stage_label(mov),
+            "description": "Parquet legado usado como primeira ponte para cruzamentos analíticos.",
         },
         {
-            "id": "verificacoes_agregacao",
-            "label": "Verificações de agregação",
-            "stage": "legado_em_migracao",
-            "description": "Recebe a lógica hoje espalhada na aba de agregação.",
+            "id": "cross_estoque_legado_mensal",
+            "label": "Tabela mensal",
+            "stage": stage_label(mensal),
+            "description": "Série mensal legada que será absorvida pela camada de cruzamentos.",
         },
         {
-            "id": "verificacoes_conversao",
-            "label": "Verificações de conversão",
-            "stage": "legado_em_migracao",
-            "description": "Recebe a lógica hoje espalhada na aba de conversão.",
+            "id": "cross_estoque_legado_anual",
+            "label": "Tabela anual",
+            "stage": stage_label(anual),
+            "description": "Série anual legada que será absorvida pela camada de cruzamentos.",
         },
         {
-            "id": "produtos_catalogo_mestre",
-            "label": "Catálogo mestre de produtos",
-            "stage": "planejado",
-            "description": "Base da classificação dos produtos e da governança analítica.",
+            "id": "cross_bloco_h_legado",
+            "label": "Bloco H",
+            "stage": stage_label(bloco_h),
+            "description": "Inventário legado usado como apoio para visão de estoque e auditoria.",
+        },
+        {
+            "id": "verificacoes_conversao_legado",
+            "label": "Fatores de conversão",
+            "stage": stage_label(fatores),
+            "description": "Base legada da aba Conversão, agora tratada como verificação estrutural.",
+        },
+        {
+            "id": "verificacoes_agregacao_legado",
+            "label": "Produtos agrupados",
+            "stage": stage_label(agrupados),
+            "description": "Base legada da aba Agregação, agora tratada como verificação da identidade do produto.",
+        },
+        {
+            "id": "produtos_base_legado",
+            "label": "Produtos final",
+            "stage": stage_label(produtos_final),
+            "description": "Base legada de produtos que servirá de ponte para a futura classificação dos produtos.",
         },
     ]
     next_steps = [
-        "migrar Estoque para a camada de cruzamentos",
-        "migrar Agregação e Conversão para a camada de verificações",
-        "abrir o primeiro dataset do catálogo mestre de produtos",
+        "substituir a ponte legada por datasets canônicos de cruzamentos",
+        "absorver agregação e conversão em verificações materializadas",
+        "abrir o primeiro catálogo mestre de produtos como contrato próprio",
     ]
     legacy_shortcuts = [
         {
             "id": "estoque",
             "label": "Estoque (legado)",
-            "description": "Permanecerá acessível até a migração completa para cruzamentos.",
+            "description": f"Movimentação: {_describe_count(mov, 'linha', 'linhas')}; mensal: {_describe_count(mensal, 'linha', 'linhas')}; anual: {_describe_count(anual, 'linha', 'linhas')}",
         },
         {
             "id": "agregacao",
             "label": "Agregação (legado)",
-            "description": "Permanece disponível enquanto a camada de verificações não absorve toda a lógica.",
+            "description": f"Tabela agrupada: {_describe_count(agrupados, 'linha', 'linhas')}",
         },
         {
             "id": "conversao",
             "label": "Conversão (legado)",
-            "description": "Permanece disponível enquanto as verificações estruturais não forem reimplantadas.",
+            "description": f"Fatores de conversão: {_describe_count(fatores, 'linha', 'linhas')}",
         },
     ]
-    return build_domain_summary(
+    summary = build_domain_summary(
         domain="analise",
         title="Análise Fiscal",
         subtitle="Cruzamentos, verificações e classificação dos produtos.",
@@ -86,6 +180,9 @@ def _payload(cnpj: str | None) -> dict[str, object]:
         next_steps=next_steps,
         legacy_shortcuts=legacy_shortcuts,
     )
+    if cnpj:
+        summary["status"] = "ponte_legada_ativa"
+    return summary
 
 
 @router.get("/health")
@@ -95,10 +192,11 @@ def health() -> dict[str, str]:
 
 @router.get("/resumo")
 def resumo(cnpj: str | None = None) -> dict[str, object]:
-    return _payload(cnpj)
+    return _payload(_sanitize(cnpj))
 
 
 @router.get("/datasets")
 def datasets(cnpj: str | None = None) -> dict[str, object]:
-    payload = _payload(cnpj)
-    return build_dataset_listing("analise", cnpj, payload["datasets"])
+    cnpj_sanitized = _sanitize(cnpj)
+    payload = _payload(cnpj_sanitized)
+    return build_dataset_listing("analise", cnpj_sanitized, payload["datasets"])
