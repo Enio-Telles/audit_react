@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 from typing import Any, Iterable
 
+import polars as pl
 from fastapi import APIRouter
 
 from interface_grafica.config import CNPJ_ROOT
@@ -57,7 +59,10 @@ def _search_patterns(roots: Iterable[Path], patterns: list[str]) -> Path | None:
             matches.extend(root.rglob(pattern))
     if not matches:
         return None
-    unique_sorted = sorted({match for match in matches if match.is_file()}, key=lambda path: (len(path.parts), len(path.name), str(path)))
+    unique_sorted = sorted(
+        {match for match in matches if match.is_file()},
+        key=lambda path: (len(path.parts), len(path.name), str(path)),
+    )
     return unique_sorted[0] if unique_sorted else None
 
 
@@ -83,10 +88,7 @@ def _find_nfe(cnpj: str) -> Path:
             f"NFe_xml_{cnpj}.parquet",
             f"docs_nfe_itens_{cnpj}.parquet",
         ],
-        [
-            f"*nfe*{cnpj}*.parquet",
-            f"*NFe*{cnpj}*.parquet",
-        ],
+        [f"*nfe*{cnpj}*.parquet", f"*NFe*{cnpj}*.parquet"],
     )
 
 
@@ -100,10 +102,7 @@ def _find_nfce(cnpj: str) -> Path:
             f"NFCe_xml_{cnpj}.parquet",
             f"docs_nfce_itens_{cnpj}.parquet",
         ],
-        [
-            f"*nfce*{cnpj}*.parquet",
-            f"*NFCe*{cnpj}*.parquet",
-        ],
+        [f"*nfce*{cnpj}*.parquet", f"*NFCe*{cnpj}*.parquet"],
     )
 
 
@@ -117,10 +116,7 @@ def _find_cte(cnpj: str) -> Path:
             f"CTe_xml_{cnpj}.parquet",
             f"docs_cte_{cnpj}.parquet",
         ],
-        [
-            f"*cte*{cnpj}*.parquet",
-            f"*CTe*{cnpj}*.parquet",
-        ],
+        [f"*cte*{cnpj}*.parquet", f"*CTe*{cnpj}*.parquet"],
     )
 
 
@@ -132,10 +128,7 @@ def _find_info_complementar(cnpj: str) -> Path:
             f"NFe_info_compl_{cnpj}.parquet",
             f"docs_nfe_info_complementar_{cnpj}.parquet",
         ],
-        [
-            f"*info_compl*{cnpj}*.parquet",
-            f"*complement*{cnpj}*.parquet",
-        ],
+        [f"*info_compl*{cnpj}*.parquet", f"*complement*{cnpj}*.parquet"],
     )
 
 
@@ -147,11 +140,7 @@ def _find_contatos(cnpj: str) -> Path:
             f"Email_NFe_{cnpj}.parquet",
             f"docs_nfe_contatos_{cnpj}.parquet",
         ],
-        [
-            f"*email*{cnpj}*.parquet",
-            f"*contato*{cnpj}*.parquet",
-            f"*telefone*{cnpj}*.parquet",
-        ],
+        [f"*email*{cnpj}*.parquet", f"*contato*{cnpj}*.parquet", f"*telefone*{cnpj}*.parquet"],
     )
 
 
@@ -179,6 +168,63 @@ def _describe_count(probe: dict[str, Any], singular: str, plural: str) -> str:
 
 def _materialized_count(probes: dict[str, dict[str, Any]]) -> int:
     return sum(1 for probe in probes.values() if probe.get("status") == "materializado")
+
+
+def _safe_value(v: Any) -> Any:
+    if v is None:
+        return None
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return None
+    if isinstance(v, list):
+        return [_safe_value(item) for item in v]
+    return v
+
+
+def _empty_page(page: int, page_size: int) -> dict[str, Any]:
+    return {
+        "total_rows": 0,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": 1,
+        "columns": [],
+        "all_columns": [],
+        "rows": [],
+    }
+
+
+def _page_from_parquet(
+    path: Path,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    if not path.exists():
+        return _empty_page(page, page_size)
+
+    df = pl.read_parquet(path)
+    if sort_by and sort_by in df.columns:
+        try:
+            df = df.sort(sort_by, descending=sort_desc, nulls_last=True)
+        except Exception:
+            pass
+
+    total = df.height
+    start = max(0, (page - 1) * page_size)
+    df_page = df.slice(start, page_size)
+    rows = [
+        {column: _safe_value(row[column]) for column in df_page.columns}
+        for row in df_page.to_dicts()
+    ]
+    return {
+        "total_rows": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, math.ceil(total / page_size)),
+        "columns": df_page.columns,
+        "all_columns": df.columns,
+        "rows": rows,
+    }
 
 
 def _payload(cnpj: str | None) -> dict[str, object]:
@@ -275,3 +321,85 @@ def datasets(cnpj: str | None = None) -> dict[str, object]:
     cnpj_sanitized = _sanitize(cnpj)
     payload = _payload(cnpj_sanitized)
     return build_dataset_listing("documentos_fiscais", cnpj_sanitized, payload["datasets"])
+
+
+@router.get("/nfe")
+def nfe_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(_find_nfe(cnpj_sanitized), page, page_size, sort_by, sort_desc)
+
+
+@router.get("/nfce")
+def nfce_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(_find_nfce(cnpj_sanitized), page, page_size, sort_by, sort_desc)
+
+
+@router.get("/cte")
+def cte_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(_find_cte(cnpj_sanitized), page, page_size, sort_by, sort_desc)
+
+
+@router.get("/info-complementar")
+def info_complementar_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _find_info_complementar(cnpj_sanitized),
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+    )
+
+
+@router.get("/contatos")
+def contatos_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _find_contatos(cnpj_sanitized),
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+    )

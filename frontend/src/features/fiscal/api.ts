@@ -30,6 +30,16 @@ export const fiscalFeatureApi = {
     getPage("/fiscal/efd/c170", cnpj, page, pageSize),
   getEfdBlocoH: (cnpj: string, page = 1, pageSize = 50) =>
     getPage("/fiscal/efd/bloco-h", cnpj, page, pageSize),
+  getDocumentosNfe: (cnpj: string, page = 1, pageSize = 50) =>
+    getPage("/fiscal/documentos/nfe", cnpj, page, pageSize),
+  getDocumentosNfce: (cnpj: string, page = 1, pageSize = 50) =>
+    getPage("/fiscal/documentos/nfce", cnpj, page, pageSize),
+  getDocumentosCte: (cnpj: string, page = 1, pageSize = 50) =>
+    getPage("/fiscal/documentos/cte", cnpj, page, pageSize),
+  getDocumentosInfoComplementar: (cnpj: string, page = 1, pageSize = 50) =>
+    getPage("/fiscal/documentos/info-complementar", cnpj, page, pageSize),
+  getDocumentosContatos: (cnpj: string, page = 1, pageSize = 50) =>
+    getPage("/fiscal/documentos/contatos", cnpj, page, pageSize),
   getFiscalizacaoCadastro: (cnpj: string) =>
     api
       .get<FiscalizacaoCadastroRecord>("/fiscal/fiscalizacao/cadastro", { params: { cnpj } })
