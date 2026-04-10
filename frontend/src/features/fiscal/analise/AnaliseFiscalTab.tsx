@@ -4,8 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import type { PageResult } from "../../../api/types";
 import { useAppStore } from "../../../store/appStore";
 import { fiscalFeatureApi } from "../api";
-import { FiscalPageShell } from "../shared/FiscalPageShell";
 import { FiscalDomainOverview } from "../shared/FiscalDomainOverview";
+import { FiscalPageShell } from "../shared/FiscalPageShell";
+import { FiscalRowDetailPanel } from "../shared/FiscalRowDetailPanel";
 
 type AnaliseDatasetKey =
   | "estoque-mov"
@@ -55,7 +56,17 @@ function formatCell(value: unknown): string {
   return String(value);
 }
 
-function AnaliseTable({ data, isLoading }: { data?: PageResult; isLoading: boolean }) {
+function AnaliseTable({
+  data,
+  isLoading,
+  selectedRow,
+  onSelectRow,
+}: {
+  data?: PageResult;
+  isLoading: boolean;
+  selectedRow?: Record<string, unknown> | null;
+  onSelectRow: (row: Record<string, unknown>) => void;
+}) {
   const columns = data?.columns ?? [];
   const rows = data?.rows ?? [];
 
@@ -97,19 +108,26 @@ function AnaliseTable({ data, isLoading }: { data?: PageResult; isLoading: boole
                 </td>
               </tr>
             ) : (
-              rows.map((row, rowIndex) => (
-                <tr key={rowIndex} className="odd:bg-slate-950/30 even:bg-slate-900/20">
-                  {columns.map((column) => (
-                    <td
-                      key={`${rowIndex}-${column}`}
-                      className="max-w-[280px] truncate border-b border-slate-800 px-3 py-2 text-slate-300"
-                      title={formatCell(row[column])}
-                    >
-                      {formatCell(row[column])}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              rows.map((row, rowIndex) => {
+                const active = row === selectedRow;
+                return (
+                  <tr
+                    key={rowIndex}
+                    onClick={() => onSelectRow(row)}
+                    className={`cursor-pointer ${active ? "bg-blue-950/30" : rowIndex % 2 === 0 ? "bg-slate-900/20" : "bg-slate-950/30"}`}
+                  >
+                    {columns.map((column) => (
+                      <td
+                        key={`${rowIndex}-${column}`}
+                        className="max-w-[280px] truncate border-b border-slate-800 px-3 py-2 text-slate-300"
+                        title={formatCell(row[column])}
+                      >
+                        {formatCell(row[column])}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -126,6 +144,7 @@ export function AnaliseFiscalTab() {
   const [filterText, setFilterText] = useState("");
   const [sortBy, setSortBy] = useState("");
   const [sortDesc, setSortDesc] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(null);
   const pageSize = 50;
 
   const summaryQuery = useQuery({
@@ -177,7 +196,12 @@ export function AnaliseFiscalTab() {
     setPage(1);
     setSortBy("");
     setSortDesc(false);
+    setSelectedRow(null);
   }, [activeDataset]);
+
+  useEffect(() => {
+    setSelectedRow(null);
+  }, [page, filterText, sortBy, sortDesc, selectedCnpj]);
 
   const totalPages = tableQuery.data?.total_pages ?? 1;
   const sortColumns = useMemo(() => tableQuery.data?.all_columns ?? [], [tableQuery.data]);
@@ -260,7 +284,19 @@ export function AnaliseFiscalTab() {
           </div>
         </section>
 
-        <AnaliseTable data={tableQuery.data} isLoading={tableQuery.isLoading} />
+        <AnaliseTable
+          data={tableQuery.data}
+          isLoading={tableQuery.isLoading}
+          selectedRow={selectedRow}
+          onSelectRow={setSelectedRow}
+        />
+
+        <FiscalRowDetailPanel
+          row={selectedRow}
+          title="Detalhe do registro analítico"
+          subtitle="Clique em uma linha das visões de estoque, agregação, conversão ou produtos-base para inspecionar todos os campos."
+          emptyMessage="Selecione uma linha da tabela analítica para ver o registro completo."
+        />
 
         <div className="flex items-center justify-between rounded-2xl border border-slate-700 bg-slate-900/30 p-4 text-xs text-slate-400">
           <div>
@@ -268,7 +304,10 @@ export function AnaliseFiscalTab() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              onClick={() => {
+                setPage((current) => Math.max(1, current - 1));
+                setSelectedRow(null);
+              }}
               disabled={page <= 1 || !selectedCnpj || tableQuery.isLoading}
               className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -278,7 +317,10 @@ export function AnaliseFiscalTab() {
               Página {page} de {totalPages}
             </span>
             <button
-              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              onClick={() => {
+                setPage((current) => Math.min(totalPages, current + 1));
+                setSelectedRow(null);
+              }}
               disabled={page >= totalPages || !selectedCnpj || tableQuery.isLoading}
               className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
             >

@@ -58,6 +58,7 @@ Já implementado no módulo novo:
 - tabela operacional de `Bloco H`;
 - filtro textual global;
 - ordenação por coluna;
+- detalhe do registro selecionado;
 - paginação.
 
 Artefatos hoje observados pela ponte:
@@ -76,6 +77,7 @@ Já implementado no módulo novo:
 - tabelas operacionais para `NF-e`, `NFC-e`, `CT-e`, `informações complementares` e `contatos`;
 - filtro textual global;
 - ordenação por coluna;
+- detalhe do registro selecionado;
 - paginação.
 
 A localização dos artefatos usa nomes preferenciais e fallback por padrões em subpastas do CNPJ.
@@ -90,6 +92,7 @@ Já implementado no módulo novo:
 - listagem de DSFs relacionadas ao CNPJ;
 - filtro textual global nas malhas;
 - ordenação nas malhas;
+- detalhe da malha selecionada;
 - paginação de malhas.
 
 ### 4.4 Análise Fiscal
@@ -106,6 +109,7 @@ Já implementado no módulo novo:
   - `produtos_final`
 - filtro textual global;
 - ordenação por coluna;
+- detalhe do registro selecionado;
 - paginação.
 
 ---
@@ -172,7 +176,7 @@ No desenho novo, elas já têm equivalentes ou pontes diretas no módulo fiscal.
 ### Prioridade alta
 
 - adicionar filtros por coluna no backend novo;
-- criar detalhe de linha/registro nas tabelas novas;
+- destacar campos-chave por domínio no painel de detalhe;
 - reduzir a dependência visual das abas legadas.
 
 ### Prioridade estrutural

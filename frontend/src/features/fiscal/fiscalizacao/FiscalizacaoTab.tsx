@@ -5,8 +5,9 @@ import type { PageResult } from "../../../api/types";
 import { useAppStore } from "../../../store/appStore";
 import { fiscalFeatureApi } from "../api";
 import type { FiscalizacaoCadastroRecord, FiscalizacaoDsfRecord } from "../types";
-import { FiscalPageShell } from "../shared/FiscalPageShell";
 import { FiscalDomainOverview } from "../shared/FiscalDomainOverview";
+import { FiscalPageShell } from "../shared/FiscalPageShell";
+import { FiscalRowDetailPanel } from "../shared/FiscalRowDetailPanel";
 
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -40,7 +41,17 @@ function KeyValuePanel({ data, isLoading }: { data?: FiscalizacaoCadastroRecord;
   );
 }
 
-function MalhasTable({ data, isLoading }: { data?: PageResult; isLoading: boolean }) {
+function MalhasTable({
+  data,
+  isLoading,
+  selectedRow,
+  onSelectRow,
+}: {
+  data?: PageResult;
+  isLoading: boolean;
+  selectedRow?: Record<string, unknown> | null;
+  onSelectRow: (row: Record<string, unknown>) => void;
+}) {
   const columns = data?.columns ?? [];
   const rows = data?.rows ?? [];
 
@@ -80,19 +91,26 @@ function MalhasTable({ data, isLoading }: { data?: PageResult; isLoading: boolea
                 </td>
               </tr>
             ) : (
-              rows.map((row, rowIndex) => (
-                <tr key={rowIndex} className="odd:bg-slate-950/30 even:bg-slate-900/20">
-                  {columns.map((column) => (
-                    <td
-                      key={`${rowIndex}-${column}`}
-                      className="max-w-[280px] truncate border-b border-slate-800 px-3 py-2 text-slate-300"
-                      title={formatCell(row[column])}
-                    >
-                      {formatCell(row[column])}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              rows.map((row, rowIndex) => {
+                const active = row === selectedRow;
+                return (
+                  <tr
+                    key={rowIndex}
+                    onClick={() => onSelectRow(row)}
+                    className={`cursor-pointer ${active ? "bg-blue-950/30" : rowIndex % 2 === 0 ? "bg-slate-900/20" : "bg-slate-950/30"}`}
+                  >
+                    {columns.map((column) => (
+                      <td
+                        key={`${rowIndex}-${column}`}
+                        className="max-w-[280px] truncate border-b border-slate-800 px-3 py-2 text-slate-300"
+                        title={formatCell(row[column])}
+                      >
+                        {formatCell(row[column])}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -138,6 +156,7 @@ export function FiscalizacaoTab() {
   const [filterText, setFilterText] = useState("");
   const [sortBy, setSortBy] = useState("");
   const [sortDesc, setSortDesc] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(null);
   const pageSize = 50;
 
   const summaryQuery = useQuery({
@@ -212,6 +231,7 @@ export function FiscalizacaoTab() {
               onChange={(event) => {
                 setFilterText(event.target.value);
                 setPage(1);
+                setSelectedRow(null);
               }}
               placeholder="Buscar texto em qualquer coluna"
               className="rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 outline-none focus:border-blue-500"
@@ -221,6 +241,7 @@ export function FiscalizacaoTab() {
               onChange={(event) => {
                 setSortBy(event.target.value);
                 setPage(1);
+                setSelectedRow(null);
               }}
               className="rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 outline-none focus:border-blue-500"
             >
@@ -235,6 +256,7 @@ export function FiscalizacaoTab() {
               onClick={() => {
                 setSortDesc((current) => !current);
                 setPage(1);
+                setSelectedRow(null);
               }}
               className="rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 hover:bg-slate-900/50"
             >
@@ -243,12 +265,27 @@ export function FiscalizacaoTab() {
           </div>
         </section>
 
-        <MalhasTable data={malhasQuery.data} isLoading={malhasQuery.isLoading} />
+        <MalhasTable
+          data={malhasQuery.data}
+          isLoading={malhasQuery.isLoading}
+          selectedRow={selectedRow}
+          onSelectRow={setSelectedRow}
+        />
+
+        <FiscalRowDetailPanel
+          row={selectedRow}
+          title="Detalhe da malha selecionada"
+          subtitle="Clique em uma linha da tabela de malhas para inspecionar todos os campos do registro."
+          emptyMessage="Selecione uma malha da tabela para ver o registro completo."
+        />
 
         <div className="flex items-center justify-end rounded-2xl border border-slate-700 bg-slate-900/30 p-4 text-xs text-slate-400">
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              onClick={() => {
+                setPage((current) => Math.max(1, current - 1));
+                setSelectedRow(null);
+              }}
               disabled={page <= 1 || !selectedCnpj || malhasQuery.isLoading}
               className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -258,7 +295,10 @@ export function FiscalizacaoTab() {
               Página {page} de {totalPages}
             </span>
             <button
-              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              onClick={() => {
+                setPage((current) => Math.min(totalPages, current + 1));
+                setSelectedRow(null);
+              }}
               disabled={page >= totalPages || !selectedCnpj || malhasQuery.isLoading}
               className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
             >

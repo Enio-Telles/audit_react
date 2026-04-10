@@ -4,8 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import type { PageResult } from "../../../api/types";
 import { useAppStore } from "../../../store/appStore";
 import { fiscalFeatureApi } from "../api";
-import { FiscalPageShell } from "../shared/FiscalPageShell";
 import { FiscalDomainOverview } from "../shared/FiscalDomainOverview";
+import { FiscalPageShell } from "../shared/FiscalPageShell";
+import { FiscalRowDetailPanel } from "../shared/FiscalRowDetailPanel";
 
 type DocumentoDatasetKey = "nfe" | "nfce" | "cte" | "info-complementar" | "contatos";
 
@@ -44,7 +45,17 @@ function formatCell(value: unknown): string {
   return String(value);
 }
 
-function DocumentosTable({ data, isLoading }: { data?: PageResult; isLoading: boolean }) {
+function DocumentosTable({
+  data,
+  isLoading,
+  selectedRow,
+  onSelectRow,
+}: {
+  data?: PageResult;
+  isLoading: boolean;
+  selectedRow?: Record<string, unknown> | null;
+  onSelectRow: (row: Record<string, unknown>) => void;
+}) {
   const columns = data?.columns ?? [];
   const rows = data?.rows ?? [];
 
@@ -86,19 +97,26 @@ function DocumentosTable({ data, isLoading }: { data?: PageResult; isLoading: bo
                 </td>
               </tr>
             ) : (
-              rows.map((row, rowIndex) => (
-                <tr key={rowIndex} className="odd:bg-slate-950/30 even:bg-slate-900/20">
-                  {columns.map((column) => (
-                    <td
-                      key={`${rowIndex}-${column}`}
-                      className="max-w-[280px] truncate border-b border-slate-800 px-3 py-2 text-slate-300"
-                      title={formatCell(row[column])}
-                    >
-                      {formatCell(row[column])}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              rows.map((row, rowIndex) => {
+                const active = row === selectedRow;
+                return (
+                  <tr
+                    key={rowIndex}
+                    onClick={() => onSelectRow(row)}
+                    className={`cursor-pointer ${active ? "bg-blue-950/30" : rowIndex % 2 === 0 ? "bg-slate-900/20" : "bg-slate-950/30"}`}
+                  >
+                    {columns.map((column) => (
+                      <td
+                        key={`${rowIndex}-${column}`}
+                        className="max-w-[280px] truncate border-b border-slate-800 px-3 py-2 text-slate-300"
+                        title={formatCell(row[column])}
+                      >
+                        {formatCell(row[column])}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -114,6 +132,7 @@ export function DocumentosFiscaisTab() {
   const [filterText, setFilterText] = useState("");
   const [sortBy, setSortBy] = useState("");
   const [sortDesc, setSortDesc] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(null);
   const pageSize = 50;
 
   const summaryQuery = useQuery({
@@ -163,7 +182,12 @@ export function DocumentosFiscaisTab() {
     setPage(1);
     setSortBy("");
     setSortDesc(false);
+    setSelectedRow(null);
   }, [activeDataset]);
+
+  useEffect(() => {
+    setSelectedRow(null);
+  }, [page, filterText, sortBy, sortDesc, selectedCnpj]);
 
   const totalPages = tableQuery.data?.total_pages ?? 1;
   const sortColumns = useMemo(() => tableQuery.data?.all_columns ?? [], [tableQuery.data]);
@@ -245,7 +269,19 @@ export function DocumentosFiscaisTab() {
           </div>
         </section>
 
-        <DocumentosTable data={tableQuery.data} isLoading={tableQuery.isLoading} />
+        <DocumentosTable
+          data={tableQuery.data}
+          isLoading={tableQuery.isLoading}
+          selectedRow={selectedRow}
+          onSelectRow={setSelectedRow}
+        />
+
+        <FiscalRowDetailPanel
+          row={selectedRow}
+          title="Detalhe do documento ou artefato"
+          subtitle="Clique em uma linha de NF-e, NFC-e, CT-e, informações complementares ou contatos para inspecionar todos os campos."
+          emptyMessage="Selecione uma linha da tabela documental para ver o registro completo."
+        />
 
         <div className="flex items-center justify-between rounded-2xl border border-slate-700 bg-slate-900/30 p-4 text-xs text-slate-400">
           <div>
