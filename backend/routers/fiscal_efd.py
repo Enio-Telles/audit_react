@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 from typing import Any
 
+import polars as pl
 from fastapi import APIRouter
 
 from interface_grafica.config import CNPJ_ROOT
@@ -114,6 +116,63 @@ def _materialized_count(probes: dict[str, dict[str, Any]]) -> int:
     return sum(1 for probe in probes.values() if probe.get("status") == "materializado")
 
 
+def _safe_value(v: Any) -> Any:
+    if v is None:
+        return None
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return None
+    if isinstance(v, list):
+        return [_safe_value(item) for item in v]
+    return v
+
+
+def _empty_page(page: int, page_size: int) -> dict[str, Any]:
+    return {
+        "total_rows": 0,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": 1,
+        "columns": [],
+        "all_columns": [],
+        "rows": [],
+    }
+
+
+def _page_from_parquet(
+    path: Path,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    if not path.exists():
+        return _empty_page(page, page_size)
+
+    df = pl.read_parquet(path)
+    if sort_by and sort_by in df.columns:
+        try:
+            df = df.sort(sort_by, descending=sort_desc, nulls_last=True)
+        except Exception:
+            pass
+
+    total = df.height
+    start = max(0, (page - 1) * page_size)
+    df_page = df.slice(start, page_size)
+    rows = [
+        {column: _safe_value(row[column]) for column in df_page.columns}
+        for row in df_page.to_dicts()
+    ]
+    return {
+        "total_rows": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, math.ceil(total / page_size)),
+        "columns": df_page.columns,
+        "all_columns": df.columns,
+        "rows": rows,
+    }
+
+
 def _payload(cnpj: str | None) -> dict[str, object]:
     probes = _efd_probes(cnpj)
     c170 = probes.get("c170_xml", {"status": "ausente", "rows": 0})
@@ -208,3 +267,43 @@ def datasets(cnpj: str | None = None) -> dict[str, object]:
     cnpj_sanitized = _sanitize(cnpj)
     payload = _payload(cnpj_sanitized)
     return build_dataset_listing("efd", cnpj_sanitized, payload["datasets"])
+
+
+@router.get("/c170")
+def c170_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _find_c170(cnpj_sanitized),
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_desc=sort_desc,
+    )
+
+
+@router.get("/bloco-h")
+def bloco_h_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _find_bloco_h(cnpj_sanitized),
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_desc=sort_desc,
+    )
