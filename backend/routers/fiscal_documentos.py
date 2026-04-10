@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from interface_grafica.config import CNPJ_ROOT
 
+from .fiscal_dataset_locator import locate_dataset
 from .fiscal_storage import read_materialized_frame, resolve_materialized_path
 from .fiscal_summary import (
     build_dataset_listing,
@@ -75,12 +76,14 @@ def _search_patterns(roots: Iterable[Path], patterns: list[str]) -> Path | None:
     return unique_sorted[0] if unique_sorted else None
 
 
-def _find_document_path(cnpj: str, candidates: list[str], fallback_patterns: list[str]) -> Path:
+def _find_document_path(cnpj: str, dataset_id: str, candidates: list[str], fallback_patterns: list[str]) -> Path:
     roots = _roots(cnpj)
     exact_candidates = [root / variant for root in roots for candidate in candidates for variant in _candidate_variants(candidate)]
-    exact = _first_existing(exact_candidates)
-    if exact is not None:
-        return exact
+
+    resolved = locate_dataset(cnpj, dataset_id, *exact_candidates)
+    if resolved.exists():
+        return resolved
+
     fallback = _search_patterns(roots, fallback_patterns)
     if fallback is not None:
         return fallback
@@ -90,6 +93,7 @@ def _find_document_path(cnpj: str, candidates: list[str], fallback_patterns: lis
 def _find_nfe(cnpj: str) -> Path:
     return _find_document_path(
         cnpj,
+        "nfe_base",
         [
             f"nfe_{cnpj}.parquet",
             f"nfe_xml_{cnpj}.parquet",
@@ -104,6 +108,7 @@ def _find_nfe(cnpj: str) -> Path:
 def _find_nfce(cnpj: str) -> Path:
     return _find_document_path(
         cnpj,
+        "nfce_base",
         [
             f"nfce_{cnpj}.parquet",
             f"nfce_xml_{cnpj}.parquet",
@@ -118,6 +123,7 @@ def _find_nfce(cnpj: str) -> Path:
 def _find_cte(cnpj: str) -> Path:
     return _find_document_path(
         cnpj,
+        "cte_base",
         [
             f"cte_{cnpj}.parquet",
             f"cte_xml_{cnpj}.parquet",
@@ -132,6 +138,7 @@ def _find_cte(cnpj: str) -> Path:
 def _find_info_complementar(cnpj: str) -> Path:
     return _find_document_path(
         cnpj,
+        "docs_info_complementar",
         [
             f"nfe_info_compl_{cnpj}.parquet",
             f"NFe_info_compl_{cnpj}.parquet",
@@ -144,6 +151,7 @@ def _find_info_complementar(cnpj: str) -> Path:
 def _find_contatos(cnpj: str) -> Path:
     return _find_document_path(
         cnpj,
+        "docs_contatos",
         [
             f"email_nfe_{cnpj}.parquet",
             f"Email_NFe_{cnpj}.parquet",
