@@ -158,6 +158,28 @@ def _apply_filter(df: pl.DataFrame, filter_text: str | None = None) -> pl.DataFr
         return df
 
 
+def _apply_column_filter(
+    df: pl.DataFrame,
+    filter_column: str | None = None,
+    filter_value: str | None = None,
+) -> pl.DataFrame:
+    if not filter_column or not filter_value or filter_column not in df.columns or df.is_empty():
+        return df
+    term = filter_value.strip().lower()
+    if not term:
+        return df
+    try:
+        return df.filter(
+            pl.col(filter_column)
+            .cast(pl.Utf8, strict=False)
+            .fill_null("")
+            .str.to_lowercase()
+            .str.contains(term, literal=True)
+        )
+    except Exception:
+        return df
+
+
 def _page_from_parquet(
     path: Path,
     page: int = 1,
@@ -165,12 +187,15 @@ def _page_from_parquet(
     sort_by: str | None = None,
     sort_desc: bool = False,
     filter_text: str | None = None,
+    filter_column: str | None = None,
+    filter_value: str | None = None,
 ) -> dict[str, Any]:
     if not path.exists():
         return _empty_page(page, page_size)
 
     df = pl.read_parquet(path)
     df = _apply_filter(df, filter_text)
+    df = _apply_column_filter(df, filter_column, filter_value)
     if sort_by and sort_by in df.columns:
         try:
             df = df.sort(sort_by, descending=sort_desc, nulls_last=True)
@@ -299,6 +324,8 @@ def c170_rows(
     sort_by: str | None = None,
     sort_desc: bool = False,
     filter_text: str | None = None,
+    filter_column: str | None = None,
+    filter_value: str | None = None,
 ) -> dict[str, Any]:
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
@@ -310,6 +337,8 @@ def c170_rows(
         sort_by=sort_by,
         sort_desc=sort_desc,
         filter_text=filter_text,
+        filter_column=filter_column,
+        filter_value=filter_value,
     )
 
 
@@ -321,6 +350,8 @@ def bloco_h_rows(
     sort_by: str | None = None,
     sort_desc: bool = False,
     filter_text: str | None = None,
+    filter_column: str | None = None,
+    filter_value: str | None = None,
 ) -> dict[str, Any]:
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
@@ -332,4 +363,6 @@ def bloco_h_rows(
         sort_by=sort_by,
         sort_desc=sort_desc,
         filter_text=filter_text,
+        filter_column=filter_column,
+        filter_value=filter_value,
     )

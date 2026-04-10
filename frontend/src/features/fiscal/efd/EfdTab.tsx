@@ -124,6 +124,8 @@ export function EfdTab() {
   const [activeDataset, setActiveDataset] = useState<EfdDatasetKey>("c170");
   const [page, setPage] = useState(1);
   const [filterText, setFilterText] = useState("");
+  const [filterColumn, setFilterColumn] = useState("");
+  const [filterValue, setFilterValue] = useState("");
   const [sortBy, setSortBy] = useState("");
   const [sortDesc, setSortDesc] = useState(false);
   const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(null);
@@ -142,6 +144,8 @@ export function EfdTab() {
       selectedCnpj ?? "sem-cnpj",
       page,
       filterText,
+      filterColumn,
+      filterValue,
       sortBy,
       sortDesc,
     ],
@@ -155,6 +159,8 @@ export function EfdTab() {
         sortBy: sortBy || undefined,
         sortDesc,
         filterText: filterText.trim() || undefined,
+        filterColumn: filterColumn || undefined,
+        filterValue: filterValue.trim() || undefined,
       };
       return activeDataset === "c170"
         ? fiscalFeatureApi.getEfdC170(selectedCnpj, options)
@@ -167,12 +173,14 @@ export function EfdTab() {
     setPage(1);
     setSortBy("");
     setSortDesc(false);
+    setFilterColumn("");
+    setFilterValue("");
     setSelectedRow(null);
   }, [activeDataset]);
 
   useEffect(() => {
     setSelectedRow(null);
-  }, [page, filterText, sortBy, sortDesc, selectedCnpj]);
+  }, [page, filterText, filterColumn, filterValue, sortBy, sortDesc, selectedCnpj]);
 
   const totalPages = tableQuery.data?.total_pages ?? 1;
   const sortColumns = useMemo(() => tableQuery.data?.all_columns ?? [], [tableQuery.data]);
@@ -216,8 +224,8 @@ export function EfdTab() {
         </section>
 
         <section className="rounded-2xl border border-slate-700 bg-slate-900/30 p-4">
-          <div className="mb-3 text-sm font-semibold text-white">Filtro e ordenação</div>
-          <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_auto]">
+          <div className="mb-3 text-sm font-semibold text-white">Filtros e ordenação</div>
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[1.1fr_0.9fr_1.1fr_0.9fr_auto]">
             <input
               value={filterText}
               onChange={(event) => {
@@ -225,6 +233,30 @@ export function EfdTab() {
                 setPage(1);
               }}
               placeholder="Buscar texto em qualquer coluna"
+              className="rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 outline-none focus:border-blue-500"
+            />
+            <select
+              value={filterColumn}
+              onChange={(event) => {
+                setFilterColumn(event.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 outline-none focus:border-blue-500"
+            >
+              <option value="">Sem filtro por coluna</option>
+              {sortColumns.map((column) => (
+                <option key={column} value={column}>
+                  {column}
+                </option>
+              ))}
+            </select>
+            <input
+              value={filterValue}
+              onChange={(event) => {
+                setFilterValue(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Valor para a coluna selecionada"
               className="rounded-xl border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 outline-none focus:border-blue-500"
             />
             <select

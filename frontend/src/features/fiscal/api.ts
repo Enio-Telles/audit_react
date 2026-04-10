@@ -18,10 +18,21 @@ interface PageQueryOptions {
   sortBy?: string;
   sortDesc?: boolean;
   filterText?: string;
+  filterColumn?: string;
+  filterValue?: string;
 }
 
 function getPage(path: string, cnpj: string, options: PageQueryOptions = {}) {
-  const { page = 1, pageSize = 50, sortBy, sortDesc, filterText } = options;
+  const {
+    page = 1,
+    pageSize = 50,
+    sortBy,
+    sortDesc,
+    filterText,
+    filterColumn,
+    filterValue,
+  } = options;
+  const hasColumnFilter = Boolean(filterColumn && filterValue);
   return api
     .get<PageResult>(path, {
       params: {
@@ -31,6 +42,7 @@ function getPage(path: string, cnpj: string, options: PageQueryOptions = {}) {
         ...(sortBy ? { sort_by: sortBy } : {}),
         ...(sortDesc ? { sort_desc: true } : {}),
         ...(filterText ? { filter_text: filterText } : {}),
+        ...(hasColumnFilter ? { filter_column: filterColumn, filter_value: filterValue } : {}),
       },
     })
     .then((response) => response.data);

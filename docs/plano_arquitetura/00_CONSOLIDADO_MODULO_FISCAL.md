@@ -57,17 +57,10 @@ Já implementado no módulo novo:
 - tabela operacional de `C170`;
 - tabela operacional de `Bloco H`;
 - filtro textual global;
+- filtro por coluna;
 - ordenação por coluna;
 - detalhe do registro selecionado;
 - paginação.
-
-Artefatos hoje observados pela ponte:
-
-- `c170_xml_{cnpj}.parquet`
-- `c176_xml_{cnpj}.parquet`
-- `bloco_h_{cnpj}.parquet`
-- `c197_{cnpj}.parquet` ou `c197_agrupado_{cnpj}.parquet`
-- `k200_{cnpj}.parquet`
 
 ### 4.2 Documentos Fiscais
 
@@ -76,11 +69,10 @@ Já implementado no módulo novo:
 - resumo real por domínio;
 - tabelas operacionais para `NF-e`, `NFC-e`, `CT-e`, `informações complementares` e `contatos`;
 - filtro textual global;
+- filtro por coluna;
 - ordenação por coluna;
 - detalhe do registro selecionado;
 - paginação.
-
-A localização dos artefatos usa nomes preferenciais e fallback por padrões em subpastas do CNPJ.
 
 ### 4.3 Fiscalização
 
@@ -91,6 +83,7 @@ Já implementado no módulo novo:
 - tabela operacional de `malhas.parquet`;
 - listagem de DSFs relacionadas ao CNPJ;
 - filtro textual global nas malhas;
+- filtro por coluna nas malhas;
 - ordenação nas malhas;
 - detalhe da malha selecionada;
 - paginação de malhas.
@@ -108,6 +101,7 @@ Já implementado no módulo novo:
   - `fatores_conversao`
   - `produtos_final`
 - filtro textual global;
+- filtro por coluna;
 - ordenação por coluna;
 - detalhe do registro selecionado;
 - paginação.
@@ -115,6 +109,16 @@ Já implementado no módulo novo:
 ---
 
 ## 5. Contratos de endpoints do módulo novo
+
+Os endpoints de paginação das 4 áreas já aceitam:
+
+- `page`
+- `page_size`
+- `sort_by`
+- `sort_desc`
+- `filter_text`
+- `filter_column`
+- `filter_value`
 
 ### EFD
 - `GET /api/fiscal/efd/resumo`
@@ -175,8 +179,8 @@ No desenho novo, elas já têm equivalentes ou pontes diretas no módulo fiscal.
 
 ### Prioridade alta
 
-- adicionar filtros por coluna no backend novo;
 - destacar campos-chave por domínio no painel de detalhe;
+- criar presets de filtros frequentes por tela;
 - reduzir a dependência visual das abas legadas.
 
 ### Prioridade estrutural
@@ -190,15 +194,3 @@ No desenho novo, elas já têm equivalentes ou pontes diretas no módulo fiscal.
 - manter este consolidado como visão principal do estado atual;
 - sincronizar `AGENTS_NOVO.md` e `AGENTS_SQL_NOVO.md` com o que já estiver implementado;
 - mover documentos históricos antigos para referência secundária quando necessário.
-
----
-
-## 8. Conclusão
-
-O módulo fiscal novo já deixou de ser apenas um plano. Ele já opera sobre dados reais do projeto nos 4 domínios principais.
-
-O foco daqui em diante não é mais provar a arquitetura. O foco passa a ser:
-
-- usabilidade operacional;
-- detalhamento e filtros;
-- substituição progressiva das pontes legadas por contratos canônicos definitivos.
