@@ -17,10 +17,24 @@ export OPENLINEAGE_URL=http://localhost:5000/api/v1/lineage
 export OPENLINEAGE_NAMESPACE=audit_react
 ```
 
-3. suba a stack:
+3. se quiser Delta seletivo, configure por tabela:
+
+```bash
+export DATA_LAKE_FORMAT=delta
+export DELTA_ENABLED_TABLES=tb_documentos,movimentacao_estoque,calculos_mensais
+export DELTA_WRITE_MODE=overwrite
+```
+
+4. suba a stack:
 
 ```bash
 docker compose -f docker-compose.observability.yml up -d
+```
+
+5. valide tudo:
+
+```bash
+python scripts/validate_local_stack.py
 ```
 
 ## Enderecos

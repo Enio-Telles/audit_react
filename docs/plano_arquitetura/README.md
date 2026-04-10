@@ -30,6 +30,9 @@ A arquitetura proposta já saiu do plano e entrou em operação inicial dentro d
 - catálogo SQL com índice reutilizável e invalidação (`src/utilitarios/sql_catalog.py`)
 - observabilidade básica reutilizável com logging JSON e métricas opcionais (`src/observabilidade/`)
 - registro versionado de schemas em `workspace/app_state/schema_registry.json`
+- shell Tauri v2 inicial em `frontend/src-tauri/`
+- helper Delta Lake com chaveamento por ambiente em `src/utilitarios/delta_lake.py`
+- stack local de Prometheus/Grafana/Marquez em `infra/observability/`
 
 ## Migração das abas atuais
 
@@ -54,5 +57,7 @@ Use `00_CONSOLIDADO_MODULO_FISCAL.md` como visão concatenada do estado atual, d
 - `08_CRITERIOS_ACEITE_TESTES_RISCOS.md`
 - `09_SEQUENCIA_EXECUCAO.md`
 - `10_SQL_CACHE_OBSERVABILIDADE_SCHEMAS.md`
+- `11_TAURI_DELTA_OPENLINEAGE_OBSERVABILIDADE_MOBILE.md`
+- `12_VALIDACAO_LOCAL_DELTA_LINEAGE_OBSERVABILIDADE.md`
 - `AGENTS_NOVO.md`
 - `AGENTS_SQL_NOVO.md`

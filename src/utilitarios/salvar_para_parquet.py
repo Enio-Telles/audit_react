@@ -7,7 +7,7 @@ import polars as pl
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from utilitarios.delta_lake import write_delta_table
+from utilitarios.delta_lake import resolve_storage_format, write_delta_table
 from utilitarios.schema_registry import SchemaRegistry
 
 
@@ -32,17 +32,17 @@ def salvar_para_parquet(
     Exporta um DataFrame/LazyFrame para Parquet ou Delta Lake.
     """
     try:
-        formato_resolvido = (formato or os.getenv("DATA_LAKE_FORMAT", "parquet")).lower()
         delta_mode = mode or os.getenv("DELTA_WRITE_MODE", "overwrite")
 
         if nome_arquivo:
-            if formato_resolvido == "parquet" and not str(nome_arquivo).lower().endswith(".parquet"):
+            if (formato or os.getenv("DATA_LAKE_FORMAT", "parquet")).lower() == "parquet" and not str(nome_arquivo).lower().endswith(".parquet"):
                 nome_arquivo = f"{nome_arquivo}.parquet"
             arquivo = caminho_saida / nome_arquivo
         else:
             arquivo = caminho_saida
 
         arquivo.parent.mkdir(parents=True, exist_ok=True)
+        formato_resolvido = resolve_storage_format(arquivo, formato)
 
         if isinstance(df, pl.LazyFrame):
             df = df.collect()
