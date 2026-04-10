@@ -1,8 +1,14 @@
+from __future__ import annotations
+
+import os
 from pathlib import Path
 
 import polars as pl
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+from utilitarios.delta_lake import write_delta_table
+from utilitarios.schema_registry import SchemaRegistry
 
 
 def _safe_print(message: str) -> None:
@@ -18,23 +24,19 @@ def salvar_para_parquet(
     nome_arquivo: str = None,
     schema=None,
     metadata: dict = None,
+    formato: str | None = None,
+    mode: str | None = None,
+    partition_by: list[str] | None = None,
 ) -> bool:
     """
-    Exporta um DataFrame ou LazyFrame do Polars para Parquet.
-
-    Args:
-        df: polars.DataFrame ou polars.LazyFrame.
-        caminho_saida: diretorio (Path) ou caminho completo do arquivo.
-        nome_arquivo: nome do arquivo, se caminho_saida for um diretorio.
-        schema: pyarrow.Schema opcional para impor tipos.
-        metadata: metadados por coluna {col_name: description}.
-
-    Returns:
-        True em caso de sucesso, False em caso de erro.
+    Exporta um DataFrame/LazyFrame para Parquet ou Delta Lake.
     """
     try:
+        formato_resolvido = (formato or os.getenv("DATA_LAKE_FORMAT", "parquet")).lower()
+        delta_mode = mode or os.getenv("DELTA_WRITE_MODE", "overwrite")
+
         if nome_arquivo:
-            if not str(nome_arquivo).lower().endswith(".parquet"):
+            if formato_resolvido == "parquet" and not str(nome_arquivo).lower().endswith(".parquet"):
                 nome_arquivo = f"{nome_arquivo}.parquet"
             arquivo = caminho_saida / nome_arquivo
         else:
@@ -47,6 +49,19 @@ def salvar_para_parquet(
 
         if df.is_empty():
             _safe_print(f"   [!] Aviso: o DataFrame a ser salvo em {arquivo.name} esta vazio.")
+
+        if formato_resolvido == "delta":
+            if metadata:
+                _safe_print("   [!] Aviso: metadata por coluna nao eh aplicada diretamente no formato Delta Lake.")
+            destino_delta = write_delta_table(
+                df,
+                arquivo,
+                mode=delta_mode,
+                partition_by=partition_by,
+                table_name=arquivo.stem,
+            )
+            _safe_print(f"   [OK] Delta Lake salvo com sucesso: {destino_delta}")
+            return True
 
         if schema or metadata:
             table = df.to_arrow()
@@ -82,15 +97,23 @@ def salvar_para_parquet(
         else:
             df.write_parquet(arquivo, compression="snappy")
 
+        registry = SchemaRegistry()
+        registry.record_schema(
+            arquivo.stem,
+            df.schema,
+            source_path=str(arquivo),
+            metadata={"format": "parquet"},
+        )
+
         _safe_print(f"   [OK] Parquet salvo com sucesso: {arquivo.name}")
         return True
 
     except Exception as e:
         nome = arquivo.name if "arquivo" in locals() else str(nome_arquivo or caminho_saida)
-        if "arquivo" in locals():
+        if "arquivo" in locals() and formato_resolvido == "parquet":
             try:
                 arquivo.unlink(missing_ok=True)
             except OSError:
                 pass
-        _safe_print(f"   [ERRO] Erro ao salvar arquivo Parquet {nome}: {e}")
+        _safe_print(f"   [ERRO] Erro ao salvar arquivo {formato_resolvido.upper()} {nome}: {e}")
         return False
