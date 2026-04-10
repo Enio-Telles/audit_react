@@ -1,15 +1,33 @@
+import { useQuery } from "@tanstack/react-query";
+
+import { useAppStore } from "../../../store/appStore";
+import { fiscalFeatureApi } from "../api";
 import { FiscalPageShell } from "../shared/FiscalPageShell";
+import { FiscalDomainOverview } from "../shared/FiscalDomainOverview";
 
 export function DocumentosFiscaisTab() {
+  const selectedCnpj = useAppStore((state) => state.selectedCnpj);
+
+  const query = useQuery({
+    queryKey: [
+      "fiscal",
+      "documentos-fiscais",
+      "resumo",
+      selectedCnpj ?? "sem-cnpj",
+    ],
+    queryFn: () => fiscalFeatureApi.getDocumentosResumo(selectedCnpj),
+  });
+
   return (
     <FiscalPageShell
       title="Documentos Fiscais"
       subtitle="NF-e, NFC-e, CT-e, informações complementares e contatos."
     >
-      <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/20 p-4 text-sm text-slate-400">
-        Estrutura inicial criada. Esta área passará a consumir datasets canônicos em Parquet,
-        em vez de depender de SQL acoplado diretamente à tela.
-      </div>
+      <FiscalDomainOverview
+        data={query.data}
+        isLoading={query.isLoading}
+        errorMessage={query.error instanceof Error ? query.error.message : undefined}
+      />
     </FiscalPageShell>
   );
 }
