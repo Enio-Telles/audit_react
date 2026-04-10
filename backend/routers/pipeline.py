@@ -18,7 +18,7 @@ _pipeline_status: dict[str, dict] = {}
 
 class PipelineRequest(BaseModel):
     cnpj: str
-    consultas: list[str] = []
+    consultas: list[str] | None = None
     tabelas: list[str] = []
     data_limite: str | None = None
     incluir_extracao: bool = False
@@ -30,7 +30,7 @@ def _sanitize(cnpj: str) -> str:
 
 
 def _resolver_consultas(req: PipelineRequest) -> list[str]:
-    if req.consultas:
+    if req.consultas is not None:
         return req.consultas
     if req.incluir_extracao:
         return ["*"]
@@ -233,7 +233,7 @@ def run_pipeline(req: PipelineRequest, background_tasks: BackgroundTasks):
     if (
         not incluir_extracao
         and not incluir_processamento
-        and not req.consultas
+        and req.consultas is None
         and not req.tabelas
     ):
         incluir_extracao = True

@@ -1,4 +1,4 @@
-﻿"""
+"""
 c176_xml.py
 
 Objetivo:
@@ -110,17 +110,17 @@ def gerar_c176_xml(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         rprint(f"[red]{exc}[/red]")
         return False
 
-    df_c176 = pl.read_parquet(arq_c176)
-    df_saida = pl.read_parquet(arq_c170_agr)
-    df_nfe = pl.read_parquet(arq_nfe_agr)
-    df_fatores = pl.read_parquet(arq_fatores)
+    lf_c176 = pl.scan_parquet(arq_c176)
+    lf_saida = pl.scan_parquet(arq_c170_agr)
+    lf_nfe = pl.scan_parquet(arq_nfe_agr)
+    lf_fatores = pl.scan_parquet(arq_fatores)
 
-    if df_c176.is_empty():
+    if lf_c176.select(pl.len()).collect().item() == 0:
         rprint("[yellow]Arquivo c176 esta vazio.[/yellow]")
         return salvar_para_parquet(pl.DataFrame(), pasta_analises, f"c176_xml_{cnpj}.parquet")
 
-    df_saida_ref = (
-        df_saida
+    lf_saida_ref = (
+        lf_saida
         .select(
             [
                 "chv_nfe",
@@ -147,8 +147,8 @@ def gerar_c176_xml(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         .unique(subset=["chv_nfe", "num_item", "cod_item"])
     )
 
-    df_c176_base = (
-        df_c176
+    lf_c176_base = (
+        lf_c176
         .with_columns(
             [
                 pl.col("num_item_saida").cast(pl.Int64, strict=False).alias("num_item_saida"),
@@ -159,7 +159,7 @@ def gerar_c176_xml(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
             ]
         )
         .join(
-            df_saida_ref,
+            lf_saida_ref,
             left_on=["chave_saida", "num_item_saida", "cod_item"],
             right_on=["chv_nfe", "num_item", "cod_item"],
             how="left",
@@ -172,8 +172,8 @@ def gerar_c176_xml(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         )
     )
 
-    df_fatores_ref = (
-        df_fatores
+    lf_fatores_base = (
+        lf_fatores
         .select(["id_agrupado", "unid", "unid_ref", "fator"])
         .with_columns(
             [
@@ -185,27 +185,22 @@ def gerar_c176_xml(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         .unique(subset=["id_agrupado", "__unid_norm"])
     )
 
-    df_saida_conv = (
-        df_c176_base
+    lf_c176_com_fator_saida = (
+        lf_c176_base
         .join(
-            df_fatores_ref.select(
-                [
-                    "id_agrupado",
-                    "__unid_norm",
-                    pl.col("unid_ref").alias("unid_ref_saida"),
-                    pl.col("fator").alias("fator_saida"),
-                ]
-            ),
-            left_on=["id_agrupado", "unid_saida_norm"],
-            right_on=["id_agrupado", "__unid_norm"],
+            lf_fatores_base,
+            left_on=["id_agrupado", "unid_saida_agr"],
+            right_on=["id_agrupado", "unid"],
             how="left",
         )
         .with_columns(
             [
-                pl.coalesce([pl.col("unid_ref_saida"), pl.col("unid_saida_norm")]).alias("unid_ref"),
-                pl.col("fator_saida").fill_null(1.0).alias("fator_saida"),
+                pl.coalesce([pl.col("unid_ref"), pl.col("unid_saida_norm")]).alias("unid_ref_val"),
+                pl.col("fator").fill_null(1.0).alias("fator_saida"),
             ]
         )
+        .drop("unid_ref")
+        .rename({"unid_ref_val": "unid_ref"})
         .with_columns(
             [
                 (pl.col("qtd_item_saida") * pl.col("fator_saida")).alias("qtd_saida_unid_ref"),
@@ -225,8 +220,8 @@ def gerar_c176_xml(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         )
     )
 
-    df_entrada_xml = (
-        df_nfe
+    lf_nfe_entradas = (
+        lf_nfe
         .select(
             [
                 "chave_acesso",
@@ -275,22 +270,22 @@ def gerar_c176_xml(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         .unique(subset=["chave_acesso", "prod_nitem", "id_agrupado_entrada_xml"])
     )
 
-    chaves_particao = ["chave_saida", "num_item_saida", "cod_item_ref_saida", "chave_nfe_ultima_entrada"]
+    chaves_particao = ["chave_saida", "num_item_saida", "cod_item", "chave_nfe_ultima_entrada"]
 
-    df_result = (
-        df_saida_conv
+    lf_match_entradas = (
+        lf_c176_com_fator_saida
+        .join(
+            lf_nfe_entradas,
+            left_on=["chave_nfe_ultima_entrada"],
+            right_on=["chave_acesso"],
+            how="left",
+        )
         .with_columns(
             [
                 _norm_text_expr("descricao_item").alias("descricao_item_norm"),
                 _norm_text_expr("descr_padrao").alias("descr_padrao_norm"),
                 pl.col("cod_item_ref_saida").cast(pl.Utf8, strict=False).str.strip_chars().alias("cod_item_ref_saida"),
             ]
-        )
-        .join(
-            df_entrada_xml,
-            left_on=["chave_nfe_ultima_entrada"],
-            right_on=["chave_acesso"],
-            how="left",
         )
         .with_columns(
             [
@@ -346,17 +341,18 @@ def gerar_c176_xml(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
             pl.int_range(0, pl.len()).over(chaves_particao).alias("__rank_vinculo")
         )
         .filter(pl.col("__rank_vinculo") == 0)
+    )
+
+    lf_melhor_entrada = lf_match_entradas.with_columns(
+        _norm_unid_expr("unid_entrada_xml").alias("unid_entrada_xml_norm")
+    )
+
+    lf_result = (
+        lf_melhor_entrada
         .join(
-            df_fatores_ref.select(
-                [
-                    "id_agrupado",
-                    "__unid_norm",
-                    pl.col("unid_ref").alias("unid_ref_entrada"),
-                    pl.col("fator").alias("fator_entrada_xml"),
-                ]
-            ),
-            left_on=["id_agrupado", "unid_entrada_xml"],
-            right_on=["id_agrupado", "__unid_norm"],
+            lf_fatores_base.select(["id_agrupado", "unid", pl.col("unid_ref").alias("unid_ref_entrada"), pl.col("fator").alias("fator_entrada_xml")]),
+            left_on=["id_agrupado", "unid_entrada_xml_norm"],
+            right_on=["id_agrupado", "unid"],
             how="left",
         )
         .with_columns(
@@ -441,7 +437,7 @@ def gerar_c176_xml(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         .sort(["periodo_efd", "chave_saida", "num_item_saida", "chave_nfe_ultima_entrada"], nulls_last=True)
     )
 
-    return salvar_para_parquet(df_result, pasta_analises, f"c176_xml_{cnpj}.parquet")
+    return salvar_para_parquet(lf_result.collect(), pasta_analises, f"c176_xml_{cnpj}.parquet")
 
 
 if __name__ == "__main__":

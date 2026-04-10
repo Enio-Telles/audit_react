@@ -114,7 +114,7 @@ export function LeftPanel() {
       incluir_extracao: modo !== "process",
       incluir_processamento: modo !== "extract",
       consultas:
-        modo === "extract" && selectedConsultas !== null
+        modo !== "process" && selectedConsultas !== null
           ? selectedConsultas
           : undefined,
       tabelas: undefined,

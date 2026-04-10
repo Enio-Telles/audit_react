@@ -4,7 +4,15 @@ from pathlib import Path
 
 import polars as pl
 
-from transformacao.ressarcimento_st_pkg.base import alinhar_schema, caminho_analise, caminho_bruto, ler_parquet_opcional, salvar_df
+from transformacao.ressarcimento_st_pkg.base import (
+    alinhar_schema,
+    alinhar_schema_lazy,
+    caminho_analise,
+    caminho_bruto,
+    lazy_esta_vazio,
+    salvar_df,
+    scan_parquet_opcional,
+)
 
 
 SCHEMA_MENSAL = {
@@ -22,9 +30,15 @@ SCHEMA_MENSAL = {
 }
 
 
-def _resumo_e111(df: pl.DataFrame) -> pl.DataFrame:
-    if df.is_empty():
-        return alinhar_schema(pl.DataFrame(), {"mes_ref": pl.Date, "vl_e111_st_mes": pl.Float64, "vl_e111_st_extemporaneo_mes": pl.Float64})
+def _resumo_e111(df: pl.LazyFrame) -> pl.LazyFrame:
+    if lazy_esta_vazio(df):
+        return pl.DataFrame(
+            schema={
+                "mes_ref": pl.Date,
+                "vl_e111_st_mes": pl.Float64,
+                "vl_e111_st_extemporaneo_mes": pl.Float64,
+            }
+        ).lazy()
 
     base = df.with_columns(
         (
@@ -64,8 +78,8 @@ def gerar_ressarcimento_st_mensal(cnpj: str, pasta_cnpj: Path | None = None) -> 
         caminho_e111 = caminho_bruto(cnpj_limpo, f"E111_{cnpj_limpo}.parquet", pasta_cnpj)
     caminho_saida = caminho_analise(cnpj_limpo, f"ressarcimento_st_mensal_{cnpj_limpo}.parquet", pasta_cnpj)
 
-    df_item = ler_parquet_opcional(caminho_item)
-    if df_item.is_empty():
+    df_item = scan_parquet_opcional(caminho_item)
+    if lazy_esta_vazio(df_item):
         return salvar_df(alinhar_schema(pl.DataFrame(), SCHEMA_MENSAL), caminho_saida)
 
     resumo_item = df_item.group_by("mes_ref").agg(
@@ -74,7 +88,7 @@ def gerar_ressarcimento_st_mensal(cnpj: str, pasta_cnpj: Path | None = None) -> 
         pl.sum(pl.coalesce([pl.col("vl_st_calc_total_considerado"), pl.lit(0.0)])).alias("vl_st_calc_total_mes"),
         pl.sum(pl.coalesce([pl.col("vl_st_fronteira_total_considerado"), pl.lit(0.0)])).alias("vl_st_fronteira_total_mes"),
     )
-    resumo_e111 = _resumo_e111(ler_parquet_opcional(caminho_e111))
+    resumo_e111 = _resumo_e111(scan_parquet_opcional(caminho_e111))
 
     df_saida = (
         resumo_item
@@ -92,4 +106,4 @@ def gerar_ressarcimento_st_mensal(cnpj: str, pasta_cnpj: Path | None = None) -> 
         .sort("mes_ref")
     )
 
-    return salvar_df(alinhar_schema(df_saida, SCHEMA_MENSAL), caminho_saida)
+    return salvar_df(alinhar_schema_lazy(df_saida, SCHEMA_MENSAL).collect(), caminho_saida)

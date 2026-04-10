@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import re
 from pathlib import Path
@@ -53,6 +54,60 @@ def _df_to_response(df: pl.DataFrame, page: int = 1, page_size: int = 500) -> di
     }
 
 
+def _ordenar_df(
+    df: pl.DataFrame,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> pl.DataFrame:
+    if not sort_by or sort_by not in df.columns:
+        return df
+    try:
+        return df.sort(sort_by, descending=sort_desc, nulls_last=True)
+    except Exception:
+        return df
+
+
+def _carregar_filtros_colunas(column_filters: str | None = None) -> dict[str, str]:
+    if not column_filters:
+        return {}
+    try:
+        payload = json.loads(column_filters)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {
+        str(chave): str(valor)
+        for chave, valor in payload.items()
+        if valor is not None and str(valor).strip()
+    }
+
+
+def _aplicar_filtros_texto(
+    df: pl.DataFrame,
+    search: str | None = None,
+    column_filters: str | None = None,
+) -> pl.DataFrame:
+    if search and search.strip():
+        termo = search.strip().lower()
+        exprs = [
+            pl.col(coluna).cast(pl.Utf8).str.to_lowercase().str.contains(termo, literal=True)
+            for coluna in df.columns
+        ]
+        if exprs:
+            df = df.filter(pl.any_horizontal(exprs))
+
+    for coluna, valor in _carregar_filtros_colunas(column_filters).items():
+        if coluna not in df.columns:
+            continue
+        termo = valor.strip().lower()
+        df = df.filter(
+            pl.col(coluna).cast(pl.Utf8).str.to_lowercase().str.contains(termo, literal=True)
+        )
+
+    return df
+
+
 def _resposta_vazia(page: int = 1, page_size: int = 500) -> dict:
     return {
         "total_rows": 0,
@@ -64,38 +119,113 @@ def _resposta_vazia(page: int = 1, page_size: int = 500) -> dict:
     }
 
 
-def _ler_tabela_ressarcimento_ou_vazia(path: Path, page: int = 1, page_size: int = 500) -> dict:
+def _ler_tabela_ressarcimento_ou_vazia(
+    path: Path,
+    page: int = 1,
+    page_size: int = 500,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+    search: str | None = None,
+    column_filters: str | None = None,
+) -> dict:
     if not path.exists():
         return _resposta_vazia(page, page_size)
-    return _df_to_response(pl.read_parquet(path), page, page_size)
+    df = pl.read_parquet(path)
+    df = _aplicar_filtros_texto(df, search, column_filters)
+    df = _ordenar_df(df, sort_by, sort_desc)
+    return _df_to_response(df, page, page_size)
 
 
 @router.get("/{cnpj}/itens")
-def get_itens(cnpj: str, page: int = 1, page_size: int = 500):
+def get_itens(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 500,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+    search: str | None = None,
+    column_filters: str | None = None,
+):
     cnpj = _sanitize(cnpj)
     path = _pasta_ressarcimento(cnpj) / f"ressarcimento_st_item_{cnpj}.parquet"
-    return _ler_tabela_ressarcimento_ou_vazia(path, page, page_size)
+    return _ler_tabela_ressarcimento_ou_vazia(
+        path,
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+        search,
+        column_filters,
+    )
 
 
 @router.get("/{cnpj}/mensal")
-def get_mensal(cnpj: str, page: int = 1, page_size: int = 500):
+def get_mensal(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 500,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+    search: str | None = None,
+    column_filters: str | None = None,
+):
     cnpj = _sanitize(cnpj)
     path = _pasta_ressarcimento(cnpj) / f"ressarcimento_st_mensal_{cnpj}.parquet"
-    return _ler_tabela_ressarcimento_ou_vazia(path, page, page_size)
+    return _ler_tabela_ressarcimento_ou_vazia(
+        path,
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+        search,
+        column_filters,
+    )
 
 
 @router.get("/{cnpj}/conciliacao")
-def get_conciliacao(cnpj: str, page: int = 1, page_size: int = 500):
+def get_conciliacao(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 500,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+    search: str | None = None,
+    column_filters: str | None = None,
+):
     cnpj = _sanitize(cnpj)
     path = _pasta_ressarcimento(cnpj) / f"ressarcimento_st_conciliacao_{cnpj}.parquet"
-    return _ler_tabela_ressarcimento_ou_vazia(path, page, page_size)
+    return _ler_tabela_ressarcimento_ou_vazia(
+        path,
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+        search,
+        column_filters,
+    )
 
 
 @router.get("/{cnpj}/validacoes")
-def get_validacoes(cnpj: str, page: int = 1, page_size: int = 500):
+def get_validacoes(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 500,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+    search: str | None = None,
+    column_filters: str | None = None,
+):
     cnpj = _sanitize(cnpj)
     path = _pasta_ressarcimento(cnpj) / f"ressarcimento_st_validacoes_{cnpj}.parquet"
-    return _ler_tabela_ressarcimento_ou_vazia(path, page, page_size)
+    return _ler_tabela_ressarcimento_ou_vazia(
+        path,
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+        search,
+        column_filters,
+    )
 
 
 @router.get("/{cnpj}/resumo")

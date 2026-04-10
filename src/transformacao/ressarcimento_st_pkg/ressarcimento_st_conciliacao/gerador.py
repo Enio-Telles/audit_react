@@ -4,7 +4,14 @@ from pathlib import Path
 
 import polars as pl
 
-from transformacao.ressarcimento_st_pkg.base import alinhar_schema, caminho_analise, ler_parquet_opcional, salvar_df
+from transformacao.ressarcimento_st_pkg.base import (
+    alinhar_schema,
+    alinhar_schema_lazy,
+    caminho_analise,
+    lazy_esta_vazio,
+    salvar_df,
+    scan_parquet_opcional,
+)
 
 
 SCHEMA_CONCILIACAO = {
@@ -34,10 +41,10 @@ def gerar_ressarcimento_st_conciliacao(cnpj: str, pasta_cnpj: Path | None = None
     caminho_mensal = caminho_analise(cnpj_limpo, f"ressarcimento_st_mensal_{cnpj_limpo}.parquet", pasta_cnpj)
     caminho_saida = caminho_analise(cnpj_limpo, f"ressarcimento_st_conciliacao_{cnpj_limpo}.parquet", pasta_cnpj)
 
-    df_item = ler_parquet_opcional(caminho_item)
-    df_mensal = ler_parquet_opcional(caminho_mensal)
+    df_item = scan_parquet_opcional(caminho_item)
+    df_mensal = scan_parquet_opcional(caminho_mensal)
 
-    if df_item.is_empty() and df_mensal.is_empty():
+    if lazy_esta_vazio(df_item) and lazy_esta_vazio(df_mensal):
         return salvar_df(alinhar_schema(pl.DataFrame(), SCHEMA_CONCILIACAO), caminho_saida)
 
     contagens = (
@@ -61,4 +68,4 @@ def gerar_ressarcimento_st_conciliacao(cnpj: str, pasta_cnpj: Path | None = None
     )
 
     df_saida = df_mensal.join(contagens, on=["mes_ref", "qtd_itens_c176"], how="left")
-    return salvar_df(alinhar_schema(df_saida, SCHEMA_CONCILIACAO), caminho_saida)
+    return salvar_df(alinhar_schema_lazy(df_saida, SCHEMA_CONCILIACAO).collect(), caminho_saida)

@@ -84,6 +84,17 @@ def ler_parquet_opcional(
     return dataframe_vazio(schema)
 
 
+def scan_parquet_opcional(
+    caminho: Path,
+    schema: dict[str, pl.DataType] | None = None,
+) -> pl.LazyFrame:
+    if caminho.exists():
+        return pl.scan_parquet(caminho)
+    if schema is None:
+        return pl.DataFrame().lazy()
+    return dataframe_vazio(schema).lazy()
+
+
 def alinhar_schema(df: pl.DataFrame, schema: dict[str, pl.DataType]) -> pl.DataFrame:
     if df.is_empty() and not df.columns:
         return dataframe_vazio(schema)
@@ -96,6 +107,25 @@ def alinhar_schema(df: pl.DataFrame, schema: dict[str, pl.DataType]) -> pl.DataF
     return resultado.select(
         [pl.col(nome).cast(tipo, strict=False).alias(nome) for nome, tipo in schema.items()]
     )
+
+
+def alinhar_schema_lazy(df: pl.LazyFrame, schema: dict[str, pl.DataType]) -> pl.LazyFrame:
+    schema_atual = set(df.collect_schema().names())
+    faltantes = [
+        pl.lit(None).cast(tipo).alias(nome)
+        for nome, tipo in schema.items()
+        if nome not in schema_atual
+    ]
+    if faltantes:
+        df = df.with_columns(faltantes)
+
+    return df.select(
+        [pl.col(nome).cast(tipo, strict=False).alias(nome) for nome, tipo in schema.items()]
+    )
+
+
+def lazy_esta_vazio(df: pl.LazyFrame) -> bool:
+    return df.select(pl.len().alias("total_linhas")).collect().item() == 0
 
 
 def salvar_df(df: pl.DataFrame, caminho: Path) -> bool:

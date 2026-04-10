@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import re
 import sys
@@ -104,13 +104,22 @@ def gerar_id_agrupados(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
         rprint(f"[red]Arquivo necessario nao encontrado:[/red] {arq_final}")
         return False
 
-    df_final = pl.read_parquet(arq_final)
-    if df_final.is_empty() or "id_agrupado" not in df_final.columns:
-        rprint("[yellow]produtos_final vazio ou sem id_agrupado.[/yellow]")
+    try:
+        schema = pl.scan_parquet(arq_final).collect_schema()
+        if "id_agrupado" not in schema.names():
+            rprint("[yellow]produtos_final sem id_agrupado.[/yellow]")
+            return False
+            
+        lf_final = pl.scan_parquet(arq_final)
+        if lf_final.select(pl.len()).collect().item() == 0:
+            rprint("[yellow]produtos_final vazio.[/yellow]")
+            return False
+    except Exception as e:
+        rprint(f"[red]Erro ao ler esquema do parquet:[/red] {e}")
         return False
 
     df_id_agrupados = (
-        df_final
+        lf_final
         .with_columns(
             [
                 pl.col("id_agrupado").cast(pl.Utf8, strict=False),
@@ -124,6 +133,7 @@ def gerar_id_agrupados(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
                 pl.col("unid_ref_sugerida").cast(pl.Utf8, strict=False),
             ]
         )
+        .collect() # Executa o DAG Lazy montado até aqui e aloca na memória otimizada
         .group_by("id_agrupado")
         .map_groups(_consolidar_grupo_id_agrupado)
         .sort("id_agrupado")

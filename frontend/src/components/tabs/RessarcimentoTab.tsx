@@ -11,21 +11,40 @@ import { ColumnToggle } from "../table/ColumnToggle";
 import { usePreferenciasColunas } from "../../hooks/usePreferenciasColunas";
 
 type SubTab = "itens" | "mensal" | "conciliacao" | "validacoes";
+type TableSortState = { col: string; desc: boolean } | null;
 
 function RessarcimentoGrid({ cnpj, subTab }: { cnpj: string; subTab: SubTab }) {
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<TableSortState>(null);
   const [search, setSearch] = useState("");
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+  const params = {
+    ...(sort ? { sort_by: sort.col, sort_desc: sort.desc } : {}),
+    ...(search ? { search } : {}),
+    ...(Object.keys(columnFilters).length
+      ? { column_filters: JSON.stringify(columnFilters) }
+      : {}),
+  };
 
   const queryFn = {
-    itens: () => ressarcimentoApi.itens(cnpj, page, 300),
-    mensal: () => ressarcimentoApi.mensal(cnpj, page, 300),
-    conciliacao: () => ressarcimentoApi.conciliacao(cnpj, page, 300),
-    validacoes: () => ressarcimentoApi.validacoes(cnpj, page, 300),
+    itens: () => ressarcimentoApi.itens(cnpj, page, 300, params),
+    mensal: () => ressarcimentoApi.mensal(cnpj, page, 300, params),
+    conciliacao: () => ressarcimentoApi.conciliacao(cnpj, page, 300, params),
+    validacoes: () => ressarcimentoApi.validacoes(cnpj, page, 300, params),
   }[subTab];
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["ressarcimento", subTab, cnpj, page],
+    queryKey: [
+      "ressarcimento",
+      subTab,
+      cnpj,
+      page,
+      sort?.col ?? null,
+      sort?.desc ?? false,
+      search,
+      JSON.stringify(columnFilters),
+    ],
     queryFn,
     enabled: !!cnpj,
     placeholderData: (prev) => prev,
@@ -86,7 +105,10 @@ function RessarcimentoGrid({ cnpj, subTab }: { cnpj: string; subTab: SubTab }) {
             className={inputCls + " flex-1 min-w-64"}
             placeholder="Buscar em qualquer coluna..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
           <ColumnToggle
             allColumns={colunasDisponiveis}
@@ -118,6 +140,7 @@ function RessarcimentoGrid({ cnpj, subTab }: { cnpj: string; subTab: SubTab }) {
 
       <div className="flex-1 overflow-hidden">
         <DataTable
+          appearanceKey={`ressarcimento_${subTab}`}
           columns={colunasDisponiveis}
           orderedColumns={ordemColunas}
           columnWidths={largurasColunas}
@@ -129,6 +152,17 @@ function RessarcimentoGrid({ cnpj, subTab }: { cnpj: string; subTab: SubTab }) {
           page={page}
           totalPages={data?.total_pages}
           onPageChange={setPage}
+          sortBy={sort?.col}
+          sortDesc={sort?.desc ?? false}
+          onSortChange={(col, desc) => {
+            setSort({ col, desc });
+            setPage(1);
+          }}
+          columnFilters={columnFilters}
+          onColumnFilterChange={(col, val) => {
+            setColumnFilters((prev) => ({ ...prev, [col]: val }));
+            setPage(1);
+          }}
           hiddenColumns={hiddenCols}
         />
       </div>

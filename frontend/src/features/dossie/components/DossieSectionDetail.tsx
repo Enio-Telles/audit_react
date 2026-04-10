@@ -1,9 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { dossieApi } from "../../../api/client";
 import { DataTable } from "../../../components/table/DataTable";
+import { HighlightRulesPanel } from "../../../components/table/HighlightRulesPanel";
+import type { HighlightRule } from "../../../api/types";
 import type { DossieSectionData } from "../types";
 import { DossieContatoDetalhe } from "./DossieContatoDetalhe";
+import { DossieColumnManager } from "./DossieColumnManager";
 import type { DossieViewMode } from "../utils/dossie_helpers";
 import {
   formatarComparacaoResumo,
@@ -11,6 +14,7 @@ import {
   obterVarianteComparacao,
 } from "../utils/dossie_helpers";
 import { useAppStore } from "../../../store/appStore";
+import { usePreferenciasColunas } from "../../../hooks/usePreferenciasColunas";
 import { DossieBadge } from "./DossieBadge";
 
 interface DossieSectionDetailProps {
@@ -37,45 +41,7 @@ function formatar_data_atualizacao(updatedAt?: string | null): string | null {
   return dateTimeFormatter.format(data);
 }
 
-function escolher_colunas_compactas(colunas: string[]): string[] {
-  const prioridades = [
-    "origem_dado",
-    "tabela_origem",
-    "sql_id_origem",
-    "data_referencia",
-    "cnpj",
-    "cpf_cnpj",
-    "cpf_cnpj_referencia",
-    "nome",
-    "nome_referencia",
-    "tipo_vinculo",
-    "situacao",
-    "situacao_cadastral",
-    "valor",
-    "quantidade",
-  ];
 
-  const resultado: string[] = [];
-  for (const prioridade of prioridades) {
-    const colunaEncontrada = colunas.find(
-      (coluna) => coluna.toLowerCase() === prioridade,
-    );
-    if (colunaEncontrada && !resultado.includes(colunaEncontrada)) {
-      resultado.push(colunaEncontrada);
-    }
-  }
-
-  for (const coluna of colunas) {
-    if (resultado.length >= 8) {
-      break;
-    }
-    if (!resultado.includes(coluna)) {
-      resultado.push(coluna);
-    }
-  }
-
-  return resultado;
-}
 
 function montar_cartoes_operacionais(dados: {
   estrategiaExecucao: string | null;
@@ -151,20 +117,6 @@ export function DossieSectionDetail({
 }: DossieSectionDetailProps) {
   const cnpj = extrair_cnpj_do_caminho(dados.cacheFile);
   const sectionKey = `${cnpj}:${dados.id}`;
-  const tableProfile = useAppStore((state) => state.dossieTableProfile);
-  const setTableProfile = useAppStore((state) => state.setDossieTableProfile);
-  const tableState = useAppStore(
-    (state) => state.dossieSectionTableStateById[sectionKey],
-  );
-  const setDossieSectionSort = useAppStore(
-    (state) => state.setDossieSectionSort,
-  );
-  const setDossieSectionColumnFilter = useAppStore(
-    (state) => state.setDossieSectionColumnFilter,
-  );
-  const clearDossieSectionColumnFilters = useAppStore(
-    (state) => state.clearDossieSectionColumnFilters,
-  );
   const dataAtualizacao = formatar_data_atualizacao(dados.updatedAt);
   const estrategiaExecucao =
     typeof dados.metadata?.estrategia_execucao === "string"
@@ -254,17 +206,7 @@ export function DossieSectionDetail({
       ),
   });
 
-  const colunasCompactas = useMemo(
-    () => escolher_colunas_compactas(dados.columns),
-    [dados.columns],
-  );
-  const hiddenColumnsCompacto = useMemo(
-    () =>
-      new Set(
-        dados.columns.filter((coluna) => !colunasCompactas.includes(coluna)),
-      ),
-    [colunasCompactas, dados.columns],
-  );
+
   const statusComparacao =
     convergenciaFuncional === false
       ? "divergencia_funcional"
@@ -585,79 +527,180 @@ export function DossieSectionDetail({
           )}
         </div>
       ) : (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-            <div className="text-xs text-slate-400">
-              Perfil de tabela: <span className="font-medium text-slate-200">{tableProfile}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900/80 p-1">
-                <button
-                  type="button"
-                  onClick={() => setTableProfile("compacto")}
-                  className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                    tableProfile === "compacto"
-                      ? "border border-blue-600/60 bg-blue-700/60 text-blue-100"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  Compacto
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTableProfile("analitico")}
-                  className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                    tableProfile === "analitico"
-                      ? "border border-blue-600/60 bg-blue-700/60 text-blue-100"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  Analitico
-                </button>
-              </div>
+        <SectionTableView
+          dados={dados}
+          viewMode={viewMode}
+          sectionKey={sectionKey}
+          arquivosOrigem={arquivosOrigem}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Extracted Table View with Phase 2/3 features ───────────────────────────
+function SectionTableView({
+  dados,
+  viewMode,
+  sectionKey,
+  arquivosOrigem,
+}: {
+  dados: DossieSectionData;
+  viewMode: DossieViewMode;
+  sectionKey: string;
+  arquivosOrigem: string[];
+}) {
+  const setDossieSectionSort = useAppStore(
+    (state) => state.setDossieSectionSort,
+  );
+  const setDossieSectionColumnFilter = useAppStore(
+    (state) => state.setDossieSectionColumnFilter,
+  );
+  const clearDossieSectionColumnFilters = useAppStore(
+    (state) => state.clearDossieSectionColumnFilters,
+  );
+  const tableState = useAppStore(
+    (state) => state.dossieSectionTableStateById[sectionKey],
+  );
+
+  const [showFilters, setShowFilters] = useState(false);
+  const [columnManagerOpen, setColumnManagerOpen] = useState(false);
+  const [highlightRules, setHighlightRules] = useState<HighlightRule[]>([]);
+
+  const prefs = usePreferenciasColunas(
+    `dossie_section_${dados.id}`,
+    dados.columns,
+  );
+
+  // Auto-hide technical columns in non-audit mode
+  const colunasOcultasEfetivas = useMemo(() => {
+    const ocultas = new Set(prefs.colunasOcultas);
+    if (viewMode !== "auditoria") {
+      for (const col of ["origem_dado", "tabela_origem", "ordem_exibicao", "sql_id_origem"]) {
+        if (dados.columns.includes(col)) ocultas.add(col);
+      }
+    }
+    return ocultas;
+  }, [prefs.colunasOcultas, viewMode, dados.columns]);
+
+  const handleAddRule = (rule: HighlightRule) => {
+    setHighlightRules((prev) => [...prev, rule]);
+  };
+  const handleRemoveRule = (index: number) => {
+    setHighlightRules((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+        <div className="flex items-center gap-3 text-xs text-slate-400">
+          Perfil:
+          <div className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900/80 p-0.5">
+            {["resumido", "auditoria"].map((perfil) => (
               <button
+                key={perfil}
                 type="button"
-                onClick={() => clearDossieSectionColumnFilters(sectionKey)}
-                className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[11px] text-slate-300 transition-colors hover:bg-slate-800"
+                onClick={() => prefs.carregarPerfil(perfil)}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-medium capitalize transition-colors ${
+                  prefs.perfilAtivo === perfil
+                    ? "border border-blue-600/60 bg-blue-700/60 text-blue-100"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
               >
-                Limpar filtros
+                {perfil === "resumido" ? "Resumido" : "Auditoria"}
               </button>
-            </div>
+            ))}
           </div>
-          {arquivosOrigem.length > 0 && (
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-[11px] text-slate-400">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Arquivos de origem
-              </div>
-              <div className="space-y-1">
-                {arquivosOrigem.map((arquivo) => (
-                  <div key={arquivo}>{arquivo}</div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="h-[520px] rounded-xl border border-slate-800 bg-slate-950/40">
-            <DataTable
-              columns={dados.columns}
-              rows={dados.rows}
-              totalRows={dados.rowCount}
-              sortBy={tableState?.sortBy ?? undefined}
-              sortDesc={tableState?.sortDesc ?? false}
-              onSortChange={(col, desc) =>
-                setDossieSectionSort(sectionKey, col, desc)
-              }
-              showColumnFilters
-              columnFilters={tableState?.columnFilters ?? {}}
-              onColumnFilterChange={(col, value) =>
-                setDossieSectionColumnFilter(sectionKey, col, value)
-              }
-              hiddenColumns={
-                tableProfile === "compacto" ? hiddenColumnsCompacto : undefined
-              }
-            />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            title="Alternar filtros de coluna"
+            className={`rounded-md border px-2 py-1.5 text-[11px] transition-colors ${
+              showFilters
+                ? "border-blue-600/60 bg-blue-900/40 text-blue-200"
+                : "border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => setColumnManagerOpen(true)}
+            title="Gestão de colunas"
+            className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-400 transition-colors hover:text-slate-200"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => clearDossieSectionColumnFilters(sectionKey)}
+            className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[11px] text-slate-300 transition-colors hover:bg-slate-800"
+          >
+            Limpar filtros
+          </button>
+        </div>
+      </div>
+
+      <HighlightRulesPanel
+        columns={dados.columns}
+        rules={highlightRules}
+        onAdd={handleAddRule}
+        onRemove={handleRemoveRule}
+      />
+
+      {arquivosOrigem.length > 0 && (
+        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-[11px] text-slate-400">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Arquivos de origem
+          </div>
+          <div className="space-y-1">
+            {arquivosOrigem.map((arquivo) => (
+              <div key={arquivo}>{arquivo}</div>
+            ))}
           </div>
         </div>
       )}
+
+      <div className="h-[520px] rounded-xl border border-slate-800 bg-slate-950/40">
+        <DataTable
+          appearanceKey={`dossie_${sectionKey}`}
+          columns={prefs.ordemColunas}
+          rows={dados.rows}
+          totalRows={dados.rowCount}
+          sortBy={tableState?.sortBy ?? undefined}
+          sortDesc={tableState?.sortDesc ?? false}
+          onSortChange={(col, desc) =>
+            setDossieSectionSort(sectionKey, col, desc)
+          }
+          showColumnFilters={showFilters}
+          columnFilters={tableState?.columnFilters ?? {}}
+          onColumnFilterChange={(col, value) =>
+            setDossieSectionColumnFilter(sectionKey, col, value)
+          }
+          hiddenColumns={colunasOcultasEfetivas}
+          highlightRules={highlightRules}
+        />
+      </div>
+
+      <DossieColumnManager
+        open={columnManagerOpen}
+        onClose={() => setColumnManagerOpen(false)}
+        columns={dados.columns}
+        columnOrder={prefs.ordemColunas}
+        hiddenColumns={colunasOcultasEfetivas}
+        onReorder={prefs.definirOrdemColunas}
+        onToggleVisibility={prefs.toggleColunaVisibilidade}
+        onShowAll={prefs.mostrarTodasColunas}
+        onHideAll={prefs.ocultarTodasColunas}
+      />
     </div>
   );
 }

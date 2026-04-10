@@ -28,6 +28,7 @@ type SubTab =
   | "bloco_h";
 
 type BlocoHSubTab = "h005_resumo" | "todos_dados";
+type TableSortState = { col: string; desc: boolean } | null;
 
 function escapeHtml(value: unknown): string {
   return String(value ?? "")
@@ -87,45 +88,129 @@ function openTableInNewTab(
   title: string,
   rows: Array<Record<string, unknown>>,
   columns: string[],
+  appearanceKey?: string,
 ) {
-  const win = window.open("", "_blank", "noopener,noreferrer");
-  if (!win) return;
+  let appearance = {
+    headerBg: "#1b2943",
+    headerText: "#dbe7ff",
+    filterBg: "#131d31",
+    rowEvenBg: "#101927",
+    rowOddBg: "#0b1422",
+    rowText: "#f8fafc",
+  };
+
+  if (appearanceKey) {
+    try {
+      const raw = window.localStorage.getItem(
+        `datatable_appearance_${appearanceKey}`,
+      );
+      if (raw) {
+        appearance = {
+          ...appearance,
+          ...(JSON.parse(raw) as Partial<typeof appearance>),
+        };
+      }
+    } catch {
+      // fallback silencioso para o tema padrao
+    }
+  }
 
   const headerHtml = columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("");
   const rowsHtml = rows
-    .map((row) => {
+    .map((row, index) => {
       const tds = columns
         .map((col) => `<td>${escapeHtml(row[col])}</td>`)
         .join("");
-      return `<tr>${tds}</tr>`;
+      const bg = index % 2 === 0 ? appearance.rowEvenBg : appearance.rowOddBg;
+      return `<tr style="background:${bg};color:${appearance.rowText}">${tds}</tr>`;
     })
     .join("");
 
-  win.document.write(`<!doctype html>
+  const html = `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
     <title>${escapeHtml(title)}</title>
     <style>
-      body { font-family: Segoe UI, sans-serif; margin: 16px; color: #0f172a; }
-      h1 { margin: 0 0 12px 0; font-size: 18px; }
-      .meta { margin-bottom: 10px; color: #334155; font-size: 12px; }
+      :root {
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: Inter, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #0b1220;
+        color: ${appearance.rowText};
+      }
+      .shell {
+        border-radius: 18px;
+        overflow: hidden;
+        background: #0f172a;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      }
+      .hero {
+        padding: 18px 20px;
+        background: linear-gradient(135deg, #0f2745 0%, #162c52 100%);
+        border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+      }
+      h1 { margin: 0 0 6px 0; font-size: 18px; color: ${appearance.headerText}; }
+      .meta { color: #9fb3d9; font-size: 12px; }
+      .table-wrap {
+        overflow: auto;
+        max-height: calc(100vh - 130px);
+      }
       table { border-collapse: collapse; width: 100%; font-size: 12px; }
-      th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
-      th { background: #e2e8f0; position: sticky; top: 0; }
-      tbody tr:nth-child(even) { background: #f8fafc; }
+      th, td {
+        border-right: 1px solid rgba(148, 163, 184, 0.16);
+        border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        padding: 7px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: ${appearance.headerBg};
+        color: ${appearance.headerText};
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      td {
+        color: ${appearance.rowText};
+      }
     </style>
   </head>
   <body>
-    <h1>${escapeHtml(title)}</h1>
-    <div class="meta">Gerado em ${escapeHtml(intlDateTime.format(new Date()))} | Registros: ${escapeHtml(rows.length)}</div>
-    <table>
-      <thead><tr>${headerHtml}</tr></thead>
-      <tbody>${rowsHtml}</tbody>
-    </table>
+    <div class="shell">
+      <div class="hero">
+        <h1>${escapeHtml(title)}</h1>
+        <div class="meta">Gerado em ${escapeHtml(intlDateTime.format(new Date()))} | Registros: ${escapeHtml(rows.length)}</div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>${headerHtml}</tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </div>
   </body>
-</html>`);
-  win.document.close();
+</html>`;
+
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const openedWindow = window.open(url, "_blank");
+
+  if (!openedWindow) {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 // Sub-tabs that show the produtos_final table and support full selection
@@ -133,7 +218,9 @@ const PRODUTOS_SUBS = new Set<SubTab>(["produtos", "id_agrupados"]);
 
 function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<TableSortState>(null);
   const [search, setSearch] = useState("");
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [filterIdAgrupado, setFilterIdAgrupado] = useState("");
   const [filterBlocoHDataInv, setFilterBlocoHDataInv] = useState("");
   const [filterBlocoHMotivo, setFilterBlocoHMotivo] = useState("");
@@ -145,17 +232,25 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
 
   const isProdutosSub = PRODUTOS_SUBS.has(sub);
+  const params = {
+    ...(sort ? { sort_by: sort.col, sort_desc: sort.desc } : {}),
+    ...(search ? { search } : {}),
+    ...(filterIdAgrupado ? { id_agrupado: filterIdAgrupado } : {}),
+    ...(Object.keys(columnFilters).length
+      ? { column_filters: JSON.stringify(columnFilters) }
+      : {}),
+  };
 
   // Para sub-tabs de produtos carrega todos de uma vez (sem paginação) para popular dropdown
   const queryFn = isProdutosSub
-    ? () => estoqueApi.idAgrupados(cnpj, 1, 10000)
+    ? () => estoqueApi.idAgrupados(cnpj, 1, 10000, params)
     : {
-        mov_estoque: () => estoqueApi.movEstoque(cnpj, page),
-        tabela_mensal: () => estoqueApi.tabelaMensal(cnpj, page),
-        tabela_anual: () => estoqueApi.tabelaAnual(cnpj, page),
-        resumo: () => estoqueApi.tabelaAnual(cnpj, page),
-        produtos: () => estoqueApi.idAgrupados(cnpj, page),
-        id_agrupados: () => estoqueApi.idAgrupados(cnpj, page),
+        mov_estoque: () => estoqueApi.movEstoque(cnpj, page, 500, params),
+        tabela_mensal: () => estoqueApi.tabelaMensal(cnpj, page, 500, params),
+        tabela_anual: () => estoqueApi.tabelaAnual(cnpj, page, 500, params),
+        resumo: () => estoqueApi.tabelaAnual(cnpj, page, 500, params),
+        produtos: () => estoqueApi.idAgrupados(cnpj, page, 500, params),
+        id_agrupados: () => estoqueApi.idAgrupados(cnpj, page, 500, params),
         bloco_h: () => {
           const filtros = {
             dt_inv: filterBlocoHDataInv || undefined,
@@ -163,8 +258,8 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
             indicador_propriedade: filterBlocoHPropriedade || undefined,
           };
           return blocoHSubTab === "h005_resumo"
-            ? estoqueApi.blocoHH005(cnpj, page, 500, filtros)
-            : estoqueApi.blocoH(cnpj, page, 500, filtros);
+            ? estoqueApi.blocoHH005(cnpj, page, 500, filtros, params)
+            : estoqueApi.blocoH(cnpj, page, 500, filtros, params);
         },
       }[sub];
 
@@ -187,11 +282,25 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: isProdutosSub
-      ? [sub, cnpj, "all"]
+      ? [
+          sub,
+          cnpj,
+          "all",
+          sort?.col ?? null,
+          sort?.desc ?? false,
+          search,
+          filterIdAgrupado,
+          JSON.stringify(columnFilters),
+        ]
       : [
           sub,
           cnpj,
           page,
+          sort?.col ?? null,
+          sort?.desc ?? false,
+          search,
+          filterIdAgrupado,
+          JSON.stringify(columnFilters),
           blocoHSubTab,
           filterBlocoHDataInv,
           filterBlocoHMotivo,
@@ -259,6 +368,7 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
   const hasFilters = !!(
     filterIdAgrupado ||
     search ||
+    Object.values(columnFilters).some(Boolean) ||
     filterBlocoHDataInv ||
     filterBlocoHMotivo ||
     filterBlocoHPropriedade
@@ -267,9 +377,11 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
   function clearFilters() {
     setFilterIdAgrupado("");
     setSearch("");
+    setColumnFilters({});
     setFilterBlocoHDataInv("");
     setFilterBlocoHMotivo("");
     setFilterBlocoHPropriedade("");
+    setPage(1);
   }
 
   function handleRowSelect(key: string, checked: boolean) {
@@ -323,7 +435,12 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
 
   function handleOpenInNewTab() {
     const title = `${tableTitle} | CNPJ ${cnpj}`;
-    openTableInNewTab(title, filteredRows, visibleColumns);
+    openTableInNewTab(
+      title,
+      filteredRows,
+      visibleColumns,
+      `estoque_${sub}_${blocoHSubTab}`,
+    );
   }
 
   return (
@@ -447,7 +564,10 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
             <select
               className={inputCls + " w-56"}
               value={filterIdAgrupado}
-              onChange={(e) => setFilterIdAgrupado(e.target.value)}
+              onChange={(e) => {
+                setFilterIdAgrupado(e.target.value);
+                setPage(1);
+              }}
             >
               <option value="">— Todos os produtos —</option>
               {uniqueIdAgrupados.map((id) => (
@@ -462,12 +582,18 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
                 className={inputCls + " w-40"}
                 placeholder="Data inv (ex: 2021-12)"
                 value={filterBlocoHDataInv}
-                onChange={(e) => setFilterBlocoHDataInv(e.target.value)}
+                onChange={(e) => {
+                  setFilterBlocoHDataInv(e.target.value);
+                  setPage(1);
+                }}
               />
               <select
                 className={inputCls + " w-56"}
                 value={filterBlocoHMotivo}
-                onChange={(e) => setFilterBlocoHMotivo(e.target.value)}
+                onChange={(e) => {
+                  setFilterBlocoHMotivo(e.target.value);
+                  setPage(1);
+                }}
               >
                 <option value="">Motivo: todos</option>
                 {(blocoHResumo?.motivos ?? []).map((m) => (
@@ -483,7 +609,10 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
                 <select
                   className={inputCls + " w-44"}
                   value={filterBlocoHPropriedade}
-                  onChange={(e) => setFilterBlocoHPropriedade(e.target.value)}
+                  onChange={(e) => {
+                    setFilterBlocoHPropriedade(e.target.value);
+                    setPage(1);
+                  }}
                 >
                   <option value="">Propriedade: todos</option>
                   {(blocoHResumo?.propriedade ?? []).map((p) => (
@@ -506,7 +635,10 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
             className={inputCls + " flex-1"}
             placeholder="Filtrar descricao..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
           {sub === "tabela_mensal" && (
             <>
@@ -629,6 +761,7 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
 
       <div className="flex-1 overflow-hidden">
         <DataTable
+          appearanceKey={`estoque_${sub}_${blocoHSubTab}`}
           columns={colunasDisponiveis}
           orderedColumns={ordemColunas}
           columnWidths={largurasColunas}
@@ -640,6 +773,17 @@ function EstoqueSubTab({ cnpj, sub }: { cnpj: string; sub: SubTab }) {
           page={isProdutosSub ? 1 : page}
           totalPages={isProdutosSub ? 1 : data?.total_pages}
           onPageChange={isProdutosSub ? undefined : setPage}
+          sortBy={sort?.col}
+          sortDesc={sort?.desc ?? false}
+          onSortChange={(col, desc) => {
+            setSort({ col, desc });
+            setPage(1);
+          }}
+          columnFilters={columnFilters}
+          onColumnFilterChange={(col, val) => {
+            setColumnFilters((prev) => ({ ...prev, [col]: val }));
+            setPage(1);
+          }}
           highlightRows={sub === "mov_estoque"}
           rowKey={isProdutosSub ? "id_agrupado" : undefined}
           selectedRowKeys={isProdutosSub ? selectedRowKeys : undefined}

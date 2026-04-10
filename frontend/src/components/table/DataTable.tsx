@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -16,6 +17,7 @@ import type { HighlightRule } from "../../api/types";
 
 interface DataTableProps {
   columns: string[];
+  appearanceKey?: string;
   orderedColumns?: string[];
   columnWidths?: Record<string, number>;
   onOrderedColumnsChange?: (orderedColumns: string[]) => void;
@@ -41,6 +43,41 @@ interface DataTableProps {
   onColumnFilterChange?: (col: string, val: string) => void;
   showColumnFilters?: boolean;
   highlightRules?: HighlightRule[];
+}
+
+interface TableAppearance {
+  headerBg: string;
+  headerText: string;
+  filterBg: string;
+  rowEvenBg: string;
+  rowOddBg: string;
+  rowText: string;
+  entradaBg: string;
+  saidaBg: string;
+  selectedBg: string;
+}
+
+const DEFAULT_APPEARANCE: TableAppearance = {
+  headerBg: "#1b2943",
+  headerText: "#dbe7ff",
+  filterBg: "#131d31",
+  rowEvenBg: "#101927",
+  rowOddBg: "#0b1422",
+  rowText: "#f8fafc",
+  entradaBg: "#184a35",
+  saidaBg: "#5e2033",
+  selectedBg: "#1d4ed8",
+};
+
+function readAppearance(storageKey: string | undefined): TableAppearance {
+  if (!storageKey || typeof window === "undefined") return DEFAULT_APPEARANCE;
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return DEFAULT_APPEARANCE;
+    return { ...DEFAULT_APPEARANCE, ...(JSON.parse(raw) as Partial<TableAppearance>) };
+  } catch {
+    return DEFAULT_APPEARANCE;
+  }
 }
 
 const intlInteger = new Intl.NumberFormat("pt-BR");
@@ -129,6 +166,7 @@ function matchesRule(
 
 export function DataTable({
   columns,
+  appearanceKey,
   orderedColumns,
   columnWidths,
   onOrderedColumnsChange,
@@ -136,6 +174,9 @@ export function DataTable({
   rows,
   totalRows,
   loading,
+  page,
+  totalPages,
+  onPageChange,
   highlightRows,
   autoHighlight,
   rowKey,
@@ -151,18 +192,33 @@ export function DataTable({
   showColumnFilters,
   highlightRules,
 }: DataTableProps) {
+  const storageKey = appearanceKey ? `datatable_appearance_${appearanceKey}` : undefined;
   const selectable = !!onRowSelect && !!rowKey;
   const shouldAutoHighlight = autoHighlight ?? highlightRows ?? false;
   const isServerSort = !!onSortChange;
   const podeReordenarColunas = !!onOrderedColumnsChange;
   const podeRedimensionarColunas = !!onColumnWidthChange;
+  const shouldShowColumnFilters = showColumnFilters ?? true;
 
   const [localSort, setLocalSort] = useState<SortingState>([]);
   const [localColFilters, setLocalColFilters] = useState<
     Record<string, string>
   >({});
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [appearance, setAppearance] = useState<TableAppearance>(() =>
+    readAppearance(storageKey),
+  );
   const colunaArrastadaRef = useRef<string | null>(null);
   const momentoUltimaInteracaoCabecalhoRef = useRef(0);
+
+  useEffect(() => {
+    setAppearance(readAppearance(storageKey));
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || typeof window === "undefined") return;
+    window.localStorage.setItem(storageKey, JSON.stringify(appearance));
+  }, [appearance, storageKey]);
 
   const effectiveColFilters =
     columnFilters !== undefined ? columnFilters : localColFilters;
@@ -350,8 +406,65 @@ export function DataTable({
     window.addEventListener("mouseup", aoSoltarMouse);
   }
 
+  const paginaAtual = page ?? 1;
+  const totalPaginas = totalPages ?? 1;
+  const paginaAnteriorHabilitada = !!onPageChange && paginaAtual > 1;
+  const proximaPaginaHabilitada =
+    !!onPageChange && totalPaginas > 1 && paginaAtual < totalPaginas;
+
   return (
     <div className="flex flex-col h-full">
+      <div className="flex items-center justify-end gap-2 border-b border-slate-800/60 bg-slate-950/50 px-3 py-2">
+        <button
+          type="button"
+          className="rounded-lg bg-slate-800/90 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition-colors hover:bg-slate-700"
+          onClick={() => setAppearanceOpen((prev) => !prev)}
+        >
+          Aparencia da tabela
+        </button>
+        {appearanceOpen && (
+          <button
+            type="button"
+            className="rounded-lg bg-slate-900/80 px-3 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800"
+            onClick={() => setAppearance(DEFAULT_APPEARANCE)}
+          >
+            Restaurar cores
+          </button>
+        )}
+      </div>
+      {appearanceOpen && (
+        <div className="grid grid-cols-2 gap-2 border-b border-slate-800/60 bg-slate-950/70 px-3 py-3 md:grid-cols-3 xl:grid-cols-5">
+          {[
+            ["Cabecalho", "headerBg"],
+            ["Texto cabecalho", "headerText"],
+            ["Filtros", "filterBg"],
+            ["Linha par", "rowEvenBg"],
+            ["Linha impar", "rowOddBg"],
+            ["Texto linhas", "rowText"],
+            ["Entrada", "entradaBg"],
+            ["Saida", "saidaBg"],
+            ["Selecionada", "selectedBg"],
+          ].map(([label, key]) => (
+            <label
+              key={key}
+              className="flex items-center justify-between gap-2 rounded-xl bg-slate-900/80 px-3 py-2 text-[11px] text-slate-300"
+            >
+              <span>{label}</span>
+              <input
+                type="color"
+                value={appearance[key as keyof TableAppearance]}
+                onChange={(e) =>
+                  setAppearance((prev) => ({
+                    ...prev,
+                    [key]: e.target.value,
+                  }))
+                }
+                className="h-8 w-10 cursor-pointer rounded border border-slate-700 bg-transparent p-0"
+              />
+            </label>
+          ))}
+        </div>
+      )}
       <div className="overflow-auto flex-1">
         {loading ? (
           <div className="flex items-center justify-center h-32 text-slate-400">
@@ -382,7 +495,7 @@ export function DataTable({
             </colgroup>
             <thead
               className="sticky top-0 z-10"
-              style={{ background: "#1e2d4a" }}
+              style={{ background: appearance.headerBg }}
             >
               {table.getHeaderGroups().map((hg) => {
                 const visibleKeys = selectable
@@ -416,13 +529,15 @@ export function DataTable({
                     {hg.headers.map((h) => (
                       <th
                         key={h.id}
-                        className="px-2 py-2 text-left text-slate-300 font-semibold border-b border-slate-700 truncate select-none cursor-pointer hover:bg-slate-700 transition-colors group relative"
+                        className="group relative px-2 py-2 text-left font-semibold truncate select-none cursor-pointer transition-colors"
                         style={{
                           width: obterLarguraColuna(columnWidths, h.column.id),
                           maxWidth: obterLarguraColuna(
                             columnWidths,
                             h.column.id,
                           ),
+                          color: appearance.headerText,
+                          borderBottom: "1px solid rgba(71, 85, 105, 0.35)",
                         }}
                         title={`${h.column.id} - clique para ordenar`}
                         draggable={podeReordenarColunas}
@@ -436,6 +551,14 @@ export function DataTable({
                         onClick={() => {
                           if (cliqueCabecalhoDeveSerIgnorado()) return;
                           handleHeaderClick(h.column.id);
+                        }}
+                        onMouseEnter={(evento) => {
+                          (evento.currentTarget.style.backgroundColor =
+                            "rgba(51, 65, 85, 0.35)");
+                        }}
+                        onMouseLeave={(evento) => {
+                          (evento.currentTarget.style.backgroundColor =
+                            "transparent");
                         }}
                       >
                         <span className="flex items-center gap-1 pr-3">
@@ -466,8 +589,8 @@ export function DataTable({
                   </tr>
                 );
               })}
-              {showColumnFilters && (
-                <tr style={{ background: "#162035" }}>
+              {shouldShowColumnFilters && (
+                <tr style={{ background: appearance.filterBg }}>
                   {selectable && <th className="w-9" />}
                   <th className="w-10" />
                   {visibleCols.map((col) => (
@@ -476,8 +599,9 @@ export function DataTable({
                       className="px-1 py-1 border-b border-slate-700"
                     >
                       <input
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 placeholder-slate-600"
-                        placeholder="v"
+                        aria-label={`Filtrar coluna ${col}`}
+                        className="w-full rounded-lg border border-slate-700/70 bg-slate-950/80 px-2 py-1 text-xs text-slate-100 shadow-inner focus:border-blue-500 focus:outline-none placeholder-slate-500"
+                        placeholder={`Filtrar ${col}`}
                         value={effectiveColFilters[col] ?? ""}
                         onChange={(e) =>
                           handleColFilterChange(col, e.target.value)
@@ -503,20 +627,20 @@ export function DataTable({
                   selectable && selectedRowKeys!.has(rowKeyVal);
                 const ruleColor = getRowHighlightColor(row.original);
                 const bg = isSelected
-                  ? "rgba(37,99,235,0.25)"
+                  ? appearance.selectedBg
                   : ruleColor
                     ? ruleColor
                     : shouldAutoHighlight
                       ? isEntrada
-                        ? "rgba(30,80,30,0.5)"
+                        ? appearance.entradaBg
                         : isSaida
-                          ? "rgba(120,30,30,0.5)"
+                          ? appearance.saidaBg
                           : idx % 2 === 0
-                            ? "#0f1b33"
-                            : "#0a1628"
+                            ? appearance.rowEvenBg
+                            : appearance.rowOddBg
                       : idx % 2 === 0
-                        ? "#0f1b33"
-                        : "#0a1628";
+                        ? appearance.rowEvenBg
+                        : appearance.rowOddBg;
                 return (
                   <tr
                     key={row.id}
@@ -535,7 +659,7 @@ export function DataTable({
                     }
                   >
                     {selectable && (
-                      <td className="px-2 py-1.5 border-b border-slate-800 text-center">
+                      <td className="px-2 py-1.5 text-center text-slate-100">
                         <input
                           type="checkbox"
                           aria-label={`Selecionar linha ${rowKeyVal}`}
@@ -550,7 +674,10 @@ export function DataTable({
                         />
                       </td>
                     )}
-                    <td className="px-2 py-1.5 text-slate-500 text-right border-b border-slate-800">
+                    <td
+                      className="px-2 py-1.5 text-right"
+                      style={{ color: appearance.rowText }}
+                    >
                       {idx + 1}
                     </td>
                     {row.getVisibleCells().map((cell) => {
@@ -561,7 +688,7 @@ export function DataTable({
                       return (
                         <td
                           key={cell.id}
-                          className="px-2 py-1.5 border-b border-slate-800 truncate"
+                          className="px-2 py-1.5 truncate"
                           style={{
                             width: obterLarguraColuna(
                               columnWidths,
@@ -572,6 +699,7 @@ export function DataTable({
                               cell.column.id,
                             ),
                             background: cellColor ?? undefined,
+                            color: appearance.rowText,
                           }}
                           title={formatCell(cell.getValue())}
                         >
@@ -590,8 +718,36 @@ export function DataTable({
         )}
       </div>
 
-      <div className="px-3 py-2 border-t border-slate-700 bg-slate-900 text-xs text-slate-400">
-        Linhas filtradas: {intlInteger.format(totalRows ?? rows.length)}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/60 bg-slate-950/70 px-3 py-2 text-xs text-slate-400">
+        <div>
+          Linhas filtradas: {intlInteger.format(totalRows ?? rows.length)}
+        </div>
+        {!!onPageChange && totalPaginas > 1 && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md bg-slate-800 px-2.5 py-1 text-slate-200 transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => onPageChange(Math.max(1, paginaAtual - 1))}
+              disabled={!paginaAnteriorHabilitada}
+            >
+              Anterior
+            </button>
+            <span className="min-w-28 text-center text-slate-300">
+              Pagina {intlInteger.format(paginaAtual)} de{" "}
+              {intlInteger.format(totalPaginas)}
+            </span>
+            <button
+              type="button"
+              className="rounded-md bg-slate-800 px-2.5 py-1 text-slate-200 transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() =>
+                onPageChange(Math.min(totalPaginas, paginaAtual + 1))
+              }
+              disabled={!proximaPaginaHabilitada}
+            >
+              Proxima
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

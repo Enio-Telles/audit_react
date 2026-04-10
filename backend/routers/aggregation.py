@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import re
 from pathlib import Path
@@ -42,10 +43,71 @@ def _df_to_response(df: pl.DataFrame, page: int = 1, page_size: int = 300) -> di
     return {
         "total_rows": total,
         "page": page,
+        "page_size": page_size,
         "total_pages": max(1, math.ceil(total / page_size)),
         "columns": df_page.columns,
         "rows": rows,
     }
+
+
+def _ordenar_df(
+    df: pl.DataFrame,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> pl.DataFrame:
+    if not sort_by or sort_by not in df.columns:
+        return df
+    try:
+        return df.sort(sort_by, descending=sort_desc, nulls_last=True)
+    except Exception:
+        return df
+
+
+def _carregar_filtros_colunas(column_filters: str | None = None) -> dict[str, str]:
+    if not column_filters:
+        return {}
+    try:
+        payload = json.loads(column_filters)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {
+        str(chave): str(valor)
+        for chave, valor in payload.items()
+        if valor is not None and str(valor).strip()
+    }
+
+
+def _aplicar_filtros_texto(
+    df: pl.DataFrame,
+    search_desc: str | None = None,
+    search_ncm: str | None = None,
+    search_cest: str | None = None,
+    column_filters: str | None = None,
+) -> pl.DataFrame:
+    filtros_fixos = {
+        "descr_padrao": search_desc,
+        "ncm_padrao": search_ncm,
+        "cest_padrao": search_cest,
+    }
+    for coluna, valor in filtros_fixos.items():
+        if not valor or coluna not in df.columns:
+            continue
+        termo = valor.strip().lower()
+        df = df.filter(
+            pl.col(coluna).cast(pl.Utf8).str.to_lowercase().str.contains(termo, literal=True)
+        )
+
+    for coluna, valor in _carregar_filtros_colunas(column_filters).items():
+        if coluna not in df.columns:
+            continue
+        termo = valor.strip().lower()
+        df = df.filter(
+            pl.col(coluna).cast(pl.Utf8).str.to_lowercase().str.contains(termo, literal=True)
+        )
+
+    return df
 
 
 def _enriquecer_lista_descr_compl(df: pl.DataFrame, cnpj: str) -> pl.DataFrame:
@@ -74,7 +136,17 @@ def _enriquecer_lista_descr_compl(df: pl.DataFrame, cnpj: str) -> pl.DataFrame:
 
 
 @router.get("/{cnpj}/tabela_agrupada")
-def get_tabela_agrupada(cnpj: str, page: int = 1, page_size: int = 300):
+def get_tabela_agrupada(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 300,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+    search_desc: str | None = None,
+    search_ncm: str | None = None,
+    search_cest: str | None = None,
+    column_filters: str | None = None,
+):
     cnpj = _sanitize(cnpj)
     pasta = _pasta_produtos(cnpj)
     candidates = [
@@ -86,6 +158,8 @@ def get_tabela_agrupada(cnpj: str, page: int = 1, page_size: int = 300):
         raise HTTPException(404, "Tabela agrupada não encontrada")
     df = pl.read_parquet(path)
     df = _enriquecer_lista_descr_compl(df, cnpj)
+    df = _aplicar_filtros_texto(df, search_desc, search_ncm, search_cest, column_filters)
+    df = _ordenar_df(df, sort_by, sort_desc)
     return _df_to_response(df, page, page_size)
 
 

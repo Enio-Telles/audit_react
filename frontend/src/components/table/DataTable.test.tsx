@@ -27,7 +27,11 @@ describe("DataTable", () => {
     expect(tabela).not.toBeNull();
 
     const cabecalhos = screen.getAllByRole("columnheader");
-    expect(cabecalhos.map((cabecalho) => cabecalho.textContent)).toEqual([
+    expect(
+      cabecalhos
+        .map((cabecalho) => cabecalho.textContent)
+        .filter((texto) => texto !== ""),
+    ).toEqual([
       "#",
       "descr_padrao<>",
       "id_agrupado<>",
@@ -40,7 +44,7 @@ describe("DataTable", () => {
     expect(colunas[2]).toHaveStyle({ width: "180px" });
     expect(colunas[3]).toHaveStyle({ width: "140px" });
 
-    const linha = screen.getAllByRole("row")[1];
+    const linha = screen.getAllByRole("row")[2];
     const celulas = within(linha).getAllByRole("cell");
     expect(celulas.map((celula) => celula.textContent)).toEqual([
       "1",

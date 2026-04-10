@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import type { DossieSectionData } from "../types";
 import type { DossieViewMode } from "../utils/dossie_helpers";
+import { VerticalTable } from "../../../components/table/VerticalTable";
 
 interface DossieContatoDetalheProps {
   dados: DossieSectionData;
@@ -527,6 +528,101 @@ function renderizar_evidencias_compactas(
   );
 }
 
+function TabelaContatoVertical({
+  entidades,
+}: {
+  entidades: EntidadeAgenda[];
+}): JSX.Element {
+  if (entidades.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/30 px-4 py-8 text-center text-sm text-slate-500">
+        Nenhuma entidade encontrada neste grupo.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6 p-4">
+      {entidades.map((entidade) => {
+        const columns = [
+          { header: "Nome / Razão Social", accessorKey: "nome" as const },
+          { header: "Documento", accessorKey: "documento" as const },
+          {
+            header: "Tipos de Vínculos",
+            accessorKey: "vinculos" as const,
+            cell: (_: unknown, row: EntidadeAgenda) => (
+              <div className="flex flex-wrap gap-1.5">
+                {row.vinculos.map((v) => (
+                  <span
+                    key={v}
+                    className="rounded bg-slate-800/80 px-2 py-0.5 text-[10px] text-slate-300"
+                  >
+                    {rotular_vinculo(v)}
+                  </span>
+                ))}
+              </div>
+            ),
+          },
+          {
+            header: "Situação Cadastral",
+            accessorKey: "situacoes" as const,
+            cell: (_: unknown, row: EntidadeAgenda) => (
+              <div className="flex flex-col gap-1 text-xs">
+                {row.situacoes.map((s) => (
+                  <div key={s}>{s}</div>
+                ))}
+                {row.situacoes.length === 0 && <span className="text-slate-600">—</span>}
+              </div>
+            ),
+          },
+          {
+            header: "Status da Localização",
+            accessorKey: "chave" as const,
+            cell: (_: unknown, row: EntidadeAgenda) => {
+              const status = calcular_status_entidade(row);
+              return (
+                <span
+                  className={`inline-block rounded border px-2 py-0.5 text-[10px] uppercase font-semibold tracking-wider ${classe_badge_status(
+                    status
+                  )}`}
+                >
+                  {status}
+                </span>
+              );
+            },
+          },
+          {
+            header: "Endereços Registrados",
+            accessorKey: "enderecos" as const,
+            cell: (_: unknown, row: EntidadeAgenda) =>
+              renderizar_evidencias_compactas(row.enderecos),
+          },
+          {
+            header: "E-mails Detectados",
+            accessorKey: "emails" as const,
+            cell: (_: unknown, row: EntidadeAgenda) =>
+              renderizar_evidencias_compactas(row.emails),
+          },
+          {
+            header: "Telefones Detectados",
+            accessorKey: "telefones" as const,
+            cell: (_: unknown, row: EntidadeAgenda) =>
+              renderizar_evidencias_compactas(row.telefones),
+          },
+        ];
+
+        return (
+          <VerticalTable
+            key={entidade.chave}
+            data={entidade}
+            columns={columns}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function TabelaContatoGrupo({
   entidades,
   viewMode,
@@ -765,11 +861,15 @@ export function DossieContatoDetalhe({
       )}
 
       {/* Active tab content */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50">
-        <TabelaContatoGrupo
-          entidades={grupos[abaAtiva]}
-          viewMode={viewMode}
-        />
+      <div className={`rounded-xl border border-slate-800 ${abaAtiva === 'empresa' ? 'bg-transparent border-none' : 'bg-slate-900/50'}`}>
+        {abaAtiva === "empresa" ? (
+          <TabelaContatoVertical entidades={grupos[abaAtiva]} />
+        ) : (
+          <TabelaContatoGrupo
+            entidades={grupos[abaAtiva]}
+            viewMode={viewMode}
+          />
+        )}
       </div>
     </div>
   );

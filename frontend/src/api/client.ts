@@ -32,35 +32,12 @@ import type {
 
 const api = axios.create({ baseURL: "/api" });
 
-async function buscarTodasAsPaginas(
-  buscarPagina: (page: number) => Promise<PageResult>,
-): Promise<PageResult> {
-  const primeiraPagina = await buscarPagina(1);
-  const totalPaginas = Math.max(1, primeiraPagina.total_pages || 1);
-
-  if (totalPaginas === 1) {
-    return {
-      ...primeiraPagina,
-      page: 1,
-      total_pages: 1,
-    };
-  }
-
-  const linhasCompletas = [...primeiraPagina.rows];
-  for (let pagina = 2; pagina <= totalPaginas; pagina += 1) {
-    const resultadoPagina = await buscarPagina(pagina);
-    linhasCompletas.push(...resultadoPagina.rows);
-  }
-
-  return {
-    ...primeiraPagina,
-    rows: linhasCompletas,
-    total_rows: linhasCompletas.length,
-    page: 1,
-    page_size: linhasCompletas.length,
-    total_pages: 1,
-  };
+interface SortParams {
+  sort_by?: string;
+  sort_desc?: boolean;
 }
+
+type QueryParams = SortParams & Record<string, unknown>;
 
 // ---- CNPJ ----
 export const cnpjApi = {
@@ -105,18 +82,16 @@ export const parquetApi = {
     sort_by?: string;
     sort_desc?: boolean;
   }) =>
-    buscarTodasAsPaginas((page) =>
-      api
-        .post<PageResult>("/parquet/query", { ...payload, page })
-        .then((r) => r.data),
-    ),
+    api
+      .post<PageResult>("/parquet/query", payload)
+      .then((r) => r.data),
 };
 
 // ---- Pipeline ----
 export const pipelineApi = {
   run: (payload: {
     cnpj: string;
-    consultas?: string[];
+    consultas?: string[] | null;
     tabelas?: string[];
     data_limite?: string;
     incluir_extracao?: boolean;
@@ -131,50 +106,59 @@ export const pipelineApi = {
 
 // ---- Estoque ----
 export const estoqueApi = {
-  movEstoque: (cnpj: string, page = 1, page_size = 500) => {
-    void page;
-    return buscarTodasAsPaginas((paginaAtual) =>
-      api
-        .get<PageResult>(`/estoque/${cnpj}/mov_estoque`, {
-          params: { page: paginaAtual, page_size },
-        })
-        .then((r) => r.data),
-    );
-  },
-  tabelaMensal: (cnpj: string, page = 1, page_size = 500) => {
-    void page;
-    return buscarTodasAsPaginas((paginaAtual) =>
-      api
-        .get<PageResult>(`/estoque/${cnpj}/tabela_mensal`, {
-          params: { page: paginaAtual, page_size },
-        })
-        .then((r) => r.data),
-    );
-  },
-  tabelaAnual: (cnpj: string, page = 1, page_size = 500) => {
-    void page;
-    return buscarTodasAsPaginas((paginaAtual) =>
-      api
-        .get<PageResult>(`/estoque/${cnpj}/tabela_anual`, {
-          params: { page: paginaAtual, page_size },
-        })
-        .then((r) => r.data),
-    );
-  },
-  idAgrupados: (cnpj: string, page = 1, page_size = 500) => {
-    void page;
-    return buscarTodasAsPaginas((paginaAtual) =>
-      api
-        .get<PageResult>(`/estoque/${cnpj}/id_agrupados`, {
-          params: { page: paginaAtual, page_size },
-        })
-        .then((r) => r.data),
-    );
-  },
-  fatoresConversao: (cnpj: string, page = 1, page_size = 500) =>
+  movEstoque: (
+    cnpj: string,
+    page = 1,
+    page_size = 500,
+    params?: QueryParams,
+  ) =>
+    api
+      .get<PageResult>(`/estoque/${cnpj}/mov_estoque`, {
+        params: { page, page_size, ...params },
+      })
+      .then((r) => r.data),
+  tabelaMensal: (
+    cnpj: string,
+    page = 1,
+    page_size = 500,
+    params?: QueryParams,
+  ) =>
+    api
+      .get<PageResult>(`/estoque/${cnpj}/tabela_mensal`, {
+        params: { page, page_size, ...params },
+      })
+      .then((r) => r.data),
+  tabelaAnual: (
+    cnpj: string,
+    page = 1,
+    page_size = 500,
+    params?: QueryParams,
+  ) =>
+    api
+      .get<PageResult>(`/estoque/${cnpj}/tabela_anual`, {
+        params: { page, page_size, ...params },
+      })
+      .then((r) => r.data),
+  idAgrupados: (
+    cnpj: string,
+    page = 1,
+    page_size = 500,
+    params?: QueryParams,
+  ) =>
+    api
+      .get<PageResult>(`/estoque/${cnpj}/id_agrupados`, {
+        params: { page, page_size, ...params },
+      })
+      .then((r) => r.data),
+  fatoresConversao: (
+    cnpj: string,
+    page = 1,
+    page_size = 500,
+    params?: QueryParams,
+  ) =>
     api
       .get<PageResult>(`/estoque/${cnpj}/fatores_conversao`, {
-        params: { page, page_size },
+        params: { page, page_size, ...params },
       })
       .then((r) => r.data),
   updateFator: (
@@ -212,16 +196,13 @@ export const estoqueApi = {
       cod_mot_inv?: string;
       indicador_propriedade?: string;
     },
-  ) => {
-    void page;
-    return buscarTodasAsPaginas((paginaAtual) =>
-      api
-        .get<PageResult>(`/estoque/${cnpj}/bloco_h`, {
-          params: { page: paginaAtual, page_size, ...filtros },
-        })
-        .then((r) => r.data),
-    );
-  },
+    params?: QueryParams,
+  ) =>
+    api
+      .get<PageResult>(`/estoque/${cnpj}/bloco_h`, {
+        params: { page, page_size, ...filtros, ...params },
+      })
+      .then((r) => r.data),
   blocoHH005: (
     cnpj: string,
     page = 1,
@@ -231,16 +212,13 @@ export const estoqueApi = {
       cod_mot_inv?: string;
       indicador_propriedade?: string;
     },
-  ) => {
-    void page;
-    return buscarTodasAsPaginas((paginaAtual) =>
-      api
-        .get<PageResult>(`/estoque/${cnpj}/bloco_h_h005`, {
-          params: { page: paginaAtual, page_size, ...filtros },
-        })
-        .then((r) => r.data),
-    );
-  },
+    params?: QueryParams,
+  ) =>
+    api
+      .get<PageResult>(`/estoque/${cnpj}/bloco_h_h005`, {
+        params: { page, page_size, ...filtros, ...params },
+      })
+      .then((r) => r.data),
   blocoHResumo: (
     cnpj: string,
     filtros?: {
@@ -263,62 +241,47 @@ export const estoqueApi = {
 
 // ---- Ressarcimento ST ----
 export const ressarcimentoApi = {
-  itens: (cnpj: string, page = 1, page_size = 500) => {
-    void page;
-    return buscarTodasAsPaginas((paginaAtual) =>
-      api
-        .get<PageResult>(`/ressarcimento/${cnpj}/itens`, {
-          params: { page: paginaAtual, page_size },
-        })
-        .then((r) => r.data),
-    );
-  },
-  mensal: (cnpj: string, page = 1, page_size = 500) => {
-    void page;
-    return buscarTodasAsPaginas((paginaAtual) =>
-      api
-        .get<PageResult>(`/ressarcimento/${cnpj}/mensal`, {
-          params: { page: paginaAtual, page_size },
-        })
-        .then((r) => r.data),
-    );
-  },
-  conciliacao: (cnpj: string, page = 1, page_size = 500) => {
-    void page;
-    return buscarTodasAsPaginas((paginaAtual) =>
-      api
-        .get<PageResult>(`/ressarcimento/${cnpj}/conciliacao`, {
-          params: { page: paginaAtual, page_size },
-        })
-        .then((r) => r.data),
-    );
-  },
-  validacoes: (cnpj: string, page = 1, page_size = 500) => {
-    void page;
-    return buscarTodasAsPaginas((paginaAtual) =>
-      api
-        .get<PageResult>(`/ressarcimento/${cnpj}/validacoes`, {
-          params: { page: paginaAtual, page_size },
-        })
-        .then((r) => r.data),
-    );
-  },
+  itens: (cnpj: string, page = 1, page_size = 500, params?: QueryParams) =>
+    api
+      .get<PageResult>(`/ressarcimento/${cnpj}/itens`, {
+        params: { page, page_size, ...params },
+      })
+      .then((r) => r.data),
+  mensal: (cnpj: string, page = 1, page_size = 500, params?: QueryParams) =>
+    api
+      .get<PageResult>(`/ressarcimento/${cnpj}/mensal`, {
+        params: { page, page_size, ...params },
+      })
+      .then((r) => r.data),
+  conciliacao: (cnpj: string, page = 1, page_size = 500, params?: QueryParams) =>
+    api
+      .get<PageResult>(`/ressarcimento/${cnpj}/conciliacao`, {
+        params: { page, page_size, ...params },
+      })
+      .then((r) => r.data),
+  validacoes: (cnpj: string, page = 1, page_size = 500, params?: QueryParams) =>
+    api
+      .get<PageResult>(`/ressarcimento/${cnpj}/validacoes`, {
+        params: { page, page_size, ...params },
+      })
+      .then((r) => r.data),
   resumo: (cnpj: string) =>
     api.get<RessarcimentoResumo>(`/ressarcimento/${cnpj}/resumo`).then((r) => r.data),
 };
 
 // ---- Aggregation ----
 export const aggregationApi = {
-  tabelaAgrupada: (cnpj: string, page = 1, page_size = 300) => {
-    void page;
-    return buscarTodasAsPaginas((paginaAtual) =>
-      api
-        .get<PageResult>(`/aggregation/${cnpj}/tabela_agrupada`, {
-          params: { page: paginaAtual, page_size },
-        })
-        .then((r) => r.data),
-    );
-  },
+  tabelaAgrupada: (
+    cnpj: string,
+    page = 1,
+    page_size = 300,
+    params?: QueryParams,
+  ) =>
+    api
+      .get<PageResult>(`/aggregation/${cnpj}/tabela_agrupada`, {
+        params: { page, page_size, ...params },
+      })
+      .then((r) => r.data),
   merge: (cnpj: string, id_agrupado_destino: string, ids_origem: string[]) =>
     api
       .post<{

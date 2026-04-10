@@ -183,6 +183,7 @@ contador_rascunho_fac AS (
             rf.it_co_correio_eletro_contador AS email,
             TRIM(NVL(rf.it_nu_ddd_contador, '') || NVL(rf.it_nu_telefone_contador, '')) AS telefone,
             rf.gr_numero_crc AS crc_contador,
+            rf.it_da_transacao AS da_transacao,
             ROW_NUMBER() OVER (ORDER BY rf.it_da_transacao DESC, rf.it_ho_transacao DESC, rf.tuk DESC) AS rn
         FROM contribuinte c
         JOIN sitafe.sitafe_rascunho_fac rf
@@ -211,6 +212,7 @@ contador_req_inscricao AS (
             loc.co_uf AS uf,
             TRIM(NVL(ri.it_nu_ddd, '') || NVL(ri.it_nu_telefone, '')) AS telefone,
             ri.it_nu_crc AS crc_contador,
+            ri.it_da_transacao AS da_transacao,
             ROW_NUMBER() OVER (ORDER BY ri.it_da_transacao DESC, ri.it_ho_transacao DESC, ri.tuk DESC) AS rn
         FROM contribuinte c
         JOIN sitafe.sitafe_req_inscricao ri
@@ -566,6 +568,132 @@ fones_contador_notas AS (
       AND LENGTH(telefone) >= 8
     GROUP BY documento
 ),
+-- Etapa 1.1: E-mails de contadores extraidos de NFe/NFCe (apenas como destinatarios)
+emails_contador_notas AS (
+    SELECT
+        documento,
+        LISTAGG(email, ', ') WITHIN GROUP (ORDER BY email) AS email_nfe_nfce
+    FROM (
+        SELECT DISTINCT
+            cp.cpf_contador AS documento,
+            TRIM(n.email_dest) AS email
+        FROM contador_priorizado cp
+        JOIN bi.fato_nfe_detalhe n
+            ON cp.cpf_contador = n.co_destinatario
+        WHERE cp.rn = 1
+          AND n.email_dest IS NOT NULL
+          AND TRIM(n.email_dest) IS NOT NULL
+          AND n.dhemi >= DATE '2020-01-01'
+        UNION
+        SELECT DISTINCT
+            cp.cpf_contador AS documento,
+            TRIM(n.email_dest) AS email
+        FROM contador_priorizado cp
+        JOIN bi.fato_nfce_detalhe n
+            ON cp.cpf_contador = n.co_destinatario
+        WHERE cp.rn = 1
+          AND n.email_dest IS NOT NULL
+          AND TRIM(n.email_dest) IS NOT NULL
+    )
+    WHERE LENGTH(documento) IN (11, 14)
+      AND REGEXP_LIKE(email, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+    GROUP BY documento
+),
+-- Etapa 1.2: E-mails de socios extraidos de NFe/NFCe (apenas como destinatarios)
+emails_socios_notas AS (
+    SELECT
+        documento,
+        LISTAGG(email, ', ') WITHIN GROUP (ORDER BY email) AS email_nfe_nfce
+    FROM (
+        SELECT DISTINCT
+            s.cpf_cnpj_referencia AS documento,
+            TRIM(n.email_dest) AS email
+        FROM socios_historico s
+        JOIN bi.fato_nfe_detalhe n
+            ON s.cpf_cnpj_referencia = n.co_destinatario
+        WHERE s.tipo_vinculo = 'SOCIO_ATUAL'
+          AND n.email_dest IS NOT NULL
+          AND TRIM(n.email_dest) IS NOT NULL
+          AND n.dhemi >= DATE '2020-01-01'
+        UNION
+        SELECT DISTINCT
+            s.cpf_cnpj_referencia AS documento,
+            TRIM(n.email_dest) AS email
+        FROM socios_historico s
+        JOIN bi.fato_nfce_detalhe n
+            ON s.cpf_cnpj_referencia = n.co_destinatario
+        WHERE s.tipo_vinculo = 'SOCIO_ATUAL'
+          AND n.email_dest IS NOT NULL
+          AND TRIM(n.email_dest) IS NOT NULL
+    )
+    WHERE LENGTH(documento) IN (11, 14)
+      AND REGEXP_LIKE(email, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+    GROUP BY documento
+),
+-- Etapa 1.3: Endereços extraídos de NFe/NFCe (como emitente ou destinatário) para a Empresa
+enderecos_empresa_notas AS (
+    SELECT
+        documento,
+        SUBSTR(LISTAGG(endereco, ' | ') WITHIN GROUP (ORDER BY endereco), 1, 4000) AS enderecos_nfe_nfce
+    FROM (
+        SELECT DISTINCT
+            prm.cnpj_consultado AS documento,
+            UPPER(n.xlgr_emit) || ', ' || UPPER(n.nro_emit) ||
+            CASE WHEN n.xcpl_emit IS NOT NULL THEN ' - ' || UPPER(n.xcpl_emit) ELSE '' END ||
+            ' - ' || UPPER(n.xbairro_emit) || ' - ' || UPPER(n.xmun_emit) || '/' || UPPER(n.co_uf_emit) AS endereco
+        FROM parametros prm
+        JOIN bi.fato_nfe_detalhe n ON prm.cnpj_consultado = n.co_emitente
+        WHERE n.xlgr_emit IS NOT NULL AND n.dhemi >= DATE '2020-01-01'
+        UNION
+        SELECT DISTINCT
+            prm.cnpj_consultado AS documento,
+            UPPER(n.xlgr_dest) || ', ' || UPPER(n.nro_dest) ||
+            CASE WHEN n.xcpl_dest IS NOT NULL THEN ' - ' || UPPER(n.xcpl_dest) ELSE '' END ||
+            ' - ' || UPPER(n.xbairro_dest) || ' - ' || UPPER(n.xmun_dest) || '/' || UPPER(n.co_uf_dest) AS endereco
+        FROM parametros prm
+        JOIN bi.fato_nfe_detalhe n ON prm.cnpj_consultado = n.co_destinatario
+        WHERE n.xlgr_dest IS NOT NULL AND n.dhemi >= DATE '2020-01-01'
+    )
+    GROUP BY documento
+),
+-- Etapa 1.4: Telefones extraídos de NFe/NFCe para a Empresa
+telefones_empresa_notas AS (
+    SELECT
+        documento,
+        SUBSTR(LISTAGG(telefone, ', ') WITHIN GROUP (ORDER BY telefone), 1, 4000) AS telefone_nfe_nfce
+    FROM (
+        SELECT DISTINCT prm.cnpj_consultado AS documento, REGEXP_REPLACE(n.fone_emit, '[^0-9]', '') AS telefone
+        FROM parametros prm JOIN bi.fato_nfe_detalhe n ON prm.cnpj_consultado = n.co_emitente WHERE n.fone_emit IS NOT NULL AND n.dhemi >= DATE '2020-01-01'
+        UNION
+        SELECT DISTINCT prm.cnpj_consultado AS documento, REGEXP_REPLACE(n.fone_dest, '[^0-9]', '') AS telefone
+        FROM parametros prm JOIN bi.fato_nfe_detalhe n ON prm.cnpj_consultado = n.co_destinatario WHERE n.fone_dest IS NOT NULL AND n.dhemi >= DATE '2020-01-01'
+        UNION
+        SELECT DISTINCT prm.cnpj_consultado AS documento, REGEXP_REPLACE(n.fone_emit, '[^0-9]', '') AS telefone
+        FROM parametros prm JOIN bi.fato_nfce_detalhe n ON prm.cnpj_consultado = n.co_emitente WHERE n.fone_emit IS NOT NULL
+        UNION
+        SELECT DISTINCT prm.cnpj_consultado AS documento, REGEXP_REPLACE(n.fone_dest, '[^0-9]', '') AS telefone
+        FROM parametros prm JOIN bi.fato_nfce_detalhe n ON prm.cnpj_consultado = n.co_destinatario WHERE n.fone_dest IS NOT NULL
+    )
+    WHERE telefone IS NOT NULL AND LENGTH(telefone) >= 8
+    GROUP BY documento
+),
+-- Etapa 1.5: E-mails extraídos de NFe/NFCe para a Empresa
+emails_empresa_notas AS (
+    SELECT
+        documento,
+        SUBSTR(LISTAGG(email, ', ') WITHIN GROUP (ORDER BY email), 1, 4000) AS email_nfe_nfce
+    FROM (
+        SELECT DISTINCT prm.cnpj_consultado AS documento, TRIM(n.email_dest) AS email
+        FROM parametros prm JOIN bi.fato_nfe_detalhe n ON prm.cnpj_consultado = n.co_destinatario
+        WHERE n.email_dest IS NOT NULL AND TRIM(n.email_dest) IS NOT NULL AND n.dhemi >= DATE '2020-01-01'
+        UNION
+        SELECT DISTINCT prm.cnpj_consultado AS documento, TRIM(n.email_dest) AS email
+        FROM parametros prm JOIN bi.fato_nfce_detalhe n ON prm.cnpj_consultado = n.co_destinatario
+        WHERE n.email_dest IS NOT NULL AND TRIM(n.email_dest) IS NOT NULL
+    )
+    WHERE REGEXP_LIKE(email, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+    GROUP BY documento
+),
 resultado_final AS (
     SELECT
         'EMPRESA_PRINCIPAL' AS tipo_vinculo,
@@ -574,19 +702,32 @@ resultado_final AS (
         c.cnpj_consultado AS cpf_cnpj_referencia,
         c.nome_referencia,
         CAST(NULL AS VARCHAR2(20)) AS crc_contador,
-        c.endereco,
+        CASE 
+            WHEN ender_nfe.enderecos_nfe_nfce IS NOT NULL THEN
+                c.endereco || ' | NFe/NFCe reconciliado: ' || ender_nfe.enderecos_nfe_nfce
+            ELSE c.endereco
+        END AS endereco,
         CAST(NULL AS VARCHAR2(20)) AS telefone,
-        CAST(NULL AS VARCHAR2(20)) AS telefone_nfe_nfce,
+        fone_nfe.telefone_nfe_nfce AS telefone_nfe_nfce,
         CAST(NULL AS VARCHAR2(70)) AS email,
         CAST(NULL AS VARCHAR2(4000)) AS telefones_por_fonte,
-        CAST(NULL AS VARCHAR2(4000)) AS emails_por_fonte,
-        CAST(NULL AS VARCHAR2(4000)) AS fontes_contato,
+        CASE
+            WHEN eml_nfe.email_nfe_nfce IS NOT NULL THEN 'NFe/NFCe reconciliado: ' || eml_nfe.email_nfe_nfce
+            ELSE CAST(NULL AS VARCHAR2(4000))
+        END AS emails_por_fonte,
+        CASE
+            WHEN ender_nfe.enderecos_nfe_nfce IS NOT NULL OR fone_nfe.telefone_nfe_nfce IS NOT NULL OR eml_nfe.email_nfe_nfce IS NOT NULL THEN 'NFe/NFCe'
+            ELSE CAST(NULL AS VARCHAR2(4000))
+        END AS fontes_contato,
         c.situacao_cadastral,
         'EMPRESA' AS indicador_matriz_filial,
         'dados_cadastrais.sql' AS origem_dado,
         'BI.DM_PESSOA; BI.DM_SITUACAO_CONTRIBUINTE' AS tabela_origem,
         10 AS ordem_exibicao
     FROM contribuinte c
+    LEFT JOIN enderecos_empresa_notas ender_nfe ON c.cnpj_consultado = ender_nfe.documento
+    LEFT JOIN telefones_empresa_notas fone_nfe ON c.cnpj_consultado = fone_nfe.documento
+    LEFT JOIN emails_empresa_notas eml_nfe ON c.cnpj_consultado = eml_nfe.documento
 
     UNION ALL
 
@@ -625,8 +766,16 @@ resultado_final AS (
         fn.telefone_nfe_nfce,
         cp.email,
         cp.telefones_por_fonte,
-        cp.emails_por_fonte,
-        cp.fontes_contato,
+        CASE
+            WHEN ecn.email_nfe_nfce IS NOT NULL THEN
+                COALESCE(cp.emails_por_fonte || ' | ', '') || 'NFe/NFCe reconciliado: ' || ecn.email_nfe_nfce
+            ELSE cp.emails_por_fonte
+        END AS emails_por_fonte,
+        CASE
+            WHEN ecn.email_nfe_nfce IS NOT NULL THEN
+                COALESCE(cp.fontes_contato || ' | ', '') || 'NFe/NFCe'
+            ELSE cp.fontes_contato
+        END AS fontes_contato,
         cp.situacoes_vinculo AS situacao_cadastral,
         'CONTADOR' AS indicador_matriz_filial,
         cp.origem_dado,
@@ -637,12 +786,46 @@ resultado_final AS (
         ON cp.rn = 1
     LEFT JOIN fones_contador_notas fn
         ON cp.cpf_contador = fn.documento
+    LEFT JOIN emails_contador_notas ecn
+        ON cp.cpf_contador = ecn.documento
 
     UNION ALL
 
     SELECT * FROM empresa_fac_atual
+
     UNION ALL
-    SELECT * FROM socios_historico
+
+    -- Etapa 1.3: Socios com emails de NFe/NFCe integrados
+    SELECT
+        s.tipo_vinculo,
+        s.cnpj_consultado,
+        s.cnpj_raiz,
+        s.cpf_cnpj_referencia,
+        s.nome_referencia,
+        s.crc_contador,
+        s.endereco,
+        s.telefone,
+        s.telefone_nfe_nfce,
+        s.email,
+        s.telefones_por_fonte,
+        CASE
+            WHEN esn.email_nfe_nfce IS NOT NULL THEN
+                COALESCE(s.emails_por_fonte || ' | ', '') || 'NFe/NFCe reconciliado: ' || esn.email_nfe_nfce
+            ELSE s.emails_por_fonte
+        END AS emails_por_fonte,
+        CASE
+            WHEN esn.email_nfe_nfce IS NOT NULL THEN
+                COALESCE(s.fontes_contato || ' | ', '') || 'NFe/NFCe'
+            ELSE s.fontes_contato
+        END AS fontes_contato,
+        s.situacao_cadastral,
+        s.indicador_matriz_filial,
+        s.origem_dado,
+        s.tabela_origem,
+        s.ordem_exibicao
+    FROM socios_historico s
+    LEFT JOIN emails_socios_notas esn
+        ON s.cpf_cnpj_referencia = esn.documento
     UNION ALL
     SELECT * FROM emails_nfe
     UNION ALL

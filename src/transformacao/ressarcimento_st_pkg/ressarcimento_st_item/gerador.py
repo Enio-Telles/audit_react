@@ -9,13 +9,15 @@ from transformacao.ressarcimento_st_pkg.base import (
     STATUS_PARCIAL_POS_2022,
     STATUS_PENDENTE_CONVERSAO,
     alinhar_schema,
+    alinhar_schema_lazy,
     caminho_analise,
     caminho_oracle,
     caminho_produtos,
     expr_ano_ref,
     expr_mes_ref,
-    ler_parquet_opcional,
+    lazy_esta_vazio,
     salvar_df,
+    scan_parquet_opcional,
 )
 
 
@@ -58,9 +60,9 @@ SCHEMA_ITEM = {
 }
 
 
-def _normalizar_base_c176(df: pl.DataFrame) -> pl.DataFrame:
-    if df.is_empty():
-        return alinhar_schema(pl.DataFrame(), SCHEMA_ITEM)
+def _normalizar_base_c176(df: pl.LazyFrame) -> pl.LazyFrame:
+    if lazy_esta_vazio(df):
+        return dataframe_vazia_item()
 
     return df.with_columns(
         expr_mes_ref("periodo_efd"),
@@ -103,6 +105,10 @@ def _normalizar_base_c176(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def dataframe_vazia_item() -> pl.LazyFrame:
+    return pl.DataFrame(schema=SCHEMA_ITEM).lazy()
+
+
 def gerar_ressarcimento_st_item(cnpj: str, pasta_cnpj: Path | None = None) -> bool:
     cnpj_limpo = "".join(filter(str.isdigit, cnpj))
     caminho_c176 = caminho_produtos(cnpj_limpo, f"c176_xml_{cnpj_limpo}.parquet", pasta_cnpj)
@@ -112,8 +118,8 @@ def gerar_ressarcimento_st_item(cnpj: str, pasta_cnpj: Path | None = None) -> bo
     caminho_saida = caminho_analise(cnpj_limpo, f"ressarcimento_st_item_{cnpj_limpo}.parquet", pasta_cnpj)
     caminho_validacoes = caminho_analise(cnpj_limpo, f"ressarcimento_st_validacoes_{cnpj_limpo}.parquet", pasta_cnpj)
 
-    df_base = _normalizar_base_c176(ler_parquet_opcional(caminho_c176))
-    if df_base.is_empty():
+    df_base = _normalizar_base_c176(scan_parquet_opcional(caminho_c176))
+    if lazy_esta_vazio(df_base):
         ok_item = salvar_df(alinhar_schema(pl.DataFrame(), SCHEMA_ITEM), caminho_saida)
         ok_val = salvar_df(alinhar_schema(pl.DataFrame(), SCHEMA_ITEM), caminho_validacoes)
         return ok_item and ok_val
@@ -127,9 +133,9 @@ def gerar_ressarcimento_st_item(cnpj: str, pasta_cnpj: Path | None = None) -> bo
         "prod_nitem_entrada",
     ]
 
-    df_credito = ler_parquet_opcional(caminho_credito)
-    df_st = ler_parquet_opcional(caminho_st)
-    df_fronteira_simples = ler_parquet_opcional(caminho_fronteira_simples)
+    df_credito = scan_parquet_opcional(caminho_credito)
+    df_st = scan_parquet_opcional(caminho_st)
+    df_fronteira_simples = scan_parquet_opcional(caminho_fronteira_simples)
 
     df = (
         df_base
@@ -196,7 +202,7 @@ def gerar_ressarcimento_st_item(cnpj: str, pasta_cnpj: Path | None = None) -> bo
         )
     )
 
-    df_item = alinhar_schema(df, SCHEMA_ITEM)
+    df_item = alinhar_schema_lazy(df, SCHEMA_ITEM).collect()
     df_validacoes = df_item.filter(
         (pl.col("status_calculo") != STATUS_OK)
         | ((pl.col("ano_ref") <= 2022) & ~pl.col("possui_st_calc_ate_2022"))

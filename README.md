@@ -1,4 +1,4 @@
-﻿# Fiscal Parquet Analyzer
+# Fiscal Parquet Analyzer
 
 Ferramenta de extraÃ§Ã£o, transformaÃ§Ã£o e auditoria de dados fiscais com persistÃªncia em Parquet, pipeline modular em `src/transformacao/` e interface grÃ¡fica em PySide6.
 
@@ -76,21 +76,22 @@ Os documentos ativos do projeto ficam na raiz de `docs/`:
 - [Dossie - Direcao e Contrato](docs/dossie_main.md)
 - [Dossie - Cache Canonico](docs/dossie_cache.md)
 
-## ConvenÃ§Ãµes importantes
+## Convenções importantes
 
-- `id_agrupado` Ã© a chave mestra de produto no pipeline.
-- `id_agregado` aparece em algumas saÃ­das analÃ­ticas como alias de apresentaÃ§Ã£o de `id_agrupado`.
-- `__qtd_decl_final_audit__` guarda a quantidade declarada no estoque final para auditoria, sem alterar o saldo fÃ­sico.
-- ajustes manuais de conversÃ£o e agrupamento devem ser preservados em reprocessamentos.
+- `id_agrupado` é a chave mestra de produto no pipeline.
+- `id_agregado` aparece em algumas saídas analíticas como alias de apresentação de `id_agrupado`.
+- `__qtd_decl_final_audit__` guarda a quantidade declarada no estoque final para auditoria, sem alterar o saldo físico.
+- Todo cruzamento de estoque com layouts da receita federal é norteado pelo arquivo base `map_estoque.json` presente na raiz do sistema.
+- Ajustes manuais de conversão e agrupamento devem ser preservados em reprocessamentos.
 
 ## DocumentaÃ§Ã£o histÃ³rica
 
 Materiais antigos, planos intermediÃ¡rios, diagnÃ³sticos e anexos foram movidos para `docs/archive/`. Eles permanecem como histÃ³rico e apoio, mas a referÃªncia operacional atual Ã© somente a documentaÃ§Ã£o oficial listada acima.
 
 
-## CatÃ¡logo SQL canÃ´nico
+## Catálogo SQL canônico
 
-Todas as consultas ativas do sistema ficam exclusivamente dentro de `sql/`, organizada por domÃ­nio:
+Todas as consultas ativas do sistema ficam exclusivamente dentro de `sql/`, organizada por domínio:
 
 ```text
 sql/
@@ -108,8 +109,10 @@ sql/
   archive/
 ```
 
-Regras operacionais:
+Regras operacionais restritas (vide `AGENTS_SQL.md`):
 
-- `sql/` Ã© a Ãºnica fonte de verdade das consultas usadas pelo backend, frontend e desktop.
-- seleÃ§Ãµes persistidas usam IDs relativos ao catÃ¡logo, como `fiscal/efd/c170.sql`.
-- `sql/archive/` preserva material histÃ³rico, mas nÃ£o entra na descoberta automÃ¡tica do pipeline.
+- `sql/` é a única fonte de verdade das consultas usadas pelo backend, frontend e desktop. Nenhuma query deve ser escrita via concatenação em código Python.
+- Todo o cruzamento deve obrigar o uso de *Bind Variables* (ex: `:CNPJ`, `:NOME`) na sintaxe Oracle ao invés de uso de F-Strings, por proteção contra injeções.
+- As cargas do Polars baseiam-se em integrações massivas via `read_database` otimizando transferências entre driver (cx_Oracle/oracledb) e a runtime C++.
+- Seleções persistidas usam IDs relativos ao catálogo, como `fiscal/efd/c170.sql`.
+- Novas integrações de Inteligência Fiscal NFe/NFCe operam usando as expansões lógicas na view materializada internamente como `dossie_contato.sql`.

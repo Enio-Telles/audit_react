@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import type { HighlightRule, HighlightRuleOperator } from "../../api/types";
 
 const PRESET_COLORS: { label: string; value: string }[] = [
@@ -28,7 +28,7 @@ interface HighlightRulesPanelProps {
   onRemove: (index: number) => void;
 }
 
-export function HighlightRulesPanel({
+export const HighlightRulesPanel = memo(function HighlightRulesPanel({
   columns,
   rules,
   onAdd,
@@ -211,4 +211,4 @@ export function HighlightRulesPanel({
       )}
     </div>
   );
-}
+});

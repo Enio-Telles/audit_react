@@ -7,6 +7,7 @@ import { ColumnToggle } from "../table/ColumnToggle";
 import { usePreferenciasColunas } from "../../hooks/usePreferenciasColunas";
 
 const CHAVE_PREFERENCIAS_COLUNAS_AGREGACAO = "agregacao_colunas_v1";
+type TableSortState = { col: string; desc: boolean } | null;
 
 // ---------------------------------------------------------------------------
 // Modal de confirmação de agregação
@@ -149,9 +150,11 @@ export function AgregacaoTab() {
   const { selectedCnpj } = useAppStore();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<TableSortState>(null);
   const [searchDesc, setSearchDesc] = useState("");
   const [searchNcm, setSearchNcm] = useState("");
   const [searchCest, setSearchCest] = useState("");
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
 
   // Mapa id_agrupado → linha completa (persiste entre páginas)
   const [selectedRows, setSelectedRows] = useState<
@@ -160,10 +163,29 @@ export function AgregacaoTab() {
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergeSuccess, setMergeSuccess] = useState("");
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+  const params = {
+    ...(sort ? { sort_by: sort.col, sort_desc: sort.desc } : {}),
+    ...(searchDesc ? { search_desc: searchDesc } : {}),
+    ...(searchNcm ? { search_ncm: searchNcm } : {}),
+    ...(searchCest ? { search_cest: searchCest } : {}),
+    ...(Object.keys(columnFilters).length
+      ? { column_filters: JSON.stringify(columnFilters) }
+      : {}),
+  };
 
   const { data, isLoading } = useQuery({
-    queryKey: ["tabela_agrupada", selectedCnpj, page],
-    queryFn: () => aggregationApi.tabelaAgrupada(selectedCnpj!, page, 300),
+    queryKey: [
+      "tabela_agrupada",
+      selectedCnpj,
+      page,
+      sort?.col ?? null,
+      sort?.desc ?? false,
+      searchDesc,
+      searchNcm,
+      searchCest,
+      JSON.stringify(columnFilters),
+    ],
+    queryFn: () => aggregationApi.tabelaAgrupada(selectedCnpj!, page, 300, params),
     enabled: !!selectedCnpj,
     placeholderData: (prev) => prev,
   });
@@ -418,6 +440,7 @@ export function AgregacaoTab() {
 
         <div className="overflow-hidden border border-slate-700 rounded flex-1 min-h-0">
           <DataTable
+            appearanceKey="agregacao"
             columns={colunasDisponiveis}
             orderedColumns={ordemColunas}
             columnWidths={largurasColunas}
@@ -429,6 +452,17 @@ export function AgregacaoTab() {
             page={page}
             totalPages={data?.total_pages}
             onPageChange={setPage}
+            sortBy={sort?.col}
+            sortDesc={sort?.desc ?? false}
+            onSortChange={(col, desc) => {
+              setSort({ col, desc });
+              setPage(1);
+            }}
+            columnFilters={columnFilters}
+            onColumnFilterChange={(col, val) => {
+              setColumnFilters((prev) => ({ ...prev, [col]: val }));
+              setPage(1);
+            }}
             rowKey="id_agrupado"
             selectedRowKeys={selectedKeys}
             onRowSelect={handleRowSelect}

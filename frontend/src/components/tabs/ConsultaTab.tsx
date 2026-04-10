@@ -181,6 +181,7 @@ export function ConsultaTab() {
       {/* Table */}
       <div className="flex-1 overflow-hidden border border-slate-700 rounded">
         <DataTable
+          appearanceKey="consulta"
           columns={data?.columns ?? visibleCols}
           orderedColumns={ordemColunas}
           columnWidths={largurasColunas}

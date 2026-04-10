@@ -90,6 +90,7 @@ export function ConsultaSqlTab() {
       {result && result.rows.length > 0 && (
         <div className="flex-1 overflow-hidden border border-slate-700 rounded">
           <DataTable
+            appearanceKey="consulta_sql"
             columns={resultCols}
             rows={result.rows}
             totalRows={result.count}

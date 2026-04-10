@@ -1,13 +1,14 @@
-import type { DossieSectionData, DossieSectionSummary } from "../types";
+import type { DossieSectionData } from "../types";
 import { DossieSectionDetail } from "./DossieSectionDetail";
 import type { DossieViewMode } from "../utils/dossie_helpers";
+import type { DossieSectionSummary } from "../types";
 
 interface DossieDetailPanelProps {
   secaoSelecionada: DossieSectionSummary;
   dadosSecao?: DossieSectionData;
   carregando: boolean;
   erro: boolean;
-  viewMode: DossieViewMode;
+  viewMode?: DossieViewMode;
   onFechar: () => void;
 }
 
@@ -20,45 +21,43 @@ export function DossieDetailPanel({
   onFechar,
 }: DossieDetailPanelProps) {
   return (
-    <aside className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4 xl:sticky xl:top-4">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs uppercase tracking-wide text-slate-500">
-            Painel de detalhe
-          </div>
-          <h3 className="text-base font-semibold text-white">
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <span className="font-medium text-slate-200">
             {secaoSelecionada.title}
-          </h3>
-          <p className="mt-1 text-xs text-slate-400">
-            {secaoSelecionada.description}
-          </p>
+          </span>
+          <span>·</span>
+          <span>{secaoSelecionada.id}</span>
         </div>
         <button
           type="button"
           onClick={onFechar}
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-slate-800"
+          className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
         >
-          Fechar painel
+          ✕ Fechar detalhe
         </button>
       </div>
 
       {carregando && (
-        <div className="text-sm text-slate-400">
-          Carregando dados materializados da secao...
+        <div className="flex h-40 items-center justify-center rounded-xl border border-slate-800 bg-slate-950/40 text-sm text-slate-400">
+          Carregando dados da secao...
         </div>
       )}
-
       {erro && (
-        <div className="text-sm text-rose-400">
-          Erro ao carregar o cache materializado da secao.
+        <div className="flex flex-col h-40 items-center justify-center rounded-xl border border-amber-800/40 bg-amber-950/20 text-sm text-amber-500/80 p-4 text-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-2 opacity-50">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div className="font-medium text-amber-500/90 mb-1">Nenhum dado armazenado para esta seção</div>
+          <div className="text-xs">Se não houver dados em cache, por favor, execute a sincronização.</div>
         </div>
       )}
-
-      {dadosSecao && (
+      {!carregando && !erro && dadosSecao && (
         <DossieSectionDetail dados={dadosSecao} viewMode={viewMode} />
       )}
-    </aside>
+    </div>
   );
 }
-
-export default DossieDetailPanel;

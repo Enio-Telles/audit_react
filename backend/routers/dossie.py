@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from interface_grafica.services.dossie_catalog import listar_secoes_dossie
+from interface_grafica.services.dossie_catalog import obter_secao_dossie
 from interface_grafica.services.dossie_catalog import listar_sql_prioritarias
 from interface_grafica.services.dossie_resolution import resolver_secao_dossie
 from interface_grafica.services.dossie_extraction_service import obter_caminho_historico_comparacao_contato
@@ -235,6 +236,22 @@ def obter_arquivos_secao_ressarcimento_st(cnpj: str) -> list[Path]:
     return [caminho for caminho in candidatos if caminho.exists()]
 
 
+def obter_arquivos_sql_prioritarios_materializados(secao_id: str, cnpj: str) -> list[Path]:
+    """Reaproveita parquets brutos derivados dos SQLs prioritarios quando o cache canonico ainda nao existe."""
+
+    secao = obter_secao_dossie(secao_id)
+    if secao is None or not secao.sql_ids_prioritarios:
+        return []
+
+    pasta_base = CNPJ_ROOT / cnpj / "arquivos_parquet"
+    candidatos: list[Path] = []
+    for sql_id in secao.sql_ids_prioritarios:
+        nome_base = Path(str(sql_id)).stem
+        candidatos.append(pasta_base / f"{nome_base}_{cnpj}.parquet")
+
+    return [caminho for caminho in dict.fromkeys(candidatos) if caminho.exists()]
+
+
 def obter_arquivos_por_secao(secao_id: str, cnpj: str) -> list[Path]:
     """Centraliza o mapeamento das secoes do dossie para artefatos ja materializados."""
 
@@ -254,6 +271,9 @@ def obter_arquivos_por_secao(secao_id: str, cnpj: str) -> list[Path]:
         candidatos.extend(obter_arquivos_secao_estoque(cnpj))
     elif secao_id == "ressarcimento_st":
         candidatos.extend(obter_arquivos_secao_ressarcimento_st(cnpj))
+
+    if not candidatos:
+        candidatos.extend(obter_arquivos_sql_prioritarios_materializados(secao_id, cnpj))
 
     return [caminho for caminho in list(dict.fromkeys(candidatos)) if caminho.exists()]
 
