@@ -12,6 +12,7 @@ from fastapi import APIRouter
 from interface_grafica.config import CNPJ_ROOT
 from utilitarios.project_paths import APP_STATE_ROOT
 
+from .fiscal_storage import read_materialized_frame, resolve_materialized_path
 from .fiscal_summary import (
     build_dataset_listing,
     build_domain_summary,
@@ -36,11 +37,11 @@ def _fisconforme_dir(cnpj: str) -> Path:
 
 
 def _dados_cadastrais_path(cnpj: str) -> Path:
-    return _fisconforme_dir(cnpj) / "dados_cadastrais.parquet"
+    return resolve_materialized_path(_fisconforme_dir(cnpj) / "dados_cadastrais.parquet")
 
 
 def _malhas_path(cnpj: str) -> Path:
-    return _fisconforme_dir(cnpj) / "malhas.parquet"
+    return resolve_materialized_path(_fisconforme_dir(cnpj) / "malhas.parquet")
 
 
 def _safe_value(v: Any) -> Any:
@@ -117,10 +118,11 @@ def _page_from_parquet(
     filter_column: str | None = None,
     filter_value: str | None = None,
 ) -> dict[str, Any]:
-    if not path.exists():
+    resolved = resolve_materialized_path(path)
+    if not resolved.exists():
         return _empty_page(page, page_size)
 
-    df = pl.read_parquet(path)
+    df = read_materialized_frame(resolved)
     df = _apply_filter(df, filter_text)
     df = _apply_column_filter(df, filter_column, filter_value)
     if sort_by and sort_by in df.columns:
@@ -148,10 +150,11 @@ def _page_from_parquet(
 
 
 def _read_first_record(path: Path) -> dict[str, Any]:
-    if not path.exists():
+    resolved = resolve_materialized_path(path)
+    if not resolved.exists():
         return {}
     try:
-        df = pl.read_parquet(path)
+        df = read_materialized_frame(resolved)
         if df.is_empty():
             return {}
         row = df.row(0, named=True)
@@ -235,7 +238,7 @@ def _payload(cnpj: str | None) -> dict[str, object]:
             "id": "malhas",
             "title": "Malhas e pendências",
             "value": _describe_count(malhas, "malha", "malhas"),
-            "description": "Reflete o parquet de malhas salvo no cache do Fisconforme para o contribuinte selecionado.",
+            "description": "Reflete o dataset de malhas salvo no cache do Fisconforme para o contribuinte selecionado.",
         },
         {
             "id": "resolucoes",

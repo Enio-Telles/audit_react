@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from interface_grafica.config import CNPJ_ROOT
 
+from .fiscal_storage import read_materialized_frame, resolve_materialized_path
 from .fiscal_summary import (
     build_dataset_listing,
     build_domain_summary,
@@ -33,9 +34,10 @@ def _base_cnpj(cnpj: str) -> Path:
 
 def _first_existing(candidates: list[Path]) -> Path:
     for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return candidates[0]
+        resolved = resolve_materialized_path(candidate)
+        if resolved.exists():
+            return resolved
+    return resolve_materialized_path(candidates[0])
 
 
 def _find_c170(cnpj: str) -> Path:
@@ -190,10 +192,11 @@ def _page_from_parquet(
     filter_column: str | None = None,
     filter_value: str | None = None,
 ) -> dict[str, Any]:
-    if not path.exists():
+    resolved = resolve_materialized_path(path)
+    if not resolved.exists():
         return _empty_page(page, page_size)
 
-    df = pl.read_parquet(path)
+    df = read_materialized_frame(resolved)
     df = _apply_filter(df, filter_text)
     df = _apply_column_filter(df, filter_column, filter_value)
     if sort_by and sort_by in df.columns:
@@ -233,7 +236,7 @@ def _payload(cnpj: str | None) -> dict[str, object]:
             "id": "cobertura_real",
             "title": "Artefatos EFD localizados",
             "value": f"{_materialized_count(probes)} materializado(s)",
-            "description": "Primeira ponte da EFD baseada nos parquets já produzidos pelo pipeline e pelas camadas legadas.",
+            "description": "Primeira ponte da EFD baseada nos datasets já produzidos pelo pipeline e pelas camadas legadas.",
         },
         {
             "id": "itens_efd",
@@ -282,7 +285,7 @@ def _payload(cnpj: str | None) -> dict[str, object]:
     ]
     next_steps = [
         "localizar e materializar a camada de arquivos válidos e retificadoras",
-        "abrir visão por bloco e por registro a partir dos parquets já presentes",
+        "abrir visão por bloco e por registro a partir dos datasets já presentes",
         "expandir a ponte real para C100, C197 e K200 quando esses artefatos estiverem disponíveis",
     ]
     summary = build_domain_summary(
