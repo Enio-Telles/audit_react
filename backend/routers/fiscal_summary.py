@@ -3,8 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import polars as pl
-
+from .fiscal_storage import probe_materialized
 
 FiscalPayload = dict[str, Any]
 
@@ -26,7 +25,7 @@ def build_domain_summary(
         "subtitle": subtitle,
         "cnpj": cnpj,
         "status": "aguardando_cnpj" if not cnpj else "pronto_para_materializacao",
-        "pipeline": "sql -> parquet -> api -> ui",
+        "pipeline": "sql -> parquet|delta -> api -> ui",
         "cards": cards,
         "datasets": datasets,
         "next_steps": next_steps,
@@ -44,40 +43,13 @@ def build_dataset_listing(domain: str, cnpj: str | None, datasets: list[dict[str
 
 
 def probe_parquet(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {
-            "exists": False,
-            "rows": 0,
-            "path": str(path),
-            "status": "ausente",
-        }
-
-    try:
-        rows = int(
-            pl.scan_parquet(path)
-            .select(pl.len().alias("rows"))
-            .collect()
-            .item()
-        )
-        return {
-            "exists": True,
-            "rows": rows,
-            "path": str(path),
-            "status": "materializado",
-        }
-    except Exception as exc:
-        return {
-            "exists": True,
-            "rows": 0,
-            "path": str(path),
-            "status": "erro",
-            "error": str(exc),
-        }
+    return probe_materialized(path)
 
 
 def stage_label(probe: dict[str, Any]) -> str:
     if probe["status"] == "materializado":
-        return f"materializado ({probe['rows']} linhas)"
+        fmt = probe.get("format", "parquet")
+        return f"materializado {fmt} ({probe['rows']} linhas)"
     if probe["status"] == "erro":
         return "erro ao ler"
     return "ausente"

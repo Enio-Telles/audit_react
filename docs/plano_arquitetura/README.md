@@ -32,6 +32,7 @@ A arquitetura proposta já saiu do plano e entrou em operação inicial dentro d
 - registro versionado de schemas em `workspace/app_state/schema_registry.json`
 - shell Tauri v2 inicial em `frontend/src-tauri/`
 - helper Delta Lake com chaveamento por ambiente em `src/utilitarios/delta_lake.py`
+- backend e `ParquetService` preparados para ler Parquet ou Delta conforme o dataset materializado
 - stack local de Prometheus/Grafana/Marquez em `infra/observability/`
 
 ## Migração das abas atuais
@@ -59,5 +60,6 @@ Use `00_CONSOLIDADO_MODULO_FISCAL.md` como visão concatenada do estado atual, d
 - `10_SQL_CACHE_OBSERVABILIDADE_SCHEMAS.md`
 - `11_TAURI_DELTA_OPENLINEAGE_OBSERVABILIDADE_MOBILE.md`
 - `12_VALIDACAO_LOCAL_DELTA_LINEAGE_OBSERVABILIDADE.md`
+- `13_LEITURA_ADAPTATIVA_PARQUET_DELTA.md`
 - `AGENTS_NOVO.md`
 - `AGENTS_SQL_NOVO.md`

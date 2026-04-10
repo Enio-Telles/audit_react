@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from interface_grafica.config import CNPJ_ROOT
 
+from .fiscal_storage import read_materialized_frame, resolve_materialized_path
 from .fiscal_summary import (
     build_dataset_listing,
     build_domain_summary,
@@ -39,21 +40,22 @@ def _path_bloco_h(cnpj: str) -> Path:
         base_cnpj / "arquivos_parquet" / "fiscal" / "efd" / f"bloco_h_{cnpj}.parquet",
     ]
     for path in candidatos:
-        if path.exists():
-            return path
-    return candidatos[0]
+        resolved = resolve_materialized_path(path)
+        if resolved.exists():
+            return resolved
+    return resolve_materialized_path(candidatos[0])
 
 
 def _analysis_paths(cnpj: str) -> dict[str, Path]:
     pasta_produtos = _pasta_produtos(cnpj)
     return {
-        "mov_estoque": pasta_produtos / f"mov_estoque_{cnpj}.parquet",
-        "estoque_mensal": pasta_produtos / f"aba_mensal_{cnpj}.parquet",
-        "estoque_anual": pasta_produtos / f"aba_anual_{cnpj}.parquet",
+        "mov_estoque": resolve_materialized_path(pasta_produtos / f"mov_estoque_{cnpj}.parquet"),
+        "estoque_mensal": resolve_materialized_path(pasta_produtos / f"aba_mensal_{cnpj}.parquet"),
+        "estoque_anual": resolve_materialized_path(pasta_produtos / f"aba_anual_{cnpj}.parquet"),
         "bloco_h": _path_bloco_h(cnpj),
-        "fatores_conversao": pasta_produtos / f"fatores_conversao_{cnpj}.parquet",
-        "produtos_agrupados": pasta_produtos / f"produtos_agrupados_{cnpj}.parquet",
-        "produtos_final": pasta_produtos / f"produtos_final_{cnpj}.parquet",
+        "fatores_conversao": resolve_materialized_path(pasta_produtos / f"fatores_conversao_{cnpj}.parquet"),
+        "produtos_agrupados": resolve_materialized_path(pasta_produtos / f"produtos_agrupados_{cnpj}.parquet"),
+        "produtos_final": resolve_materialized_path(pasta_produtos / f"produtos_final_{cnpj}.parquet"),
     }
 
 
@@ -148,10 +150,11 @@ def _page_from_parquet(
     filter_column: str | None = None,
     filter_value: str | None = None,
 ) -> dict[str, Any]:
-    if not path.exists():
+    resolved = resolve_materialized_path(path)
+    if not resolved.exists():
         return _empty_page(page, page_size)
 
-    df = pl.read_parquet(path)
+    df = read_materialized_frame(resolved)
     df = _apply_filter(df, filter_text)
     df = _apply_column_filter(df, filter_column, filter_value)
     if sort_by and sort_by in df.columns:
@@ -193,13 +196,13 @@ def _payload(cnpj: str | None) -> dict[str, object]:
             "id": "cruzamentos",
             "title": "Cruzamentos",
             "value": _describe_count(mov, "linha legada", "linhas legadas"),
-            "description": "Ponte inicial para Estoque. Considera o parquet de movimentação já usado pela aba legada.",
+            "description": "Ponte inicial para Estoque. Considera o dataset de movimentação já usado pela aba legada.",
         },
         {
             "id": "verificacoes",
             "title": "Verificações",
             "value": _describe_count(fatores, "fator", "fatores"),
-            "description": "Ponte inicial para Conversão. Lê o parquet de fatores de conversão já mantido pela camada atual.",
+            "description": "Ponte inicial para Conversão. Lê o dataset de fatores de conversão já mantido pela camada atual.",
         },
         {
             "id": "classificacao",
@@ -213,7 +216,7 @@ def _payload(cnpj: str | None) -> dict[str, object]:
             "id": "cross_estoque_legado_mov",
             "label": "Movimentação de estoque",
             "stage": stage_label(mov),
-            "description": "Parquet legado usado como primeira ponte para cruzamentos analíticos.",
+            "description": "Dataset legado usado como primeira ponte para cruzamentos analíticos.",
         },
         {
             "id": "cross_estoque_legado_mensal",
@@ -320,16 +323,7 @@ def estoque_mov_rows(
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
         return _empty_page(page, page_size)
-    return _page_from_parquet(
-        _analysis_paths(cnpj_sanitized)["mov_estoque"],
-        page,
-        page_size,
-        sort_by,
-        sort_desc,
-        filter_text,
-        filter_column,
-        filter_value,
-    )
+    return _page_from_parquet(_analysis_paths(cnpj_sanitized)["mov_estoque"], page, page_size, sort_by, sort_desc, filter_text, filter_column, filter_value)
 
 
 @router.get("/estoque-mensal")
@@ -346,16 +340,7 @@ def estoque_mensal_rows(
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
         return _empty_page(page, page_size)
-    return _page_from_parquet(
-        _analysis_paths(cnpj_sanitized)["estoque_mensal"],
-        page,
-        page_size,
-        sort_by,
-        sort_desc,
-        filter_text,
-        filter_column,
-        filter_value,
-    )
+    return _page_from_parquet(_analysis_paths(cnpj_sanitized)["estoque_mensal"], page, page_size, sort_by, sort_desc, filter_text, filter_column, filter_value)
 
 
 @router.get("/estoque-anual")
@@ -372,16 +357,7 @@ def estoque_anual_rows(
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
         return _empty_page(page, page_size)
-    return _page_from_parquet(
-        _analysis_paths(cnpj_sanitized)["estoque_anual"],
-        page,
-        page_size,
-        sort_by,
-        sort_desc,
-        filter_text,
-        filter_column,
-        filter_value,
-    )
+    return _page_from_parquet(_analysis_paths(cnpj_sanitized)["estoque_anual"], page, page_size, sort_by, sort_desc, filter_text, filter_column, filter_value)
 
 
 @router.get("/agregacao")
@@ -398,16 +374,7 @@ def agregacao_rows(
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
         return _empty_page(page, page_size)
-    return _page_from_parquet(
-        _analysis_paths(cnpj_sanitized)["produtos_agrupados"],
-        page,
-        page_size,
-        sort_by,
-        sort_desc,
-        filter_text,
-        filter_column,
-        filter_value,
-    )
+    return _page_from_parquet(_analysis_paths(cnpj_sanitized)["produtos_agrupados"], page, page_size, sort_by, sort_desc, filter_text, filter_column, filter_value)
 
 
 @router.get("/conversao")
@@ -424,16 +391,7 @@ def conversao_rows(
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
         return _empty_page(page, page_size)
-    return _page_from_parquet(
-        _analysis_paths(cnpj_sanitized)["fatores_conversao"],
-        page,
-        page_size,
-        sort_by,
-        sort_desc,
-        filter_text,
-        filter_column,
-        filter_value,
-    )
+    return _page_from_parquet(_analysis_paths(cnpj_sanitized)["fatores_conversao"], page, page_size, sort_by, sort_desc, filter_text, filter_column, filter_value)
 
 
 @router.get("/produtos-base")
@@ -450,13 +408,4 @@ def produtos_base_rows(
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
         return _empty_page(page, page_size)
-    return _page_from_parquet(
-        _analysis_paths(cnpj_sanitized)["produtos_final"],
-        page,
-        page_size,
-        sort_by,
-        sort_desc,
-        filter_text,
-        filter_column,
-        filter_value,
-    )
+    return _page_from_parquet(_analysis_paths(cnpj_sanitized)["produtos_final"], page, page_size, sort_by, sort_desc, filter_text, filter_column, filter_value)

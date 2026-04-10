@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from interface_grafica.config import CNPJ_ROOT
 
+from .fiscal_storage import read_materialized_frame, resolve_materialized_path
 from .fiscal_summary import (
     build_dataset_listing,
     build_domain_summary,
@@ -43,10 +44,18 @@ def _roots(cnpj: str) -> list[Path]:
     ]
 
 
+def _candidate_variants(name: str) -> list[str]:
+    variants = [name]
+    if name.lower().endswith(".parquet"):
+        variants.append(name[:-8])
+    return variants
+
+
 def _first_existing(candidates: list[Path]) -> Path | None:
     for candidate in candidates:
-        if candidate.exists():
-            return candidate
+        resolved = resolve_materialized_path(candidate)
+        if resolved.exists():
+            return resolved
     return None
 
 
@@ -60,7 +69,7 @@ def _search_patterns(roots: Iterable[Path], patterns: list[str]) -> Path | None:
     if not matches:
         return None
     unique_sorted = sorted(
-        {match for match in matches if match.is_file()},
+        {match for match in matches if match.is_file() or match.is_dir()},
         key=lambda path: (len(path.parts), len(path.name), str(path)),
     )
     return unique_sorted[0] if unique_sorted else None
@@ -68,14 +77,14 @@ def _search_patterns(roots: Iterable[Path], patterns: list[str]) -> Path | None:
 
 def _find_document_path(cnpj: str, candidates: list[str], fallback_patterns: list[str]) -> Path:
     roots = _roots(cnpj)
-    exact_candidates = [root / candidate for root in roots for candidate in candidates]
+    exact_candidates = [root / variant for root in roots for candidate in candidates for variant in _candidate_variants(candidate)]
     exact = _first_existing(exact_candidates)
     if exact is not None:
         return exact
     fallback = _search_patterns(roots, fallback_patterns)
     if fallback is not None:
         return fallback
-    return exact_candidates[0]
+    return resolve_materialized_path(exact_candidates[0])
 
 
 def _find_nfe(cnpj: str) -> Path:
@@ -88,7 +97,7 @@ def _find_nfe(cnpj: str) -> Path:
             f"NFe_xml_{cnpj}.parquet",
             f"docs_nfe_itens_{cnpj}.parquet",
         ],
-        [f"*nfe*{cnpj}*.parquet", f"*NFe*{cnpj}*.parquet"],
+        [f"*nfe*{cnpj}*.parquet", f"*NFe*{cnpj}*.parquet", f"*nfe*{cnpj}*", f"*NFe*{cnpj}*"],
     )
 
 
@@ -102,7 +111,7 @@ def _find_nfce(cnpj: str) -> Path:
             f"NFCe_xml_{cnpj}.parquet",
             f"docs_nfce_itens_{cnpj}.parquet",
         ],
-        [f"*nfce*{cnpj}*.parquet", f"*NFCe*{cnpj}*.parquet"],
+        [f"*nfce*{cnpj}*.parquet", f"*NFCe*{cnpj}*.parquet", f"*nfce*{cnpj}*", f"*NFCe*{cnpj}*"],
     )
 
 
@@ -116,7 +125,7 @@ def _find_cte(cnpj: str) -> Path:
             f"CTe_xml_{cnpj}.parquet",
             f"docs_cte_{cnpj}.parquet",
         ],
-        [f"*cte*{cnpj}*.parquet", f"*CTe*{cnpj}*.parquet"],
+        [f"*cte*{cnpj}*.parquet", f"*CTe*{cnpj}*.parquet", f"*cte*{cnpj}*", f"*CTe*{cnpj}*"],
     )
 
 
@@ -128,7 +137,7 @@ def _find_info_complementar(cnpj: str) -> Path:
             f"NFe_info_compl_{cnpj}.parquet",
             f"docs_nfe_info_complementar_{cnpj}.parquet",
         ],
-        [f"*info_compl*{cnpj}*.parquet", f"*complement*{cnpj}*.parquet"],
+        [f"*info_compl*{cnpj}*.parquet", f"*complement*{cnpj}*.parquet", f"*info_compl*{cnpj}*", f"*complement*{cnpj}*"],
     )
 
 
@@ -140,7 +149,7 @@ def _find_contatos(cnpj: str) -> Path:
             f"Email_NFe_{cnpj}.parquet",
             f"docs_nfe_contatos_{cnpj}.parquet",
         ],
-        [f"*email*{cnpj}*.parquet", f"*contato*{cnpj}*.parquet", f"*telefone*{cnpj}*.parquet"],
+        [f"*email*{cnpj}*.parquet", f"*contato*{cnpj}*.parquet", f"*telefone*{cnpj}*.parquet", f"*email*{cnpj}*", f"*contato*{cnpj}*", f"*telefone*{cnpj}*"],
     )
 
 
@@ -244,10 +253,11 @@ def _page_from_parquet(
     filter_column: str | None = None,
     filter_value: str | None = None,
 ) -> dict[str, Any]:
-    if not path.exists():
+    resolved = resolve_materialized_path(path)
+    if not resolved.exists():
         return _empty_page(page, page_size)
 
-    df = pl.read_parquet(path)
+    df = read_materialized_frame(resolved)
     df = _apply_filter(df, filter_text)
     df = _apply_column_filter(df, filter_column, filter_value)
     if sort_by and sort_by in df.columns:
@@ -287,7 +297,7 @@ def _payload(cnpj: str | None) -> dict[str, object]:
             "id": "cobertura_real",
             "title": "Artefatos documentais localizados",
             "value": f"{_materialized_count(probes)} materializado(s)",
-            "description": "Primeira ponte dos documentos fiscais baseada nos parquets já produzidos pelo projeto.",
+            "description": "Primeira ponte dos documentos fiscais baseada nos artefatos já produzidos pelo projeto.",
         },
         {
             "id": "nfe",
@@ -384,16 +394,7 @@ def nfe_rows(
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
         return _empty_page(page, page_size)
-    return _page_from_parquet(
-        _find_nfe(cnpj_sanitized),
-        page,
-        page_size,
-        sort_by,
-        sort_desc,
-        filter_text,
-        filter_column,
-        filter_value,
-    )
+    return _page_from_parquet(_find_nfe(cnpj_sanitized), page, page_size, sort_by, sort_desc, filter_text, filter_column, filter_value)
 
 
 @router.get("/nfce")
@@ -410,16 +411,7 @@ def nfce_rows(
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
         return _empty_page(page, page_size)
-    return _page_from_parquet(
-        _find_nfce(cnpj_sanitized),
-        page,
-        page_size,
-        sort_by,
-        sort_desc,
-        filter_text,
-        filter_column,
-        filter_value,
-    )
+    return _page_from_parquet(_find_nfce(cnpj_sanitized), page, page_size, sort_by, sort_desc, filter_text, filter_column, filter_value)
 
 
 @router.get("/cte")
@@ -436,16 +428,7 @@ def cte_rows(
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
         return _empty_page(page, page_size)
-    return _page_from_parquet(
-        _find_cte(cnpj_sanitized),
-        page,
-        page_size,
-        sort_by,
-        sort_desc,
-        filter_text,
-        filter_column,
-        filter_value,
-    )
+    return _page_from_parquet(_find_cte(cnpj_sanitized), page, page_size, sort_by, sort_desc, filter_text, filter_column, filter_value)
 
 
 @router.get("/info-complementar")
@@ -462,16 +445,7 @@ def info_complementar_rows(
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
         return _empty_page(page, page_size)
-    return _page_from_parquet(
-        _find_info_complementar(cnpj_sanitized),
-        page,
-        page_size,
-        sort_by,
-        sort_desc,
-        filter_text,
-        filter_column,
-        filter_value,
-    )
+    return _page_from_parquet(_find_info_complementar(cnpj_sanitized), page, page_size, sort_by, sort_desc, filter_text, filter_column, filter_value)
 
 
 @router.get("/contatos")
@@ -488,13 +462,4 @@ def contatos_rows(
     cnpj_sanitized = _sanitize(cnpj)
     if not cnpj_sanitized:
         return _empty_page(page, page_size)
-    return _page_from_parquet(
-        _find_contatos(cnpj_sanitized),
-        page,
-        page_size,
-        sort_by,
-        sort_desc,
-        filter_text,
-        filter_column,
-        filter_value,
-    )
+    return _page_from_parquet(_find_contatos(cnpj_sanitized), page, page_size, sort_by, sort_desc, filter_text, filter_column, filter_value)
