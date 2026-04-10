@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 from typing import Any
 
+import polars as pl
 from fastapi import APIRouter
 
 from interface_grafica.config import CNPJ_ROOT
@@ -42,26 +44,24 @@ def _path_bloco_h(cnpj: str) -> Path:
     return candidatos[0]
 
 
+def _analysis_paths(cnpj: str) -> dict[str, Path]:
+    pasta_produtos = _pasta_produtos(cnpj)
+    return {
+        "mov_estoque": pasta_produtos / f"mov_estoque_{cnpj}.parquet",
+        "estoque_mensal": pasta_produtos / f"aba_mensal_{cnpj}.parquet",
+        "estoque_anual": pasta_produtos / f"aba_anual_{cnpj}.parquet",
+        "bloco_h": _path_bloco_h(cnpj),
+        "fatores_conversao": pasta_produtos / f"fatores_conversao_{cnpj}.parquet",
+        "produtos_agrupados": pasta_produtos / f"produtos_agrupados_{cnpj}.parquet",
+        "produtos_final": pasta_produtos / f"produtos_final_{cnpj}.parquet",
+    }
+
+
 def _analysis_probes(cnpj: str | None) -> dict[str, dict[str, Any]]:
     if not cnpj:
         return {}
 
-    pasta_produtos = _pasta_produtos(cnpj)
-    return {
-        "mov_estoque": probe_parquet(pasta_produtos / f"mov_estoque_{cnpj}.parquet"),
-        "estoque_mensal": probe_parquet(pasta_produtos / f"aba_mensal_{cnpj}.parquet"),
-        "estoque_anual": probe_parquet(pasta_produtos / f"aba_anual_{cnpj}.parquet"),
-        "bloco_h": probe_parquet(_path_bloco_h(cnpj)),
-        "fatores_conversao": probe_parquet(
-            pasta_produtos / f"fatores_conversao_{cnpj}.parquet"
-        ),
-        "produtos_agrupados": probe_parquet(
-            pasta_produtos / f"produtos_agrupados_{cnpj}.parquet"
-        ),
-        "produtos_final": probe_parquet(
-            pasta_produtos / f"produtos_final_{cnpj}.parquet"
-        ),
-    }
+    return {key: probe_parquet(path) for key, path in _analysis_paths(cnpj).items()}
 
 
 def _describe_count(probe: dict[str, Any], singular: str, plural: str) -> str:
@@ -72,6 +72,63 @@ def _describe_count(probe: dict[str, Any], singular: str, plural: str) -> str:
     if probe.get("status") == "erro":
         return "erro de leitura"
     return "não materializado"
+
+
+def _safe_value(v: Any) -> Any:
+    if v is None:
+        return None
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return None
+    if isinstance(v, list):
+        return [_safe_value(item) for item in v]
+    return v
+
+
+def _empty_page(page: int, page_size: int) -> dict[str, Any]:
+    return {
+        "total_rows": 0,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": 1,
+        "columns": [],
+        "all_columns": [],
+        "rows": [],
+    }
+
+
+def _page_from_parquet(
+    path: Path,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    if not path.exists():
+        return _empty_page(page, page_size)
+
+    df = pl.read_parquet(path)
+    if sort_by and sort_by in df.columns:
+        try:
+            df = df.sort(sort_by, descending=sort_desc, nulls_last=True)
+        except Exception:
+            pass
+
+    total = df.height
+    start = max(0, (page - 1) * page_size)
+    df_page = df.slice(start, page_size)
+    rows = [
+        {column: _safe_value(row[column]) for column in df_page.columns}
+        for row in df_page.to_dicts()
+    ]
+    return {
+        "total_rows": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, math.ceil(total / page_size)),
+        "columns": df_page.columns,
+        "all_columns": df.columns,
+        "rows": rows,
+    }
 
 
 def _payload(cnpj: str | None) -> dict[str, object]:
@@ -200,3 +257,123 @@ def datasets(cnpj: str | None = None) -> dict[str, object]:
     cnpj_sanitized = _sanitize(cnpj)
     payload = _payload(cnpj_sanitized)
     return build_dataset_listing("analise", cnpj_sanitized, payload["datasets"])
+
+
+@router.get("/estoque-mov")
+def estoque_mov_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _analysis_paths(cnpj_sanitized)["mov_estoque"],
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+    )
+
+
+@router.get("/estoque-mensal")
+def estoque_mensal_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _analysis_paths(cnpj_sanitized)["estoque_mensal"],
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+    )
+
+
+@router.get("/estoque-anual")
+def estoque_anual_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _analysis_paths(cnpj_sanitized)["estoque_anual"],
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+    )
+
+
+@router.get("/agregacao")
+def agregacao_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _analysis_paths(cnpj_sanitized)["produtos_agrupados"],
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+    )
+
+
+@router.get("/conversao")
+def conversao_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _analysis_paths(cnpj_sanitized)["fatores_conversao"],
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+    )
+
+
+@router.get("/produtos-base")
+def produtos_base_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _analysis_paths(cnpj_sanitized)["produtos_final"],
+        page,
+        page_size,
+        sort_by,
+        sort_desc,
+    )

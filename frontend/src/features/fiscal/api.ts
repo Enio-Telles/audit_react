@@ -50,4 +50,16 @@ export const fiscalFeatureApi = {
     api
       .get<FiscalizacaoDsfRecord[]>("/fiscal/fiscalizacao/dsfs", { params: { cnpj } })
       .then((response) => response.data),
+  getAnaliseEstoqueMov: (cnpj: string, page = 1, pageSize = 50) =>
+    getPage("/fiscal/analise/estoque-mov", cnpj, page, pageSize),
+  getAnaliseEstoqueMensal: (cnpj: string, page = 1, pageSize = 50) =>
+    getPage("/fiscal/analise/estoque-mensal", cnpj, page, pageSize),
+  getAnaliseEstoqueAnual: (cnpj: string, page = 1, pageSize = 50) =>
+    getPage("/fiscal/analise/estoque-anual", cnpj, page, pageSize),
+  getAnaliseAgregacao: (cnpj: string, page = 1, pageSize = 50) =>
+    getPage("/fiscal/analise/agregacao", cnpj, page, pageSize),
+  getAnaliseConversao: (cnpj: string, page = 1, pageSize = 50) =>
+    getPage("/fiscal/analise/conversao", cnpj, page, pageSize),
+  getAnaliseProdutosBase: (cnpj: string, page = 1, pageSize = 50) =>
+    getPage("/fiscal/analise/produtos-base", cnpj, page, pageSize),
 };
