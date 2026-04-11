@@ -44,6 +44,7 @@ A arquitetura proposta já saiu do plano e entrou em operação inicial dentro d
 - inspector central de catálogo no backend/observabilidade
 - tela operacional de catálogo no frontend
 - extração no frontend alinhada à realidade atual do pipeline
+- sugestão automática de abordagem baseada no catálogo
 - stack local de Prometheus/Grafana/Marquez em `infra/observability/`
 
 ## Migração das abas atuais
@@ -83,5 +84,6 @@ Use `00_CONSOLIDADO_MODULO_FISCAL.md` como visão concatenada do estado atual, d
 - `22_INSPECAO_CATALOGO_BACKEND.md`
 - `23_TELA_OPERACIONAL_CATALOGO.md`
 - `24_EXTRACAO_FRONTEND_REALIDADE_ATUAL.md`
+- `25_SUGESTAO_AUTOMATICA_ABORDAGEM.md`
 - `AGENTS_NOVO.md`
 - `AGENTS_SQL_NOVO.md`
