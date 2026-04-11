@@ -1,0 +1,7 @@
+## 2024-05-18 - Missing loading and disabled states on primary action buttons
+**Learning:** The main primary action buttons (like "Extrair + Processar") were missing loading text, `disabled` conditions mapped to their underlying mutations, and `aria-busy` attributes, which allowed for multiple submissions and confused users using screen readers. Furthermore, common button classes lack proper focus indicators.
+**Action:** Always map primary asynchronous actions to their respective `isPending` states to disable the button, update its text, provide `aria-busy` indicators, and verify `btnCls` patterns include `focus-visible` outline utilities for keyboard accessibility.
+
+## 2024-05-19 - Missing loading state and accessibility attributes on Dossie sync buttons
+**Learning:** The "Sincronizar pendentes" and "Abrir secao prioritaria" buttons in the DossieHeader component lacked proper keyboard focus indicators (`focus-visible:ring`), making keyboard navigation difficult. Furthermore, the asynchronous sync button lacked a visual loading spinner and `aria-busy` attribute when syncing, which could lead to user confusion during the asynchronous operation.
+**Action:** Always ensure that interactive elements have clear `focus-visible` outlines for keyboard users. For asynchronous actions, use visual indicators (like a spinner) and `aria-busy` to communicate the loading state clearly to both sighted and screen reader users.
