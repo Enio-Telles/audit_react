@@ -121,6 +121,76 @@ Este plano usa como base:
 - o estado real do repositório `c:\audit_react`;
 - a direção já indicada no pacote "SQL mínimo denominador comum".
 
+## Estado confirmado no código em 2026-04-11
+
+### O que foi confirmado no código
+
+- existe shell `Tauri v2` real em `frontend/src-tauri/`;
+- o projeto ainda possui entrypoint PySide ativo em `app.py`;
+- o backend principal já expõe rotas canônicas para:
+  - `EFD`
+  - `produto`
+  - `conversao`
+  - `estoque`
+  - `documentos`
+  - `fiscalizacao`
+  - `ressarcimento`
+  - `analise`
+- existe um router novo `backend/routers/fiscal_agregacao.py`, mas ele ainda não foi incorporado em `backend/main.py`;
+- o frontend já possui features fiscais canônicas para:
+  - `EFD`
+  - `Produto Master`
+  - `Conversao`
+  - `Estoque`
+  - `Documentos Fiscais`
+  - `Fiscalizacao`
+  - `Ressarcimento`
+  - `Catalogo de Datasets`
+- o frontend ainda não possui uma aba canônica dedicada para `Agregacao`;
+- a aba `Analise Fiscal` continua implementada como tela própria com tabela customizada, filtros e paginação duplicados em relação ao componente compartilhado `FiscalDatasetExplorer`;
+- a `DataTable` compartilhada já entrega:
+  - ordenação
+  - filtros por coluna
+  - controle de colunas
+  - reordenação de colunas
+  - redimensionamento
+  - paginação
+- não há virtualização confirmada na grade principal atual;
+- `OpenLineage`, `SchemaRegistry`, `dataset catalog` e `sql_cache` existem de fato no código;
+- a base EFD canônica já foi incorporada ao pipeline e ao backend, com materialização em `dados/CNPJ/<cnpj>/base/efd/*`.
+
+### Classificação objetiva por módulo prioritário
+
+- `EFD`: parcialmente implementado
+  - backend canônico existe e é utilizável;
+  - frontend canônico existe e é utilizável;
+  - ainda há poluição visual técnica na tela, com blocos JSON crus de manifest e proveniência.
+- `Conversao`: parcialmente implementado
+  - backend canônico existe;
+  - frontend canônico existe;
+  - ainda depende de dataset legado `fatores_conversao` como ponte;
+  - ainda falta separar visualmente fator declarado, inferido, auxiliar e manual.
+- `Estoque`: parcialmente implementado
+  - backend canônico existe;
+  - frontend canônico existe;
+  - ainda depende de datasets legados (`mov_estoque`, `aba_mensal`, `aba_anual`, `bloco_h`) como ponte.
+- `Agregacao`: parcialmente implementado
+  - router canônico existe no código;
+  - ainda não está ligado ao `backend/main.py`;
+  - ainda não está exposto no `frontend/src/App.tsx`;
+  - ainda não há feature fiscal dedicada em `frontend/src/features/fiscal/agregacao/`.
+- `Analise Fiscal`: legado que ainda precisa ser migrado ou removido
+  - existe no backend e no frontend;
+  - continua redundando Estoque, Conversao e Agregacao;
+  - conflita com a direção de separar escrituração, documentos e cruzamentos.
+- `PySide`: legado que ainda precisa ser migrado ou removido
+  - continua executável e presente;
+  - já não é o centro arquitetural do backend novo.
+- `Tauri`: implementado parcialmente
+  - estrutura presente;
+  - integração de base presente;
+  - fluxo real ainda não foi validado nesta máquina.
+
 ## Evolução já implementada nesta rodada
 
 ### Backend
@@ -140,6 +210,7 @@ Este plano usa como base:
   - leitura e execução de SQL
   - pipeline de extração e geração
   - agregação via módulo canônico compartilhado
+  - exploração canônica do domínio EFD por registro, manifest, comparação e árvore documental
   - inspeção de schema e observabilidade operacional
 - parte dos imports críticos do backend e do pipeline foi movida de `interface_grafica.*` para `utilitarios.*` e `backend/services/*`
 - foram criadas bridges temporárias em `backend/services/` para:
@@ -159,8 +230,19 @@ Este plano usa como base:
   - `Produto Master`
   - `Conversão`
   - `Estoque`
+- a área EFD passou a contar com uma página canônica orientada a registros, manifest, dicionário, comparação por período, árvore documental e proveniência por linha
 - o `App.tsx` passou a incluir abas próprias para esses domínios, sem remover as abas legadas;
 - a documentação do módulo fiscal foi atualizada para refletir a nova organização.
+
+### Processamento
+
+- foi materializado o pacote `src/processing/efd/` com:
+  - loaders para `0000`, `0190`, `0200`, `0220`, `C100`, `C170` e `C190`
+  - utilitários da camada base EFD
+  - builders para `base__efd__arquivos_validos`, `base__efd__reg_0190_tipado`, `base__efd__reg_0200_tipado`, `base__efd__reg_0220_tipado`, `base__efd__reg_c100_tipado`, `base__efd__reg_c170_tipado`, `base__efd__reg_c190_tipado`, `base__efd__reg_c176_tipado` e `base__efd__bloco_h_tipado`
+  - materializaÃ§Ã£o canÃ´nica da camada base EFD em `src/transformacao/efd_base.py`
+  - exposiÃ§Ã£o das etapas `base__efd__*` no pipeline principal e no runtime do backend
+  - publicaÃ§Ã£o dos diretÃ³rios canÃ´nicos `dados/CNPJ/<cnpj>/base/efd/*` no catÃ¡logo central de datasets
 
 ### Situação após esta rodada
 
@@ -1265,7 +1347,7 @@ Ter todas as extrações EFD mínimas e reutilizáveis.
 
 ### Todo
 
-- [ ] Formalizar `reg_0000_historico`, `versionado` e `ultimo_periodo`.
+- [x] Formalizar `reg_0000_historico`, `versionado` e `ultimo_periodo`.
 - [ ] Criar ou ajustar SQL raw para `0190`.
 - [ ] Criar ou ajustar SQL raw para `0200`.
 - [ ] Criar ou ajustar SQL raw para `0205`.
@@ -1301,6 +1383,14 @@ Objetivo:
 Mover tipagem, versionamento e deduplicação técnica para Polars.
 
 ### Todo
+
+### Progresso jÃ¡ implementado
+
+- [x] Consolidar funÃ§Ãµes lazy e builders reutilizÃ¡veis por entidade base EFD.
+- [x] Padronizar datas, nÃºmeros e colunas-chave na camada base EFD.
+- [x] Resolver retificadoras e Ãºltima entrega atravÃ©s de `base__efd__arquivos_validos`.
+- [x] Criar datasets base para inventÃ¡rio e estoque declarado com `base__efd__bloco_h_tipado`.
+- [x] Publicar `base__efd__*` no catÃ¡logo e no pipeline executÃ¡vel.
 
 - [ ] Consolidar funções lazy por entidade base.
 - [ ] Padronizar datas, números e colunas-chave.
@@ -1386,6 +1476,7 @@ Substituir a leitura de artefatos legados por módulos analíticos canônicos.
 ### Todo
 
 - [x] Criar uma shell fiscal compartilhada inicial para os módulos novos.
+- [x] Criar serviço/backend canônico da EFD com `records`, `manifest`, `dataset`, `compare`, `tree` e `row-provenance`.
 - [x] Expandir a aba EFD para o escopo mínimo obrigatório.
 - [x] Criar módulo `produto_master`.
 - [x] Criar módulo canônico de `conversao`.

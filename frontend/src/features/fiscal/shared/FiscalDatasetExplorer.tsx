@@ -5,6 +5,7 @@ import type { PageResult } from "../../../api/types";
 import { ColumnToggle } from "../../../components/table/ColumnToggle";
 import { DataTable } from "../../../components/table/DataTable";
 import { useAppStore } from "../../../store/appStore";
+import { abrirFiscalEmNovaAba, lerBootstrapFiscalDaUrl } from "../navigation";
 import type { FiscalDomainSummary } from "../types";
 import { FiscalDomainOverview } from "./FiscalDomainOverview";
 import { FiscalPageShell } from "./FiscalPageShell";
@@ -28,6 +29,7 @@ interface PageQueryOptions {
 }
 
 interface FiscalDatasetExplorerProps {
+  tabId: string;
   domainKey: string;
   title: string;
   subtitle: string;
@@ -98,6 +100,7 @@ function montarColunasVisiveis(
 }
 
 export function FiscalDatasetExplorer({
+  tabId,
   domainKey,
   title,
   subtitle,
@@ -108,9 +111,15 @@ export function FiscalDatasetExplorer({
   loadSummary,
   loadPage,
 }: FiscalDatasetExplorerProps) {
+  const bootstrap = useMemo(() => lerBootstrapFiscalDaUrl(), []);
   const selectedCnpj = useAppStore((state) => state.selectedCnpj);
   const setActiveTab = useAppStore((state) => state.setActiveTab);
-  const [activeDataset, setActiveDataset] = useState(datasetOptions[0]?.id ?? "");
+  const [activeDataset, setActiveDataset] = useState(
+    () =>
+      (bootstrap?.abaAtiva === tabId ? bootstrap.dataset : null) ??
+      datasetOptions[0]?.id ??
+      "",
+  );
   const [page, setPage] = useState(1);
   const [filterText, setFilterText] = useState("");
   const [filterColumn, setFilterColumn] = useState("");
@@ -287,6 +296,19 @@ export function FiscalDatasetExplorer({
                   setColumnWidths({});
                 }}
               />
+              <button
+                onClick={() =>
+                  abrirFiscalEmNovaAba({
+                    tab: tabId,
+                    cnpj: selectedCnpj,
+                    dataset: activeDataset,
+                  })
+                }
+                disabled={!selectedCnpj}
+                className="rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Abrir em nova aba
+              </button>
               <button
                 onClick={() => {
                   setFilterText("");

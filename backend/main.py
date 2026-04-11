@@ -31,6 +31,7 @@ from routers import (
     cnpj,
     dossie,
     estoque,
+    fiscal_agregacao,
     fiscal_analise_v2 as fiscal_analise,
     fiscal_catalog_inspector,
     fiscal_conversao,
@@ -120,6 +121,11 @@ app.include_router(fisconforme.router, prefix="/api/fisconforme", tags=["fisconf
 app.include_router(oracle.router, prefix="/api/oracle", tags=["oracle"])
 app.include_router(dossie.router, prefix="/api/dossie", tags=["dossie"])
 app.include_router(fiscal_efd.router, prefix="/api/fiscal/efd", tags=["fiscal-efd"])
+app.include_router(
+    fiscal_agregacao.router,
+    prefix="/api/fiscal/agregacao",
+    tags=["fiscal-agregacao"],
+)
 app.include_router(
     fiscal_produto.router,
     prefix="/api/fiscal/produto",

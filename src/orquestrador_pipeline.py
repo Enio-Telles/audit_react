@@ -51,6 +51,15 @@ def _registar(id: str, funcao_path: str, deps: list[str] | None = None) -> None:
 
 
 _registar("tb_documentos",       "transformacao.tabela_documentos:gerar_tabela_documentos")
+_registar("base__efd__arquivos_validos", "transformacao.efd_base:gerar_base_efd_arquivos_validos")
+_registar("base__efd__reg_0190_tipado", "transformacao.efd_base:gerar_base_efd_reg_0190_tipado")
+_registar("base__efd__reg_0200_tipado", "transformacao.efd_base:gerar_base_efd_reg_0200_tipado")
+_registar("base__efd__reg_0220_tipado", "transformacao.efd_base:gerar_base_efd_reg_0220_tipado")
+_registar("base__efd__reg_c100_tipado", "transformacao.efd_base:gerar_base_efd_reg_c100_tipado", deps=["base__efd__arquivos_validos"])
+_registar("base__efd__reg_c170_tipado", "transformacao.efd_base:gerar_base_efd_reg_c170_tipado", deps=["base__efd__reg_c100_tipado"])
+_registar("base__efd__reg_c190_tipado", "transformacao.efd_base:gerar_base_efd_reg_c190_tipado", deps=["base__efd__reg_c100_tipado"])
+_registar("base__efd__reg_c176_tipado", "transformacao.efd_base:gerar_base_efd_reg_c176_tipado", deps=["base__efd__reg_c170_tipado"])
+_registar("base__efd__bloco_h_tipado", "transformacao.efd_base:gerar_base_efd_bloco_h_tipado")
 _registar("item_unidades",       "transformacao.item_unidades:gerar_item_unidades",       deps=["tb_documentos"])
 _registar("itens",               "transformacao.itens:gerar_itens",                       deps=["item_unidades"])
 _registar("descricao_produtos",  "transformacao.descricao_produtos:gerar_descricao_produtos", deps=["itens"])

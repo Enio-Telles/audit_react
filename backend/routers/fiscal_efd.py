@@ -7,8 +7,10 @@ from typing import Any
 
 import polars as pl
 from fastapi import APIRouter
+from fastapi import HTTPException, Query
 
-from interface_grafica.config import CNPJ_ROOT
+from services.efd_service import EfdService
+from utilitarios.project_paths import CNPJ_ROOT
 
 from .fiscal_dataset_locator import locate_dataset
 from .fiscal_storage import read_materialized_frame, resolve_materialized_path
@@ -20,6 +22,7 @@ from .fiscal_summary import (
 )
 
 router = APIRouter()
+efd_service = EfdService()
 
 
 def _sanitize(cnpj: str | None) -> str | None:
@@ -537,6 +540,144 @@ def k200_rows(
         filter_value=filter_value,
         dataset_id="k200",
     )
+
+
+@router.get("/records")
+def list_records() -> list[dict[str, Any]]:
+    return efd_service.list_records()
+
+
+@router.get("/dictionary/{record}")
+def get_dictionary(record: str) -> dict[str, Any]:
+    try:
+        return {"record": record, "fields": efd_service.get_dictionary(record)}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/manifest/{record}")
+def get_manifest(record: str, cnpj: str | None = Query(default=None)) -> dict[str, Any]:
+    try:
+        return efd_service.get_manifest(record=record, cnpj=_sanitize(cnpj))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/dataset/{record}")
+def read_dataset(
+    record: str,
+    cnpj: str | None = Query(default=None),
+    periodo: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=200, ge=1, le=5000),
+    prefer_layer: str | None = Query(default=None),
+    columns: str | None = Query(default=None, description="Lista de colunas separadas por virgula."),
+    filters: str | None = Query(default=None, description="Filtros campo=valor separados por ';'."),
+) -> dict[str, Any]:
+    parsed_columns = [item.strip() for item in columns.split(",")] if columns else None
+    parsed_filters: dict[str, str] = {}
+    if filters:
+        for item in filters.split(";"):
+            if not item.strip():
+                continue
+            if "=" not in item:
+                raise HTTPException(status_code=400, detail=f"Filtro invalido: {item}")
+            key, value = item.split("=", 1)
+            parsed_filters[key.strip()] = value.strip()
+
+    try:
+        return efd_service.read_record(
+            record=record,
+            cnpj=_sanitize(cnpj),
+            periodo=periodo,
+            filters=parsed_filters or None,
+            columns=parsed_columns,
+            page=page,
+            page_size=page_size,
+            prefer_layer=prefer_layer,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/tree/documents")
+def get_document_tree(
+    cnpj: str = Query(...),
+    periodo: str | None = Query(default=None),
+    chave_documento: str | None = Query(default=None),
+    limit_docs: int = Query(default=50, ge=1, le=500),
+) -> dict[str, Any]:
+    try:
+        cnpj_sanitized = _sanitize(cnpj)
+        if not cnpj_sanitized:
+            raise HTTPException(status_code=400, detail="CNPJ invalido para arvore documental.")
+        return efd_service.build_document_tree(
+            cnpj=cnpj_sanitized,
+            periodo=periodo,
+            chave_documento=chave_documento,
+            limit_docs=limit_docs,
+        )
+    except HTTPException:
+        raise
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/compare/{record}")
+def compare_periods(
+    record: str,
+    cnpj: str = Query(...),
+    periodo_a: str = Query(...),
+    periodo_b: str = Query(...),
+    limit: int = Query(default=200, ge=1, le=5000),
+    key_field: str | None = Query(default=None),
+) -> dict[str, Any]:
+    try:
+        cnpj_sanitized = _sanitize(cnpj)
+        if not cnpj_sanitized:
+            raise HTTPException(status_code=400, detail="CNPJ invalido para comparacao.")
+        return efd_service.compare_periods(
+            record=record,
+            cnpj=cnpj_sanitized,
+            periodo_a=periodo_a,
+            periodo_b=periodo_b,
+            limit=limit,
+            key_field=key_field,
+        )
+    except HTTPException:
+        raise
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/row-provenance/{record}")
+def row_provenance(
+    record: str,
+    row_identifier: str = Query(...),
+    cnpj: str | None = Query(default=None),
+    key_field: str | None = Query(default=None),
+    prefer_layer: str | None = Query(default=None),
+) -> dict[str, Any]:
+    try:
+        return efd_service.row_provenance(
+            record=record,
+            cnpj=_sanitize(cnpj),
+            row_identifier=row_identifier,
+            key_field=key_field,
+            prefer_layer=prefer_layer,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 

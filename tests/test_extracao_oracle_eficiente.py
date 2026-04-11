@@ -7,6 +7,8 @@ sys.path.insert(0, str(Path("src").resolve()))
 
 from extracao.extracao_oracle_eficiente import (
     ConsultaSql,
+    _obter_conexao_thread,
+    _thread_local,
     _criar_dataframe_lote,
     _normalizar_data_limite_padrao,
     descobrir_consultas_sql,
@@ -115,3 +117,21 @@ def test_normalizar_data_limite_padrao_preenche_data_atual_quando_ausente():
     data_limite = _normalizar_data_limite_padrao(None)
     assert len(data_limite) == 10
     assert data_limite.count("/") == 2
+
+
+def test_obter_conexao_thread_explica_ausencia_de_credenciais(monkeypatch):
+    monkeypatch.delenv("DB_USER", raising=False)
+    monkeypatch.delenv("DB_PASSWORD", raising=False)
+    monkeypatch.setattr("extracao.extracao_oracle_eficiente.conectar", lambda: None)
+    _thread_local.conexao = None
+
+    try:
+        try:
+            _obter_conexao_thread()
+        except RuntimeError as exc:
+            assert "Credenciais Oracle ausentes" in str(exc)
+            assert ".env" in str(exc)
+        else:
+            raise AssertionError("Era esperado RuntimeError para credenciais ausentes.")
+    finally:
+        _thread_local.conexao = None

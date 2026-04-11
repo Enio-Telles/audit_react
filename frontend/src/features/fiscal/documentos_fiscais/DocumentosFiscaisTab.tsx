@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { PageResult } from "../../../api/types";
 import { useAppStore } from "../../../store/appStore";
 import { fiscalFeatureApi } from "../api";
+import { abrirFiscalEmNovaAba, lerBootstrapFiscalDaUrl } from "../navigation";
 import { FiscalDomainOverview } from "../shared/FiscalDomainOverview";
 import { FiscalPageShell } from "../shared/FiscalPageShell";
 import { FiscalRowDetailPanel } from "../shared/FiscalRowDetailPanel";
@@ -126,8 +127,16 @@ function DocumentosTable({
 }
 
 export function DocumentosFiscaisTab() {
+  const bootstrap = useMemo(() => lerBootstrapFiscalDaUrl(), []);
   const selectedCnpj = useAppStore((state) => state.selectedCnpj);
-  const [activeDataset, setActiveDataset] = useState<DocumentoDatasetKey>("nfe");
+  const setActiveTab = useAppStore((state) => state.setActiveTab);
+  const setWorkspaceSection = useAppStore((state) => state.setWorkspaceSection);
+  const [activeDataset, setActiveDataset] = useState<DocumentoDatasetKey>(
+    () =>
+      ((bootstrap?.abaAtiva === "documentos-fiscais"
+        ? bootstrap.dataset
+        : null) as DocumentoDatasetKey | null) ?? "nfe",
+  );
   const [page, setPage] = useState(1);
   const [filterText, setFilterText] = useState("");
   const [filterColumn, setFilterColumn] = useState("");
@@ -211,6 +220,54 @@ export function DocumentosFiscaisTab() {
           isLoading={summaryQuery.isLoading}
           errorMessage={summaryQuery.error instanceof Error ? summaryQuery.error.message : undefined}
         />
+
+        <section className="rounded-2xl border border-slate-700 bg-slate-900/30 p-4">
+          <div className="mb-3 text-sm font-semibold text-white">Blocos do usuario</div>
+          <div className="grid gap-3 lg:grid-cols-3">
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+              <div className="text-sm font-medium text-white">Notas fiscais e CT-e</div>
+              <div className="mt-2 text-xs text-slate-400">
+                Use esta tela para leitura documental, filtros por modelo, chave e periodo.
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+              <div className="text-sm font-medium text-white">Fisconforme e fronteira</div>
+              <div className="mt-2 text-xs text-slate-400">
+                Os sinais de malha, fronteira e fiscalizacao ficam em modulo proprio de manutencao para nao poluir a leitura documental.
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setWorkspaceSection("manutencao");
+                  setActiveTab("fiscalizacao");
+                }}
+                className="mt-3 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-200 hover:bg-slate-700"
+              >
+                Abrir Fisconforme / Fronteira
+              </button>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+              <div className="text-sm font-medium text-white">Nova aba</div>
+              <div className="mt-2 text-xs text-slate-400">
+                Destaque esta grade em outra aba mantendo os recursos da tabela.
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  abrirFiscalEmNovaAba({
+                    tab: "documentos-fiscais",
+                    cnpj: selectedCnpj,
+                    dataset: activeDataset,
+                  })
+                }
+                disabled={!selectedCnpj}
+                className="mt-3 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-200 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Abrir tabela em nova aba
+              </button>
+            </div>
+          </div>
+        </section>
 
         <section className="rounded-2xl border border-slate-700 bg-slate-900/30 p-4">
           <div className="mb-3 text-sm font-semibold text-white">Visões documentais já disponíveis</div>

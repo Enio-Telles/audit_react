@@ -41,6 +41,69 @@ class ResultadoGeracaoTabelas:
 
 TABELAS_DISPONIVEIS: list[dict[str, str]] = [
     {
+        "id": "base__efd__arquivos_validos",
+        "nome": "EFD Base 0000 Valido",
+        "descricao": "Versiona o REG 0000 e define os arquivos EFD validos por periodo.",
+        "modulo": "efd_base",
+        "funcao": "gerar_base_efd_arquivos_validos",
+    },
+    {
+        "id": "base__efd__reg_0190_tipado",
+        "nome": "EFD Base 0190 Tipado",
+        "descricao": "Padroniza o cadastro de unidades de medida da EFD.",
+        "modulo": "efd_base",
+        "funcao": "gerar_base_efd_reg_0190_tipado",
+    },
+    {
+        "id": "base__efd__reg_0200_tipado",
+        "nome": "EFD Base 0200 Tipado",
+        "descricao": "Padroniza o cadastro de itens da EFD.",
+        "modulo": "efd_base",
+        "funcao": "gerar_base_efd_reg_0200_tipado",
+    },
+    {
+        "id": "base__efd__reg_0220_tipado",
+        "nome": "EFD Base 0220 Tipado",
+        "descricao": "Padroniza os fatores de conversao declarados na EFD.",
+        "modulo": "efd_base",
+        "funcao": "gerar_base_efd_reg_0220_tipado",
+    },
+    {
+        "id": "base__efd__reg_c100_tipado",
+        "nome": "EFD Base C100 Tipado",
+        "descricao": "Tipa o cabecalho documental C100 com recorte pelos arquivos validos.",
+        "modulo": "efd_base",
+        "funcao": "gerar_base_efd_reg_c100_tipado",
+    },
+    {
+        "id": "base__efd__reg_c170_tipado",
+        "nome": "EFD Base C170 Tipado",
+        "descricao": "Tipa os itens C170 e preserva o vinculo com o documento fiscal.",
+        "modulo": "efd_base",
+        "funcao": "gerar_base_efd_reg_c170_tipado",
+    },
+    {
+        "id": "base__efd__reg_c190_tipado",
+        "nome": "EFD Base C190 Tipado",
+        "descricao": "Tipa a visao analitica C190 preservando o vinculo documental.",
+        "modulo": "efd_base",
+        "funcao": "gerar_base_efd_reg_c190_tipado",
+    },
+    {
+        "id": "base__efd__reg_c176_tipado",
+        "nome": "EFD Base C176 Tipado",
+        "descricao": "Tipa o C176 e preserva o vinculo com o item escriturado.",
+        "modulo": "efd_base",
+        "funcao": "gerar_base_efd_reg_c176_tipado",
+    },
+    {
+        "id": "base__efd__bloco_h_tipado",
+        "nome": "EFD Base Bloco H Tipado",
+        "descricao": "Consolida H005, H010 e H020 em uma base canonica do inventario.",
+        "modulo": "efd_base",
+        "funcao": "gerar_base_efd_bloco_h_tipado",
+    },
+    {
         "id": "tb_documentos",
         "nome": "Consolidacao de Documentos",
         "descricao": "Unifica cabecalhos de NFe, NFCe e C100",
@@ -250,6 +313,28 @@ class ServicoExtracao:
             if resultado.ok and resultado.arquivo_saida is not None
         )
 
+        falhas = [
+            resultado
+            for resultado in resultados
+            if not resultado.ok and not resultado.ignorada
+        ]
+
+        if falhas and not arquivos:
+            resumo = "; ".join(
+                f"{resultado.consulta.caminho.name}: {resultado.erro}"
+                for resultado in falhas[:3]
+            )
+            restante = len(falhas) - min(len(falhas), 3)
+            if restante > 0:
+                resumo += f"; ... e mais {restante} consulta(s)"
+            raise RuntimeError(f"Extracao Oracle sem sucesso. {resumo}")
+
+        if not arquivos and resultados and not falhas:
+            raise RuntimeError(
+                "Extracao Oracle nao gerou arquivos para as consultas selecionadas. "
+                "Verifique binds obrigatorios e filtros informados."
+            )
+
         return arquivos
 
 
@@ -314,6 +399,15 @@ class ServicoTabelas:
         tempos: dict[str, float] = {}
 
         ordem = [
+            "base__efd__arquivos_validos",
+            "base__efd__reg_0190_tipado",
+            "base__efd__reg_0200_tipado",
+            "base__efd__reg_0220_tipado",
+            "base__efd__reg_c100_tipado",
+            "base__efd__reg_c170_tipado",
+            "base__efd__reg_c190_tipado",
+            "base__efd__reg_c176_tipado",
+            "base__efd__bloco_h_tipado",
             "tb_documentos",
             "item_unidades",
             "itens",

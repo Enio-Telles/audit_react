@@ -13,6 +13,7 @@ const DATASET_OPTIONS = [
 export function ConversaoFiscalTab() {
   return (
     <FiscalDatasetExplorer
+      tabId="fiscal-conversao"
       domainKey="conversao"
       title="Conversão"
       subtitle="Fatores de conversão por tipo (EFD, inferido, auxiliar, manual), origem do fator final, evidências de unidade e histórico de edição."

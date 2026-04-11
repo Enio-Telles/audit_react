@@ -1,3 +1,9 @@
+/*
+Parametro esperado:
+  :data_limite_processamento = data de corte da entrega EFD.
+  A extracao considera apenas arquivos com data_entrega <= essa data.
+  Se vier nulo, a consulta usa TRUNC(SYSDATE).
+*/
 WITH
     PARAMETROS AS (
         SELECT

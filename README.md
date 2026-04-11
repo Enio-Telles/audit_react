@@ -31,6 +31,15 @@ A ordem ativa do pipeline estÃ¡ em `src/orquestrador_pipeline.py`:
 
 Os wrappers em `src/transformacao/` existem em boa parte para compatibilidade. Ao corrigir ou evoluir regras, a implementaÃ§Ã£o real costuma estar nos subpacotes `*_pkg`.
 
+## Data de corte da entrega EFD
+
+Quando a extração usa o parâmetro `data_limite_processamento`, o significado correto é:
+
+- ele representa a data de corte da entrega EFD;
+- a seleção considera apenas arquivos com `data_entrega <= data informada`;
+- se o parâmetro vier vazio ou nulo, o sistema usa a data atual;
+- isso permite reproduzir a visão fiscal como ela existia até uma determinada data de entrega.
+
 ## ExecuÃ§Ã£o rÃ¡pida
 
 InstalaÃ§Ã£o mÃ­nima:

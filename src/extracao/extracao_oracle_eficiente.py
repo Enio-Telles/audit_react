@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import os
 import re
 import threading
 from datetime import datetime
@@ -15,7 +16,7 @@ from rich import print as rprint
 
 from utilitarios.conectar_oracle import conectar
 from utilitarios.ler_sql import ler_sql
-from utilitarios.project_paths import CNPJ_ROOT, SQL_ARCHIVE_ROOT, SQL_ROOT
+from utilitarios.project_paths import CNPJ_ROOT, ENV_PATH, SQL_ARCHIVE_ROOT, SQL_ROOT
 from utilitarios.sql_service import SqlService
 from utilitarios.sql_catalog import get_sql_id, list_sql_entries, resolve_sql_path
 from utilitarios.validar_cnpj import validar_cnpj
@@ -223,6 +224,20 @@ def obter_caminho_saida_parquet(
 def _obter_conexao_thread():
     if not hasattr(_thread_local, "conexao") or _thread_local.conexao is None:
         _thread_local.conexao = conectar()
+        if _thread_local.conexao is None:
+            usuario = os.getenv("DB_USER", "").strip()
+            senha = os.getenv("DB_PASSWORD", "").strip()
+            host = os.getenv("ORACLE_HOST", "exa01-scan.sefin.ro.gov.br").strip()
+            servico = os.getenv("ORACLE_SERVICE", "sefindw").strip()
+            if not usuario or not senha:
+                raise RuntimeError(
+                    f"Credenciais Oracle ausentes. Preencha DB_USER e DB_PASSWORD em {ENV_PATH} "
+                    "ou configure-as pela API /api/oracle/salvar."
+                )
+            raise RuntimeError(
+                "Nao foi possivel estabelecer conexao Oracle com as configuracoes atuais. "
+                f"Host={host}, service={servico}. Verifique rede, servico e credenciais."
+            )
     return _thread_local.conexao
 
 
@@ -416,12 +431,6 @@ def processar_consulta_oracle(
 
     try:
         conexao = _obter_conexao_thread()
-        if not conexao:
-            return ResultadoConsultaExtracao(
-                consulta=consulta,
-                ok=False,
-                erro="Falha ao obter conexao Oracle para a thread.",
-            )
 
         sql_texto_bruto = ler_sql(consulta.caminho)
         if not sql_texto_bruto:

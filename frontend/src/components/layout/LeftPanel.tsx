@@ -16,6 +16,14 @@ const inputCls =
 const btnCls =
   "px-3 py-1.5 rounded text-xs font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed";
 
+function formatarDataPadraoHoje() {
+  const hoje = new Date();
+  const dia = String(hoje.getDate()).padStart(2, "0");
+  const mes = String(hoje.getMonth() + 1).padStart(2, "0");
+  const ano = String(hoje.getFullYear());
+  return `${dia}/${mes}/${ano}`;
+}
+
 function sanitizeCnpj(value: string | null | undefined): string | null {
   const cleaned = String(value ?? "").replace(/\D/g, "");
   return cleaned || null;
@@ -39,7 +47,7 @@ export function LeftPanel() {
   } = useAppStore();
 
   const [newCnpj, setNewCnpj] = useState("");
-  const [dataLimite, setDataLimite] = useState("12/03/2026");
+  const [dataLimite, setDataLimite] = useState(formatarDataPadraoHoje);
   const [showSqlSelector, setShowSqlSelector] = useState(false);
   const [showExtrairModal, setShowExtrairModal] = useState(false);
   const [showGerenciarModal, setShowGerenciarModal] = useState(false);
@@ -203,8 +211,8 @@ export function LeftPanel() {
 
   const approachNote =
     selectedApproach === "process"
-      ? "Esta abordagem reaproveita o que já está materializado no CNPJ e ignora data limite e consultas SQL."
-      : `Esta abordagem vai usar consultas ${consultasResumo} e data limite ${dataLimite}.`;
+      ? "Esta abordagem reaproveita o que ja esta materializado no CNPJ e ignora a data de corte da EFD e as consultas SQL."
+      : `Esta abordagem vai usar consultas ${consultasResumo} e considerar entregas EFD ate ${dataLimite || "hoje"}.`;
 
   const openCatalogTab = () => {
     if (catalogCnpj) setSelectedCnpj(catalogCnpj);
@@ -236,14 +244,36 @@ export function LeftPanel() {
           }}
         />
 
-        <div className="flex items-center gap-2 mb-2">
-          <label htmlFor="input-data-limite" className="text-xs text-slate-400">Data limite EFD:</label>
-          <input
-            id="input-data-limite"
-            className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none w-28"
-            value={dataLimite}
-            onChange={(e) => setDataLimite(e.target.value)}
-          />
+        <div className="mb-2 rounded-xl border border-slate-800 bg-slate-950/30 p-2">
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="input-data-limite" className="text-xs font-semibold text-slate-300">
+              Data de corte da entrega EFD
+            </label>
+            <button
+              type="button"
+              className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-700"
+              onClick={() => setDataLimite(formatarDataPadraoHoje())}
+            >
+              Usar hoje
+            </button>
+          </div>
+          <div className="mt-1 text-[11px] text-slate-400">
+            Considera apenas arquivos EFD com <span className="text-slate-200">data_entrega &lt;= esta data</span>.
+            Use para congelar a extração em uma fotografia temporal.
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              id="input-data-limite"
+              className="bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none w-32"
+              value={dataLimite}
+              onChange={(e) => setDataLimite(e.target.value)}
+              placeholder="DD/MM/AAAA"
+              aria-describedby="data-limite-ajuda"
+            />
+            <span id="data-limite-ajuda" className="text-[10px] text-slate-500">
+              Se ficar vazia, o backend usa a data de hoje.
+            </span>
+          </div>
         </div>
 
         <div className="mb-2 text-[11px] text-slate-500">

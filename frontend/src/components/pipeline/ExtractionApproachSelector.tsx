@@ -25,7 +25,7 @@ const CARDS: ApproachCard[] = [
     example: "Exemplo: mudou SQL, data limite ou base Oracle e você quer sair já com datasets prontos para análise.",
     details: [
       "Usa consultas SQL selecionadas.",
-      "Usa data limite da extração.",
+      "Usa a data de corte da entrega EFD.",
       "Entrega brutos + analíticos no mesmo fluxo.",
     ],
   },
@@ -36,7 +36,7 @@ const CARDS: ApproachCard[] = [
     example: "Exemplo: quer validar o resultado bruto da consulta antes de rodar estoque, cruzamentos e classificações.",
     details: [
       "Usa consultas SQL selecionadas.",
-      "Usa data limite da extração.",
+      "Usa a data de corte da entrega EFD.",
       "Não roda a camada analítica depois.",
     ],
   },
@@ -47,7 +47,7 @@ const CARDS: ApproachCard[] = [
     example: "Exemplo: você alterou regras do pipeline e quer reprocessar sem bater de novo no banco.",
     details: [
       "Ignora consultas SQL da extração.",
-      "Ignora data limite.",
+      "Ignora a data de corte da entrega EFD.",
       "Reusa material já existente no CNPJ.",
     ],
   },
@@ -133,17 +133,17 @@ export function ExtractionApproachSelector({
   const summary: Record<ExtractionApproach, ReactNode> = {
     full: (
       <>
-        Vai usar <span className="text-slate-200">consultas {consultasResumo}</span> e data limite <span className="text-slate-200">{dataLimite}</span>, depois segue para processamento.
+        Vai usar <span className="text-slate-200">consultas {consultasResumo}</span> e considerar entregas EFD até <span className="text-slate-200">{dataLimite || "hoje"}</span>, depois segue para processamento.
       </>
     ),
     extract: (
       <>
-        Vai usar <span className="text-slate-200">consultas {consultasResumo}</span> e data limite <span className="text-slate-200">{dataLimite}</span>, mas para antes da camada analítica.
+        Vai usar <span className="text-slate-200">consultas {consultasResumo}</span> e considerar entregas EFD até <span className="text-slate-200">{dataLimite || "hoje"}</span>, mas para antes da camada analítica.
       </>
     ),
     process: (
       <>
-        Vai reaproveitar <span className="text-slate-200">material já existente</span> e ignorar data limite e consultas SQL.
+        Vai reaproveitar <span className="text-slate-200">material já existente</span> e ignorar a data de corte da EFD e as consultas SQL.
       </>
     ),
   };

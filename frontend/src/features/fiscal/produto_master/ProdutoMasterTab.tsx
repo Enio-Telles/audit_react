@@ -30,6 +30,7 @@ const COLUMN_PRESETS = [
 export function ProdutoMasterTab() {
   return (
     <FiscalDatasetExplorer
+      tabId="produto-master"
       domainKey="produto"
       title="Produto Master"
       subtitle="Identidade, agrupamento, conflitos e classificação fiscal dos produtos. Workbench de merge com evidências por GTIN, NCM, CEST, descrição e unidade."

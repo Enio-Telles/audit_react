@@ -12,6 +12,7 @@ import type {
 } from '../features/dossie/utils/dossie_helpers';
 
 export type AppMode = 'audit' | 'fisconforme' | null;
+export type WorkspaceSection = 'usuario' | 'manutencao';
 
 interface AppStore {
   // App mode (null = landing page)
@@ -29,6 +30,8 @@ interface AppStore {
   // Active tab
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  workspaceSection: WorkspaceSection;
+  setWorkspaceSection: (section: WorkspaceSection) => void;
 
   // Consulta tab state — filters
   consultaFilters: FilterItem[];
@@ -135,6 +138,8 @@ export const useAppStore = create<AppStore>()(
 
   activeTab: 'consulta',
   setActiveTab: (tab) => set({ activeTab: tab }),
+  workspaceSection: 'usuario',
+  setWorkspaceSection: (section) => set({ workspaceSection: section }),
 
   consultaFilters: [],
   addConsultaFilter: (f) =>

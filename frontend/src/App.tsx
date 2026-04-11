@@ -15,6 +15,8 @@ import { ConversaoTab } from "./components/tabs/ConversaoTab";
 import { EstoqueTab } from "./components/tabs/EstoqueTab";
 import { FisconformeTab } from "./components/tabs/FisconformeTab";
 import { LogsTab } from "./components/tabs/LogsTab";
+import { DossieTab } from "./features/dossie/components/DossieTab";
+import { AgregacaoFiscalTab } from "./features/fiscal/agregacao/AgregacaoFiscalTab";
 import { AnaliseFiscalTab } from "./features/fiscal/analise/AnaliseFiscalTab";
 import { CatalogoDatasetsTab } from "./features/fiscal/catalogo/CatalogoDatasetsTab";
 import { ConversaoFiscalTab } from "./features/fiscal/conversao/ConversaoFiscalTab";
@@ -24,32 +26,32 @@ import { EstoqueFiscalTab } from "./features/fiscal/estoque/EstoqueFiscalTab";
 import { FiscalizacaoTab } from "./features/fiscal/fiscalizacao/FiscalizacaoTab";
 import { ProdutoMasterTab } from "./features/fiscal/produto_master/ProdutoMasterTab";
 import { RessarcimentoTab } from "./features/fiscal/ressarcimento/RessarcimentoTab";
-import { DossieTab } from "./features/dossie/components/DossieTab";
-import {
-  ler_bootstrap_dossie_da_url,
-  limpar_bootstrap_dossie_da_url,
-} from "./features/dossie/navegacao";
+import { lerBootstrapFiscalDaUrl } from "./features/fiscal/navigation";
 import { useAppStore } from "./store/appStore";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 });
 
-const TABS = [
-  { id: "dossie", label: "Dossiê" },
+const USER_TABS = [
+  { id: "efd", label: "EFD" },
+  { id: "documentos-fiscais", label: "Documentos Fiscais" },
+  { id: "analise-fiscal", label: "Analise Fiscal" },
+];
+
+const MAINTENANCE_TABS = [
+  { id: "dossie", label: "Dossie" },
   { id: "consulta", label: "Consulta" },
   { id: "sql", label: "Consulta SQL" },
-  { id: "efd", label: "EFD" },
   { id: "produto-master", label: "Produto Master" },
-  { id: "fiscal-conversao", label: "Conversão" },
+  { id: "fiscal-agregacao", label: "Agregacao" },
+  { id: "fiscal-conversao", label: "Conversao" },
   { id: "fiscal-estoque", label: "Estoque" },
-  { id: "documentos-fiscais", label: "Documentos Fiscais" },
-  { id: "fiscalizacao", label: "Fiscalização" },
-  { id: "analise-fiscal", label: "Análise Fiscal" },
+  { id: "fiscalizacao", label: "Fiscalizacao" },
   { id: "ressarcimento", label: "Ressarcimento" },
-  { id: "catalogo-datasets", label: "Catálogo Datasets" },
-  { id: "agregacao", label: "Agregação (legado)" },
-  { id: "conversao", label: "Conversão (legado)" },
+  { id: "catalogo-datasets", label: "Catalogo Datasets" },
+  { id: "agregacao", label: "Agregacao (legado)" },
+  { id: "conversao", label: "Conversao (legado)" },
   { id: "estoque", label: "Estoque (legado)" },
   { id: "logs", label: "Logs" },
 ];
@@ -65,10 +67,12 @@ function MainContent() {
     setSelectedCnpj,
     appMode,
     setAppMode,
+    workspaceSection,
+    setWorkspaceSection,
   } = useAppStore();
   const bootstrapAplicadoRef = useRef(false);
   const bootstrapPendente =
-    appMode === null && Boolean(ler_bootstrap_dossie_da_url());
+    appMode === null && Boolean(lerBootstrapFiscalDaUrl());
 
   useEffect(() => {
     if (bootstrapAplicadoRef.current) {
@@ -77,20 +81,24 @@ function MainContent() {
 
     bootstrapAplicadoRef.current = true;
 
-    const bootstrap = ler_bootstrap_dossie_da_url();
+    const bootstrap = lerBootstrapFiscalDaUrl();
     if (bootstrap) {
       if (bootstrap.modoAplicacao) {
         setAppMode(bootstrap.modoAplicacao);
       }
       if (bootstrap.abaAtiva) {
         setActiveTab(bootstrap.abaAtiva);
+        if (USER_TABS.some((tab) => tab.id === bootstrap.abaAtiva)) {
+          setWorkspaceSection("usuario");
+        } else {
+          setWorkspaceSection("manutencao");
+        }
       }
       if (bootstrap.cnpjSelecionado) {
         setSelectedCnpj(bootstrap.cnpjSelecionado);
       }
-      limpar_bootstrap_dossie_da_url();
     }
-  }, [setActiveTab, setAppMode, setSelectedCnpj]);
+  }, [setActiveTab, setAppMode, setSelectedCnpj, setWorkspaceSection]);
 
   const { data: cnpjs = [] } = useQuery({
     queryKey: ["cnpjs"],
@@ -99,6 +107,8 @@ function MainContent() {
 
   const selectedRecord =
     cnpjs.find((registro) => registro.cnpj === selectedCnpj) ?? null;
+  const visibleTabs =
+    workspaceSection === "usuario" ? USER_TABS : MAINTENANCE_TABS;
 
   if (bootstrapPendente) {
     return (
@@ -122,13 +132,13 @@ function MainContent() {
             style={{ background: "#0d1f3c", minHeight: 32 }}
           >
             <span className="text-xs font-semibold text-slate-400">
-              Fisconforme — Análise em Lote
+              Fisconforme - Analise em Lote
             </span>
             <button
               onClick={() => setAppMode(null)}
               className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-blue-400 hover:text-blue-200"
             >
-              ← Voltar ao Início
+              Voltar ao Inicio
             </button>
           </div>
           <div className="flex-1 overflow-hidden">
@@ -155,13 +165,16 @@ function MainContent() {
             {selectedCnpj && (
               <>
                 <button
-                  onClick={() => setActiveTab("dossie")}
-                  className={`font-mono shrink-0 rounded px-2 py-0.5 transition-colors ${
+                  onClick={() => {
+                    setWorkspaceSection("manutencao");
+                    setActiveTab("dossie");
+                  }}
+                  className={`shrink-0 rounded px-2 py-0.5 font-mono transition-colors ${
                     activeTab === "dossie"
                       ? "bg-blue-600 text-white"
                       : "bg-slate-700 text-slate-300 hover:bg-slate-600"
                   }`}
-                  title="Ir para o Dossiê"
+                  title="Ir para o Dossie"
                 >
                   {selectedCnpj}
                 </button>
@@ -191,20 +204,20 @@ function MainContent() {
               </>
             )}
           </div>
-          <button
-            onClick={toggleLeftPanel}
-            className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-blue-400 hover:text-blue-200"
-          >
-            {leftPanelVisible
-              ? "<< Ocultar Painel Lateral"
-              : ">> Mostrar Painel Lateral"}
-          </button>
-          <button
-            onClick={() => setAppMode(null)}
-            className="ml-2 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-400 hover:text-slate-200"
-          >
-            ← Início
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleLeftPanel}
+              className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-blue-400 hover:text-blue-200"
+            >
+              {leftPanelVisible ? "Ocultar painel" : "Mostrar painel"}
+            </button>
+            <button
+              onClick={() => setAppMode(null)}
+              className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-400 hover:text-slate-200"
+            >
+              Inicio
+            </button>
+          </div>
         </div>
 
         <div
@@ -212,7 +225,52 @@ function MainContent() {
           className="flex items-center gap-1 border-b border-slate-700 px-3 pt-2"
           style={{ background: "#0a1628" }}
         >
-          {TABS.map((tab) => (
+          <div className="mr-4 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                setWorkspaceSection("usuario");
+                if (!USER_TABS.some((tab) => tab.id === activeTab)) {
+                  setActiveTab("efd");
+                }
+              }}
+              className={`rounded-t border-l border-r border-t px-4 py-1.5 text-xs font-medium transition-colors ${
+                workspaceSection === "usuario"
+                  ? "border-slate-600 text-white"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
+              }`}
+              style={
+                workspaceSection === "usuario"
+                  ? { background: "#10223a" }
+                  : {}
+              }
+            >
+              Usuario
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setWorkspaceSection("manutencao");
+                if (!MAINTENANCE_TABS.some((tab) => tab.id === activeTab)) {
+                  setActiveTab("dossie");
+                }
+              }}
+              className={`rounded-t border-l border-r border-t px-4 py-1.5 text-xs font-medium transition-colors ${
+                workspaceSection === "manutencao"
+                  ? "border-slate-600 text-white"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
+              }`}
+              style={
+                workspaceSection === "manutencao"
+                  ? { background: "#10223a" }
+                  : {}
+              }
+            >
+              Manutencao
+            </button>
+          </div>
+
+          {visibleTabs.map((tab) => (
             <button
               key={tab.id}
               role="tab"
@@ -248,6 +306,7 @@ function MainContent() {
           {activeTab === "consulta" && <ConsultaTab />}
           {activeTab === "sql" && <ConsultaSqlTab />}
           {activeTab === "efd" && <EfdTab />}
+          {activeTab === "fiscal-agregacao" && <AgregacaoFiscalTab />}
           {activeTab === "produto-master" && <ProdutoMasterTab />}
           {activeTab === "fiscal-conversao" && <ConversaoFiscalTab />}
           {activeTab === "fiscal-estoque" && <EstoqueFiscalTab />}

@@ -31,6 +31,7 @@ const DATASET_OPTIONS = [
 export function EstoqueFiscalTab() {
   return (
     <FiscalDatasetExplorer
+      tabId="fiscal-estoque"
       domainKey="estoque"
       title="Estoque"
       subtitle="Visão em camadas: eventos fiscais, inventário declarado, saldo mensal, saldo anual e divergências. Drill-down até documento, item e origem."

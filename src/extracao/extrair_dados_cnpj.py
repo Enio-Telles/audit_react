@@ -31,7 +31,9 @@ def extrair_dados(
     cnpj_limpo = re.sub(r"[^0-9]", "", cnpj_input)
     data_limite_efetiva = _normalizar_data_limite_padrao(data_limite_input)
     msg_inicio = f"[bold green]Iniciando extracao para o CNPJ: {cnpj_limpo}[/bold green]"
-    rprint(f"{msg_inicio} [cyan](Data Limite: {data_limite_efetiva})[/cyan]")
+    rprint(
+        f"{msg_inicio} [cyan](Data de corte da entrega EFD: {data_limite_efetiva})[/cyan]"
+    )
 
     pasta_saida = CNPJ_ROOT / cnpj_limpo / "arquivos_parquet"
     pasta_saida.mkdir(parents=True, exist_ok=True)
@@ -65,7 +67,10 @@ def main() -> None:
         try:
             cnpj_arg = input("Informe o CNPJ para extracao: ").strip()
             if cnpj_arg:
-                data_limite_arg = input("Data Limite Processamento (DD/MM/YYYY) [opcional, Enter para pular]: ").strip()
+                data_limite_arg = input(
+                    "Data de corte da entrega EFD (DD/MM/YYYY) "
+                    "[opcional, Enter = hoje]: "
+                ).strip()
                 if not data_limite_arg:
                     data_limite_arg = None
         except KeyboardInterrupt:
