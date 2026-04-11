@@ -2,7 +2,7 @@
 Router Fisconforme — análise cadastral e malhas fiscais.
 
 Extrai dados do Oracle DW (mesma fonte que o projeto C:\\fisconforme)
-e armazena em cache Parquet por CNPJ em CNPJ_ROOT/{cnpj}/fisconforme/.
+e armazena em cache materializado por CNPJ em CNPJ_ROOT/{cnpj}/fisconforme/.
 Isso permite reaproveitamento entre consultas individuais e em lote.
 """
 from __future__ import annotations
@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import zipfile
 from datetime import datetime
 from io import BytesIO
@@ -26,10 +27,13 @@ from starlette.responses import StreamingResponse
 
 from interface_grafica.config import CNPJ_ROOT
 from interface_grafica.services.sql_service import SqlService
+from utilitarios.dataset_registry import criar_metadata, obter_caminho, registrar_dataset
 from utilitarios.project_paths import APP_STATE_ROOT, ENV_PATH
 from utilitarios.sql_catalog import resolve_sql_path
 
 from services.report_docx_service import ReportDocxService
+
+from .fiscal_storage import read_materialized_frame, resolve_materialized_path
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -226,19 +230,19 @@ def _resolver_output_dir(output_dir: str, dsf_id: Optional[str]) -> str:
 # ---------------------------------------------------------------------------
 
 def _cache_cadastral_path(cnpj: str) -> Path:
-    return _cache_dir(cnpj) / "dados_cadastrais.parquet"
+    return Path(obter_caminho(cnpj, "dados_cadastrais"))
 
 
 def _cache_malha_path(cnpj: str) -> Path:
-    return _cache_dir(cnpj) / "malhas.parquet"
+    return Path(obter_caminho(cnpj, "malhas"))
 
 
 def _ler_cache_cadastral(cnpj: str) -> Optional[Dict[str, Any]]:
-    p = _cache_cadastral_path(cnpj)
+    p = resolve_materialized_path(_cache_cadastral_path(cnpj))
     if not p.exists():
         return None
     try:
-        df = pl.read_parquet(p)
+        df = read_materialized_frame(p)
         if df.is_empty():
             return None
         row = df.row(0, named=True)
@@ -249,22 +253,28 @@ def _ler_cache_cadastral(cnpj: str) -> Optional[Dict[str, Any]]:
 
 
 def _salvar_cache_cadastral(cnpj: str, dados: Dict[str, Any]) -> None:
-    p = _cache_cadastral_path(cnpj)
     row = {k: [str(v) if v is not None else ""] for k, v in dados.items()}
     row["cached_at"] = [datetime.now().isoformat()]
     try:
-        pl.DataFrame(row).write_parquet(p)
-        logger.info("Cache cadastral salvo: %s", cnpj)
+        df = pl.DataFrame(row)
+        metadata = criar_metadata(
+            cnpj=cnpj,
+            dataset_id="dados_cadastrais",
+            linhas=df.height,
+            parametros={"source": "fisconforme_oracle_cadastral"},
+        )
+        destino = registrar_dataset(cnpj, "dados_cadastrais", df, metadata=metadata)
+        logger.info("Cache cadastral salvo: %s -> %s", cnpj, destino)
     except Exception as exc:
         logger.error("Erro ao salvar cache cadastral %s: %s", cnpj, exc)
 
 
 def _ler_cache_malha(cnpj: str) -> Optional[List[Dict[str, Any]]]:
-    p = _cache_malha_path(cnpj)
+    p = resolve_materialized_path(_cache_malha_path(cnpj))
     if not p.exists():
         return None
     try:
-        df = pl.read_parquet(p)
+        df = read_materialized_frame(p)
         return df.to_dicts()
     except Exception as exc:
         logger.warning("Erro ao ler cache malha %s: %s", cnpj, exc)
@@ -272,14 +282,36 @@ def _ler_cache_malha(cnpj: str) -> Optional[List[Dict[str, Any]]]:
 
 
 def _salvar_cache_malha(cnpj: str, registros: List[Dict[str, Any]]) -> None:
-    p = _cache_malha_path(cnpj)
     if not registros:
         return
     try:
-        pl.DataFrame(registros).write_parquet(p)
-        logger.info("Cache malha salvo: %s (%d registros)", cnpj, len(registros))
+        df = pl.DataFrame(registros)
+        metadata = criar_metadata(
+            cnpj=cnpj,
+            dataset_id="malhas",
+            linhas=df.height,
+            parametros={"source": "fisconforme_oracle_malhas"},
+        )
+        destino = registrar_dataset(cnpj, "malhas", df, metadata=metadata)
+        logger.info("Cache malha salvo: %s (%d registros) -> %s", cnpj, len(registros), destino)
     except Exception as exc:
         logger.error("Erro ao salvar cache malha %s: %s", cnpj, exc)
+
+
+def _remover_materializado(caminho: Path) -> List[str]:
+    removidos: List[str] = []
+    alvo = resolve_materialized_path(caminho)
+    metadata = alvo.with_suffix(".metadata.json") if alvo.suffix.lower() == ".parquet" else alvo / "_dataset.metadata.json"
+    if alvo.exists():
+        if alvo.is_dir():
+            shutil.rmtree(alvo)
+        else:
+            alvo.unlink()
+        removidos.append(alvo.name)
+    if metadata.exists():
+        metadata.unlink()
+        removidos.append(metadata.name)
+    return removidos
 
 
 # ---------------------------------------------------------------------------
@@ -600,7 +632,6 @@ def consulta_cadastral(req: ConsultaCnpjRequest):
 
     from_cache = False
 
-    # Dados cadastrais
     dados = None if req.forcar_atualizacao else _ler_cache_cadastral(cnpj)
     if dados:
         from_cache = True
@@ -612,7 +643,6 @@ def consulta_cadastral(req: ConsultaCnpjRequest):
         except Exception as exc:
             raise HTTPException(503, f"Erro ao consultar Oracle: {exc}")
 
-    # Malhas
     malhas_cache = None if req.forcar_atualizacao else _ler_cache_malha(cnpj)
     if malhas_cache is not None:
         malhas = malhas_cache
@@ -683,13 +713,16 @@ def cache_stats():
     cached = []
     if CNPJ_ROOT.exists():
         for cnpj_dir in CNPJ_ROOT.iterdir():
-            fisc_dir = cnpj_dir / "fisconforme"
-            if fisc_dir.exists():
-                cached.append({
-                    "cnpj": cnpj_dir.name,
-                    "tem_cadastral": (fisc_dir / "dados_cadastrais.parquet").exists(),
-                    "tem_malhas": (fisc_dir / "malhas.parquet").exists(),
-                })
+            cnpj = cnpj_dir.name
+            cadastral = resolve_materialized_path(_cache_cadastral_path(cnpj))
+            malhas = resolve_materialized_path(_cache_malha_path(cnpj))
+            cached.append({
+                "cnpj": cnpj,
+                "tem_cadastral": cadastral.exists(),
+                "tem_malhas": malhas.exists(),
+                "formato_cadastral": "delta" if cadastral.exists() and cadastral.is_dir() else ("parquet" if cadastral.exists() else None),
+                "formato_malhas": "delta" if malhas.exists() and malhas.is_dir() else ("parquet" if malhas.exists() else None),
+            })
     return {"total_cnpjs_cached": len(cached), "cnpjs": cached}
 
 
@@ -697,13 +730,9 @@ def cache_stats():
 def limpar_cache_cnpj(cnpj: str):
     """Remove o cache fisconforme de um CNPJ específico."""
     cnpj = _limpar_cnpj(cnpj)
-    fisc_dir = CNPJ_ROOT / cnpj / "fisconforme"
-    removidos = []
-    for f in ["dados_cadastrais.parquet", "malhas.parquet"]:
-        p = fisc_dir / f
-        if p.exists():
-            p.unlink()
-            removidos.append(f)
+    removidos: List[str] = []
+    removidos.extend(_remover_materializado(_cache_cadastral_path(cnpj)))
+    removidos.extend(_remover_materializado(_cache_malha_path(cnpj)))
     return {"ok": True, "cnpj": cnpj, "removidos": removidos}
 
 
@@ -796,7 +825,6 @@ def _gerar_tabela_html(malhas: List[Dict[str, Any]]) -> str:
 def _converter_pdf_base64_para_html(pdf_base64: str) -> str:
     """Converte PDF em base64 para conjunto de tags <img> em HTML (uma por página)."""
     try:
-        import base64
         import io
         import fitz  # PyMuPDF
 
@@ -870,7 +898,16 @@ def _salvar_notificacao_em_disco(
     output_dir: str,
 ) -> str:
     try:
-        target_dir = Path(output_dir).expanduser()
+        from utilitarios.project_paths import DATA_ROOT
+        safe_base = (DATA_ROOT / "notificacoes").resolve()
+        folder_norm = Path(output_dir.strip().replace("\\", "/"))
+        if folder_norm.is_absolute() or ".." in folder_norm.parts:
+            return ""
+
+        target_dir = (safe_base / folder_norm).resolve()
+        if not str(target_dir).startswith(str(safe_base)):
+            return ""
+
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / nome_arquivo
         target_path.write_text(conteudo, encoding="utf-8")
@@ -963,11 +1000,9 @@ def gerar_notificacao(req: GerarNotificacaoRequest):
     if not MODELO_NOTIFICACAO.exists():
         raise HTTPException(500, f"Template não encontrado: {MODELO_NOTIFICACAO}")
 
-    # Lê dados cadastrais do cache (já salvos em parquet pela consulta)
     dados = _ler_cache_cadastral(cnpj) or {}
     malhas = _ler_cache_malha(cnpj) or []
 
-    # Determina valores de cada placeholder com fallbacks
     def _get(*keys: str) -> str:
         for k in keys:
             v = dados.get(k) or dados.get(k.upper()) or dados.get(k.lower())
@@ -1065,11 +1100,16 @@ def gerar_notificacoes_lote(req: GerarNotificacoesLoteRequest):
     headers = {"Content-Disposition": f'attachment; filename="{nome_zip}"'}
     if output_dir:
         try:
-            target_dir = Path(output_dir).expanduser()
-            target_dir.mkdir(parents=True, exist_ok=True)
-            (target_dir / nome_zip).write_bytes(zip_buffer.getvalue())
-            headers["X-Saved-To"] = str(target_dir)
-            headers["X-Saved-Count"] = str(len(cnpjs_validos))
+            from utilitarios.project_paths import DATA_ROOT
+            safe_base = (DATA_ROOT / "notificacoes").resolve()
+            folder_norm = Path(output_dir.strip().replace("\\", "/"))
+            if not folder_norm.is_absolute() and ".." not in folder_norm.parts:
+                target_dir = (safe_base / folder_norm).resolve()
+                if str(target_dir).startswith(str(safe_base)):
+                    target_dir.mkdir(parents=True, exist_ok=True)
+                    (target_dir / nome_zip).write_bytes(zip_buffer.getvalue())
+                    headers["X-Saved-To"] = str(target_dir)
+                    headers["X-Saved-Count"] = str(len(cnpjs_validos))
         except OSError as exc:
             logger.warning("Não foi possível salvar ZIP em disco (%s): %s", output_dir, exc)
     return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
@@ -1081,16 +1121,9 @@ def gerar_docx(req: GerarNotificacaoRequest):
     Mantém logotipos e visual clássico conforme solicitado.
     """
     try:
-        # Prepara o serviço de geração
         service = ReportDocxService()
-        
-        # Nome único para o arquivo gerado
         filename = f"notificacao_{_limpar_cnpj(req.cnpj)}_{uuid4().hex[:8]}.docx"
-        
-        # Mapeia os dados da requisição para o formato esperado pelo template Word
-        # Nota: 'malhas' devem ser enviadas no corpo da requisição ou buscadas no cache
         dados_cadastrais = _ler_cache_cadastral(_limpar_cnpj(req.cnpj)) or {}
-        
         contexto = {
             "RAZAO_SOCIAL": dados_cadastrais.get("NO_RAZAO_SOCIAL", "NOME NÃO ENCONTRADO"),
             "CNPJ": req.cnpj,
@@ -1101,20 +1134,14 @@ def gerar_docx(req: GerarNotificacaoRequest):
             "MATRICULA": req.matricula,
             "CONTATO": req.contato,
             "ORGAO_ORIGEM": req.orgao_origem,
-            # Placeholder para tabela de pendências (pode ser expandido conforme necessidade)
             "TABELA": _ler_cache_malha(_limpar_cnpj(req.cnpj)) or []
         }
-        
-        # Executa a geração técnica do arquivo
         relatorio_path = service.gerar_relatorio(contexto, filename)
-        
-        # Retorna o arquivo para download
         return StreamingResponse(
             open(relatorio_path, "rb"),
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
-        
     except Exception as exc:
         logger.error("Erro ao gerar DOCX: %s", exc)
         raise HTTPException(500, f"Erro interno ao gerar Word: {str(exc)}")
