@@ -265,6 +265,7 @@ export function LeftPanel() {
             selectedApproach={selectedApproach}
             onApplySuggestion={setSelectedApproach}
             onOpenCatalog={openCatalogTab}
+            onOpenSqlSelection={() => setShowExtrairModal(true)}
           />
         </div>
 

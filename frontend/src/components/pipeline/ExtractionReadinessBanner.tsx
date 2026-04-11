@@ -8,10 +8,35 @@ interface Props {
   selectedApproach: ExtractionApproach;
   onApplySuggestion: (approach: ExtractionApproach) => void;
   onOpenCatalog: () => void;
+  onOpenSqlSelection: () => void;
 }
 
 const RAW_BASE_IDS = ["tb_documentos", "c170_xml", "c176_xml", "bloco_h", "nfe_base", "nfce_base", "cte_base", "dados_cadastrais", "malhas"] as const;
 const ANALYTIC_IDS = ["mov_estoque", "aba_mensal", "aba_anual", "fatores_conversao", "produtos_agrupados", "produtos_final"] as const;
+
+const DATASET_LABELS: Record<string, string> = {
+  tb_documentos: "tb_documentos",
+  c170_xml: "C170 XML",
+  c176_xml: "C176 XML",
+  bloco_h: "Bloco H",
+  nfe_base: "NF-e",
+  nfce_base: "NFC-e",
+  cte_base: "CT-e",
+  dados_cadastrais: "Dados cadastrais",
+  malhas: "Malhas",
+};
+
+const DATASET_SQL_FAMILY: Record<string, string> = {
+  tb_documentos: "Documentos fiscais",
+  nfe_base: "Documentos fiscais",
+  nfce_base: "Documentos fiscais",
+  cte_base: "Documentos fiscais",
+  c170_xml: "EFD",
+  c176_xml: "EFD",
+  bloco_h: "EFD",
+  dados_cadastrais: "Fisconforme / cadastro",
+  malhas: "Fisconforme / malhas",
+};
 
 function summarize(ids: readonly string[], items: DatasetAvailabilityItem[]) {
   const available = ids.filter((id) => items.some((item) => item.dataset_id === id && item.disponivel));
@@ -68,7 +93,11 @@ function toneClasses(tone: "amber" | "blue" | "emerald") {
   return "border-emerald-500/40 bg-emerald-950/20 text-emerald-100";
 }
 
-export function ExtractionReadinessBanner({ cnpj, items, loading = false, selectedApproach, onApplySuggestion, onOpenCatalog }: Props) {
+function Chip({ children }: { children: string }) {
+  return <span className="rounded-full border border-white/15 bg-black/10 px-2 py-1 text-[10px] font-medium text-white">{children}</span>;
+}
+
+export function ExtractionReadinessBanner({ cnpj, items, loading = false, selectedApproach, onApplySuggestion, onOpenCatalog, onOpenSqlSelection }: Props) {
   if (!cnpj) {
     return <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3 text-[11px] text-slate-500">Informe ou selecione um CNPJ para o frontend sugerir a abordagem mais adequada com base no catálogo materializado.</div>;
   }
@@ -80,6 +109,8 @@ export function ExtractionReadinessBanner({ cnpj, items, loading = false, select
   const suggestion = deriveSuggestion(items);
   const raw = summarize(RAW_BASE_IDS, items);
   const weakProcess = selectedApproach === "process" && raw.available.length < 2;
+  const missingLabels = raw.missing.map((id) => DATASET_LABELS[id] ?? id);
+  const suggestedFamilies = Array.from(new Set(raw.missing.map((id) => DATASET_SQL_FAMILY[id]).filter(Boolean)));
 
   return (
     <div className="space-y-2">
@@ -87,8 +118,29 @@ export function ExtractionReadinessBanner({ cnpj, items, loading = false, select
         <div className="text-xs font-semibold uppercase tracking-wide">{suggestion.title}</div>
         <div className="mt-1 text-sm font-medium">{suggestion.description}</div>
         <div className="mt-1 opacity-90">{suggestion.details}</div>
+
+        {missingLabels.length > 0 ? (
+          <div className="mt-3 rounded-lg border border-white/10 bg-black/10 p-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/80">Datasets-base ausentes</div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {missingLabels.slice(0, 8).map((label) => <Chip key={label}>{label}</Chip>)}
+              {missingLabels.length > 8 ? <Chip>{`+${missingLabels.length - 8} restante(s)`}</Chip> : null}
+            </div>
+          </div>
+        ) : null}
+
+        {suggestedFamilies.length > 0 ? (
+          <div className="mt-2 rounded-lg border border-white/10 bg-black/10 p-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/80">Famílias SQL sugeridas para completar a base</div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {suggestedFamilies.map((family) => <Chip key={family}>{family}</Chip>)}
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" onClick={() => onApplySuggestion(suggestion.approach)} className="rounded-lg border border-white/15 bg-black/10 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-black/20">Usar abordagem sugerida</button>
+          <button type="button" onClick={onOpenSqlSelection} className="rounded-lg border border-white/15 bg-black/10 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-black/20">Abrir seleção SQL</button>
           <button type="button" onClick={onOpenCatalog} className="rounded-lg border border-white/15 bg-black/10 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-black/20">Abrir catálogo do CNPJ</button>
         </div>
       </div>
@@ -97,7 +149,7 @@ export function ExtractionReadinessBanner({ cnpj, items, loading = false, select
         <div className="rounded-xl border border-rose-500/40 bg-rose-950/20 p-3 text-[11px] text-rose-100">
           <div className="text-xs font-semibold uppercase tracking-wide">Atenção ao modo “Somente Processamento”</div>
           <div className="mt-1">O catálogo localizou pouca base materializada para este CNPJ. O processamento isolado pode não produzir o resultado esperado.</div>
-          <div className="mt-1 opacity-90">Base encontrada: {raw.available.length ? raw.available.join(", ") : "nenhuma"}.</div>
+          <div className="mt-1 opacity-90">Base encontrada: {raw.available.length ? raw.available.map((id) => DATASET_LABELS[id] ?? id).join(", ") : "nenhuma"}.</div>
         </div>
       ) : null}
     </div>
