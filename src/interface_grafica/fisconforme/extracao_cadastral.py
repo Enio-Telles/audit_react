@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 import polars as pl
-from interface_grafica.services.sql_service import SqlService
+from utilitarios.sql_service import SqlService
 
 # ConfiguraÃ§Ã£o de logging
 logger = logging.getLogger(__name__)

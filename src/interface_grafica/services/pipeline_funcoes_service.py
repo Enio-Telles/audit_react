@@ -19,10 +19,8 @@ from typing import Any, Callable
 import polars as pl
 
 from extracao.extracao_oracle_eficiente import descobrir_consultas_sql, executar_extracao_oracle
-from interface_grafica.config import CNPJ_ROOT, SQL_DIR
-
 from utilitarios.sql_catalog import list_sql_entries
-
+from utilitarios.project_paths import CNPJ_ROOT, SQL_ROOT as SQL_DIR
 from utilitarios.extrair_parametros import extrair_parametros_sql
 
 
@@ -147,7 +145,7 @@ class ServicoExtracao:
         else:
             candidatos = [Path(consultas_dir)]
 
-        self.consultas_dirs = [diretorio for idx, diretorio in enumerate(candidatos) if diretorio not in candidatos[:idx]]
+        self.consultas_dirs = list(dict.fromkeys(candidatos))
         self.consultas_dir = self.consultas_dirs[0] if self.consultas_dirs else SQL_DIR
         self.cnpj_root = cnpj_root
 

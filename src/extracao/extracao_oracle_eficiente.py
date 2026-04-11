@@ -13,10 +13,10 @@ import polars as pl
 import pyarrow.parquet as pq
 from rich import print as rprint
 
-from interface_grafica.services.sql_service import SqlService
 from utilitarios.conectar_oracle import conectar
 from utilitarios.ler_sql import ler_sql
 from utilitarios.project_paths import CNPJ_ROOT, SQL_ARCHIVE_ROOT, SQL_ROOT
+from utilitarios.sql_service import SqlService
 from utilitarios.sql_catalog import get_sql_id, list_sql_entries, resolve_sql_path
 from utilitarios.validar_cnpj import validar_cnpj
 

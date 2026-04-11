@@ -4,11 +4,13 @@ import math
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from interface_grafica.services.parquet_service import FilterCondition, ParquetService
-from interface_grafica.config import CNPJ_ROOT
+from services.parquet_service import FilterCondition, ParquetService
+from utilitarios.project_paths import CNPJ_ROOT
+
+from .fiscal_storage import resolve_materialized_path
 
 router = APIRouter()
 
@@ -42,13 +44,18 @@ def _safe_value(v: Any) -> Any:
 @router.post("/query")
 def query_parquet(req: QueryRequest):
     try:
-        p = Path(req.path).resolve()
+        if ".." in req.path:
+            raise ValueError()
+        requested = Path(req.path)
+        if not requested.is_absolute():
+            requested = CNPJ_ROOT / requested
+        p = resolve_materialized_path(requested).resolve()
         if not p.is_relative_to(CNPJ_ROOT.resolve()):
             raise ValueError()
     except Exception:
         raise HTTPException(400, "Caminho inválido ou acesso negado")
     if not p.exists():
-        raise HTTPException(404, "Arquivo nao encontrado")
+        raise HTTPException(404, "Arquivo ou dataset nao encontrado")
     svc = ParquetService(CNPJ_ROOT)
     conditions = [
         FilterCondition(column=f.column, operator=f.operator, value=f.value)

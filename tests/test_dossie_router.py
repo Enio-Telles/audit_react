@@ -267,27 +267,15 @@ def test_post_sync_secao_retorna_erro_tratavel_quando_executor_falha(monkeypatch
         raise RuntimeError("Oracle indisponivel")
 
     monkeypatch.setattr(dossie_router, "secao_permite_sincronizacao", lambda secao_id: True)
-    original = sys.modules["interface_grafica.services.dossie_extraction_service"] if "interface_grafica.services.dossie_extraction_service" in sys.modules else None
+    monkeypatch.setattr(dossie_router, "executar_sync_secao", executar_sync_fake)
 
-    class ModuloFake:
-        @staticmethod
-        async def executar_sync_secao(**kwargs):
-            return await executar_sync_fake(**kwargs)
-
-    sys.modules["interface_grafica.services.dossie_extraction_service"] = ModuloFake()
     try:
-        try:
-            asyncio.run(dossie_router.post_sync_secao("12345678000190", "contato"))
-        except Exception as exc:
-            assert getattr(exc, "status_code", None) == 502
-            assert "Falha operacional ao sincronizar secao do dossie" in str(exc.detail)
-        else:
-            raise AssertionError("Era esperado erro HTTP tratavel quando o executor de sync falha.")
-    finally:
-        if original is not None:
-            sys.modules["interface_grafica.services.dossie_extraction_service"] = original
-        else:
-            sys.modules.pop("interface_grafica.services.dossie_extraction_service", None)
+        asyncio.run(dossie_router.post_sync_secao("12345678000190", "contato"))
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 502
+        assert "Falha operacional ao sincronizar secao do dossie" in str(exc.detail)
+    else:
+        raise AssertionError("Era esperado erro HTTP tratavel quando o executor de sync falha.")
 
 
 def test_get_historico_comparacoes_contato_retorna_itens_mais_recentes(tmp_path, monkeypatch):
@@ -511,12 +499,7 @@ def test_post_sync_secao_normaliza_cnpj_e_repassa_parametros(monkeypatch):
         )
         return {"status": "success", "cnpj": cnpj, "secao_id": secao_id}
 
-    modulo_fake = type(
-        "ModuloExtracaoFake",
-        (),
-        {"executar_sync_secao": staticmethod(executar_sync_secao_fake)},
-    )
-    monkeypatch.setitem(sys.modules, "interface_grafica.services.dossie_extraction_service", modulo_fake)
+    monkeypatch.setattr(dossie_router, "executar_sync_secao", executar_sync_secao_fake)
 
     resposta = asyncio.run(
         dossie_router.post_sync_secao(
@@ -540,12 +523,7 @@ def test_post_sync_secao_rejeita_secao_apenas_cache(monkeypatch):
     async def executar_sync_secao_fake(*args, **kwargs):
         raise AssertionError("O backend nao deveria tentar sincronizar secoes sem SQL mapeada.")
 
-    modulo_fake = type(
-        "ModuloExtracaoFake",
-        (),
-        {"executar_sync_secao": staticmethod(executar_sync_secao_fake)},
-    )
-    monkeypatch.setitem(sys.modules, "interface_grafica.services.dossie_extraction_service", modulo_fake)
+    monkeypatch.setattr(dossie_router, "executar_sync_secao", executar_sync_secao_fake)
 
     try:
         asyncio.run(dossie_router.post_sync_secao("12.345.678/0001-90", "estoque"))
