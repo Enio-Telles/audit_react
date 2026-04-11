@@ -11,6 +11,8 @@ from utilitarios.dataset_registry import catalogo_resumido
 from utilitarios.delta_lake import get_delta_runtime_config
 from utilitarios.sql_cache import get_sql_catalog_cache
 
+from .fiscal_catalog_inspector import availability_for_cnpj, catalog_status, inspect_dataset
+
 router = APIRouter()
 
 
@@ -47,6 +49,21 @@ def status() -> dict:
         "delta": get_delta_runtime_config(),
         "dataset_catalog": catalogo_resumido(),
     }
+
+
+@router.get("/dataset-catalog")
+def dataset_catalog_status() -> dict:
+    return catalog_status()
+
+
+@router.get("/dataset-catalog/{cnpj}")
+def dataset_catalog_for_cnpj(cnpj: str) -> dict:
+    return availability_for_cnpj(cnpj)
+
+
+@router.get("/dataset-catalog/{cnpj}/{dataset_id}")
+def dataset_catalog_dataset(cnpj: str, dataset_id: str, limit: int = 20) -> dict:
+    return inspect_dataset(cnpj, dataset_id, limit=limit)
 
 
 @router.get("/stack-smoke")
