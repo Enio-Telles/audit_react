@@ -7,7 +7,7 @@ from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 
-from interface_grafica.config import CNPJ_ROOT as CONSULTAS_ROOT, PIPELINE_SCRIPT, SQL_DIR
+from utilitarios.project_paths import CNPJ_ROOT as CONSULTAS_ROOT, PIPELINE_SCRIPT, SQL_ROOT as SQL_DIR
 
 
 @dataclass

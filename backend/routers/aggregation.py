@@ -10,7 +10,8 @@ import polars as pl
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from interface_grafica.config import CNPJ_ROOT
+from services.aggregation_service import AggregationService
+from utilitarios.project_paths import CNPJ_ROOT
 
 router = APIRouter()
 
@@ -173,8 +174,7 @@ class AggregateRequest(BaseModel):
 def merge_agrupados(req: AggregateRequest):
     cnpj = _sanitize(req.cnpj)
     try:
-        from interface_grafica.services.aggregation_service import ServicoAgregacao
-        svc = ServicoAgregacao()
+        svc = AggregationService()
         # O primeiro elemento da lista é o id canônico (destino); os demais são as origens.
         ids_ordenados = [req.id_agrupado_destino] + [
             i for i in req.ids_origem if i != req.id_agrupado_destino

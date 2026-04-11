@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
@@ -40,7 +41,6 @@ def _iter_sql_paths(include_archive: bool = False) -> Iterable[Path]:
     for path in SQL_ROOT.rglob("*"):
         if not path.is_file() or path.suffix.lower() != ".sql":
             continue
-        # Excluir a subpasta arquivos_parquet/ (SQLs atomizados)
         try:
             path.relative_to(_SQL_ARQUIVOS_PARQUET_ROOT)
             continue
@@ -58,12 +58,18 @@ def _iter_sql_paths(include_archive: bool = False) -> Iterable[Path]:
     return resultado
 
 
-def list_sql_entries(include_archive: bool = False) -> list[SqlCatalogEntry]:
+@lru_cache(maxsize=2)
+def list_sql_entries(include_archive: bool = False) -> tuple[SqlCatalogEntry, ...]:
     entries = [
         SqlCatalogEntry(sql_id=path.relative_to(SQL_ROOT).as_posix(), path=path)
         for path in _iter_sql_paths(include_archive=include_archive)
     ]
-    return sorted(entries, key=lambda item: item.sql_id.lower())
+    return tuple(sorted(entries, key=lambda item: item.sql_id.lower()))
+
+
+def invalidate_sql_catalog_cache() -> None:
+    list_sql_entries.cache_clear()
+    _index_entries.cache_clear()
 
 
 def get_sql_id(path: Path | str) -> str | None:
@@ -74,6 +80,7 @@ def get_sql_id(path: Path | str) -> str | None:
         return None
 
 
+@lru_cache(maxsize=1)
 def _index_entries() -> tuple[dict[str, SqlCatalogEntry], dict[str, list[SqlCatalogEntry]]]:
     by_id: dict[str, SqlCatalogEntry] = {}
     by_name: dict[str, list[SqlCatalogEntry]] = {}
@@ -131,6 +138,9 @@ def resolve_sql_path(value: Path | str) -> Path:
     if sql_id is None:
         raise FileNotFoundError(f"SQL nao encontrada no catalogo local: {value}")
     path = SQL_ROOT / Path(sql_id)
+    if not path.exists():
+        invalidate_sql_catalog_cache()
+        path = SQL_ROOT / Path(sql_id)
     if not path.exists():
         raise FileNotFoundError(f"SQL nao encontrada no caminho resolvido: {sql_id}")
     return path
