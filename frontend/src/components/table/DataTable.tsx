@@ -35,6 +35,7 @@ interface DataTableProps {
   selectedRowKeys?: Set<string>;
   onRowSelect?: (key: string, checked: boolean) => void;
   onSelectAll?: (checked: boolean, visibleKeys: string[]) => void;
+  showSelectionCheckboxes?: boolean;
   sortBy?: string;
   sortDesc?: boolean;
   onSortChange?: (col: string, desc: boolean) => void;
@@ -183,6 +184,7 @@ export function DataTable({
   selectedRowKeys,
   onRowSelect,
   onSelectAll,
+  showSelectionCheckboxes,
   sortBy,
   sortDesc,
   onSortChange,
@@ -194,6 +196,7 @@ export function DataTable({
 }: DataTableProps) {
   const storageKey = appearanceKey ? `datatable_appearance_${appearanceKey}` : undefined;
   const selectable = !!onRowSelect && !!rowKey;
+  const showCheckboxes = selectable && (showSelectionCheckboxes ?? true);
   const shouldAutoHighlight = autoHighlight ?? highlightRows ?? false;
   const isServerSort = !!onSortChange;
   const podeReordenarColunas = !!onOrderedColumnsChange;
@@ -480,11 +483,11 @@ export function DataTable({
                   (total, coluna) =>
                     total + obterLarguraColuna(columnWidths, coluna),
                   0,
-                ) + (selectable ? 36 : 0),
+                ) + (showCheckboxes ? 36 : 0),
             }}
           >
             <colgroup>
-              {selectable && <col style={{ width: 36 }} />}
+              {showCheckboxes && <col style={{ width: 36 }} />}
               <col style={{ width: 40 }} />
               {visibleCols.map((coluna) => (
                 <col
@@ -509,7 +512,7 @@ export function DataTable({
                   visibleKeys.every((k) => selectedRowKeys!.has(k));
                 return (
                   <tr key={hg.id}>
-                    {selectable && (
+                    {showCheckboxes && (
                       <th className="w-9 px-2 py-2 border-b border-slate-700 text-center">
                         <input
                           type="checkbox"
@@ -591,7 +594,7 @@ export function DataTable({
               })}
               {shouldShowColumnFilters && (
                 <tr style={{ background: appearance.filterBg }}>
-                  {selectable && <th className="w-9" />}
+                  {showCheckboxes && <th className="w-9" />}
                   <th className="w-10" />
                   {visibleCols.map((col) => (
                     <th
@@ -658,7 +661,7 @@ export function DataTable({
                         : undefined
                     }
                   >
-                    {selectable && (
+                    {showCheckboxes && (
                       <td className="px-2 py-1.5 text-center text-slate-100">
                         <input
                           type="checkbox"

@@ -12,3 +12,7 @@ PySide6
 python-docx
 docxtpl
 pymupdf>=1.22.0
+prometheus-client
+fastapi
+uvicorn
+deltalake

@@ -14,7 +14,7 @@ import logging
 import unicodedata
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from interface_grafica.services.sql_service import SqlService
+from utilitarios.sql_service import SqlService
 
 # ConfiguraÃ§Ã£o do logging para rastrear execuÃ§Ãµes
 logging.basicConfig(

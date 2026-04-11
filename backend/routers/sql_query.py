@@ -8,8 +8,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from interface_grafica.services.sql_service import SqlService
 from utilitarios.project_paths import SQL_ROOT
+from utilitarios.sql_service import SqlService
 from utilitarios.sql_catalog import list_sql_entries, normalize_sql_id
 
 router = APIRouter()

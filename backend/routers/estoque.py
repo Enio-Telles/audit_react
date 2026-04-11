@@ -11,7 +11,7 @@ import polars as pl
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from interface_grafica.config import CNPJ_ROOT
+from utilitarios.project_paths import CNPJ_ROOT
 
 router = APIRouter()
 
@@ -463,27 +463,36 @@ def get_bloco_h_resumo(
     df = _aplicar_filtros_bloco_h(df, dt_inv, cod_mot_inv, indicador_propriedade)
     total_linhas = df.height
 
-    inventarios_h005 = 0
+    # ⚡ Bolt Optimization: Calculate multiple scalars concurrently in a single select
+    agg_exprs = []
     if "dt_inv" in df.columns:
-        inventarios_h005 = df.select(pl.col("dt_inv").n_unique()).item()
+        agg_exprs.append(pl.col("dt_inv").n_unique().alias("inventarios_h005"))
+    else:
+        agg_exprs.append(pl.lit(0).alias("inventarios_h005"))
 
-    total_produtos = 0
     if "codigo_produto" in df.columns:
-        total_produtos = (
-            df.filter(
+        agg_exprs.append(
+            pl.col("codigo_produto")
+            .filter(
                 pl.col("codigo_produto").is_not_null()
                 & (pl.col("codigo_produto").cast(pl.Utf8).str.len_chars() > 0)
             )
-            .select(pl.col("codigo_produto").n_unique())
-            .item()
+            .n_unique()
+            .alias("total_produtos")
         )
+    else:
+        agg_exprs.append(pl.lit(0).alias("total_produtos"))
 
-    valor_total_itens = 0.0
     if "valor_item" in df.columns:
-        valor_total_itens = float(
-            df.select(pl.col("valor_item").cast(pl.Float64).fill_null(0).sum()).item()
-            or 0.0
-        )
+        agg_exprs.append(pl.col("valor_item").cast(pl.Float64).fill_null(0).sum().alias("valor_total_itens"))
+    else:
+        agg_exprs.append(pl.lit(0.0).alias("valor_total_itens"))
+
+    resumo_scalars = df.select(agg_exprs).to_dicts()[0]
+
+    inventarios_h005 = resumo_scalars["inventarios_h005"]
+    total_produtos = resumo_scalars["total_produtos"]
+    valor_total_itens = float(resumo_scalars["valor_total_itens"] or 0.0)
 
     motivos = []
     if "cod_mot_inv" in df.columns:
