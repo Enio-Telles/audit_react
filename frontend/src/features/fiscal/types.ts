@@ -47,3 +47,38 @@ export interface FiscalizacaoDsfRecord {
   pdf_file_name: string;
   cnpjs_count: number;
 }
+
+export interface DatasetCatalogSummary {
+  total_datasets: number;
+  total_aliases: number;
+  materialized_datasets: string[];
+  aliases: Record<string, string>;
+}
+
+export interface DatasetAvailabilityItem {
+  dataset_id: string;
+  aliases: string[];
+  tipo: string;
+  sql_id: string | null;
+  disponivel: boolean;
+  caminho: string | null;
+  formato: string | null;
+  reutilizado: boolean;
+}
+
+export interface DatasetCatalogAvailability {
+  cnpj: string | null;
+  items: DatasetAvailabilityItem[];
+}
+
+export interface DatasetInspection {
+  cnpj: string | null;
+  dataset_id: string;
+  aliases: string[];
+  caminho?: string;
+  reutilizado?: boolean;
+  metadata?: Record<string, unknown> | null;
+  probe: Record<string, unknown>;
+  columns?: string[];
+  preview: Array<Record<string, unknown>>;
+}

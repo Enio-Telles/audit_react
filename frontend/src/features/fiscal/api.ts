@@ -1,6 +1,9 @@
 import type { PageResult } from "../../api/types";
 import api from "../../api/client";
 import type {
+  DatasetCatalogAvailability,
+  DatasetCatalogSummary,
+  DatasetInspection,
   FiscalDomainSummary,
   FiscalizacaoCadastroRecord,
   FiscalizacaoDsfRecord,
@@ -56,6 +59,12 @@ export const fiscalFeatureApi = {
     getResumo("/fiscal/fiscalizacao/resumo", cnpj),
   getAnaliseResumo: (cnpj?: string | null) =>
     getResumo("/fiscal/analise/resumo", cnpj),
+  getDatasetCatalogSummary: () =>
+    api.get<DatasetCatalogSummary>("/observabilidade/dataset-catalog").then((response) => response.data),
+  getDatasetCatalogForCnpj: (cnpj: string) =>
+    api.get<DatasetCatalogAvailability>(`/observabilidade/dataset-catalog/${cnpj}`).then((response) => response.data),
+  inspectDatasetCatalog: (cnpj: string, datasetId: string, limit = 20) =>
+    api.get<DatasetInspection>(`/observabilidade/dataset-catalog/${cnpj}/${datasetId}`, { params: { limit } }).then((response) => response.data),
   getEfdC170: (cnpj: string, options: PageQueryOptions = {}) =>
     getPage("/fiscal/efd/c170", cnpj, options),
   getEfdBlocoH: (cnpj: string, options: PageQueryOptions = {}) =>

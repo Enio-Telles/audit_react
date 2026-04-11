@@ -16,6 +16,7 @@ import { EstoqueTab } from "./components/tabs/EstoqueTab";
 import { FisconformeTab } from "./components/tabs/FisconformeTab";
 import { LogsTab } from "./components/tabs/LogsTab";
 import { AnaliseFiscalTab } from "./features/fiscal/analise/AnaliseFiscalTab";
+import { CatalogoDatasetsTab } from "./features/fiscal/catalogo/CatalogoDatasetsTab";
 import { DocumentosFiscaisTab } from "./features/fiscal/documentos_fiscais/DocumentosFiscaisTab";
 import { EfdTab } from "./features/fiscal/efd/EfdTab";
 import { FiscalizacaoTab } from "./features/fiscal/fiscalizacao/FiscalizacaoTab";
@@ -38,6 +39,7 @@ const TABS = [
   { id: "documentos-fiscais", label: "Documentos Fiscais" },
   { id: "fiscalizacao", label: "Fiscalização" },
   { id: "analise-fiscal", label: "Análise Fiscal" },
+  { id: "catalogo-datasets", label: "Catálogo Datasets" },
   { id: "agregacao", label: "Agregação (legado)" },
   { id: "conversao", label: "Conversão (legado)" },
   { id: "estoque", label: "Estoque (legado)" },
@@ -241,6 +243,7 @@ function MainContent() {
           {activeTab === "documentos-fiscais" && <DocumentosFiscaisTab />}
           {activeTab === "fiscalizacao" && <FiscalizacaoTab />}
           {activeTab === "analise-fiscal" && <AnaliseFiscalTab />}
+          {activeTab === "catalogo-datasets" && <CatalogoDatasetsTab />}
           {activeTab === "agregacao" && <AgregacaoTab />}
           {activeTab === "conversao" && <ConversaoTab />}
           {activeTab === "estoque" && <EstoqueTab />}

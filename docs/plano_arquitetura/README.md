@@ -42,6 +42,7 @@ A arquitetura proposta já saiu do plano e entrou em operação inicial dentro d
 - resolução centralizada de datasets nos routers fiscais principais (`EFD`, `Análise`, `Documentos Fiscais` e `Fiscalização`)
 - catálogo expandido para datasets documentais auxiliares
 - inspector central de catálogo no backend/observabilidade
+- tela operacional de catálogo no frontend
 - stack local de Prometheus/Grafana/Marquez em `infra/observability/`
 
 ## Migração das abas atuais
@@ -79,5 +80,6 @@ Use `00_CONSOLIDADO_MODULO_FISCAL.md` como visão concatenada do estado atual, d
 - `20_DOCUMENTOS_FISCAIS_LOCALIZADOR.md`
 - `21_CATALOGO_DOCUMENTAL_E_FISCALIZACAO.md`
 - `22_INSPECAO_CATALOGO_BACKEND.md`
+- `23_TELA_OPERACIONAL_CATALOGO.md`
 - `AGENTS_NOVO.md`
 - `AGENTS_SQL_NOVO.md`
