@@ -357,6 +357,19 @@ class ViewState:
     total_rows: int = 0
 
 
+
+@dataclass
+class OracleConnectionContext:
+    f_host: QLineEdit
+    f_port: QLineEdit
+    f_service: QLineEdit
+    f_user: QLineEdit
+    f_password: QLineEdit
+    lbl: QLabel
+    worker_attr: str
+    btn: QPushButton | None = None
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -737,12 +750,12 @@ class MainWindow(QMainWindow):
 
         self._cfg_test_status_1 = _status_label()
         self._cfg_btn_test_1 = _test_button()
-        self._cfg_btn_test_1.clicked.connect(lambda: self._testar_conexao(
-            self._cfg_host, self._cfg_port, self._cfg_service,
-            self._cfg_user, self._cfg_password,
-            self._cfg_btn_test_1, self._cfg_test_status_1,
-            "_oracle_test_worker_1",
-        ))
+        self._cfg_btn_test_1.clicked.connect(lambda: self._testar_conexao(OracleConnectionContext(
+            f_host=self._cfg_host, f_port=self._cfg_port, f_service=self._cfg_service,
+            f_user=self._cfg_user, f_password=self._cfg_password,
+            btn=self._cfg_btn_test_1, lbl=self._cfg_test_status_1,
+            worker_attr="_oracle_test_worker_1",
+        )))
         test_row1 = QHBoxLayout()
         test_row1.addWidget(self._cfg_btn_test_1)
         test_row1.addWidget(self._cfg_test_status_1)
@@ -768,12 +781,12 @@ class MainWindow(QMainWindow):
 
         self._cfg_test_status_2 = _status_label()
         self._cfg_btn_test_2 = _test_button()
-        self._cfg_btn_test_2.clicked.connect(lambda: self._testar_conexao(
-            self._cfg_host_1, self._cfg_port_1, self._cfg_service_1,
-            self._cfg_user_1, self._cfg_password_1,
-            self._cfg_btn_test_2, self._cfg_test_status_2,
-            "_oracle_test_worker_2",
-        ))
+        self._cfg_btn_test_2.clicked.connect(lambda: self._testar_conexao(OracleConnectionContext(
+            f_host=self._cfg_host_1, f_port=self._cfg_port_1, f_service=self._cfg_service_1,
+            f_user=self._cfg_user_1, f_password=self._cfg_password_1,
+            btn=self._cfg_btn_test_2, lbl=self._cfg_test_status_2,
+            worker_attr="_oracle_test_worker_2",
+        )))
         test_row2 = QHBoxLayout()
         test_row2.addWidget(self._cfg_btn_test_2)
         test_row2.addWidget(self._cfg_test_status_2)
@@ -836,106 +849,89 @@ class MainWindow(QMainWindow):
         """Testa ambas as conexões Oracle e atualiza o painel de status no topo da aba."""
         if not hasattr(self, "_cfg_host"):
             return  # aba ainda não construída
-        self._testar_conexao_para_status(
-            self._cfg_host, self._cfg_port, self._cfg_service,
-            self._cfg_user, self._cfg_password,
-            self._cfg_conn_lbl_1, "_oracle_verify_worker_1",
-        )
-        self._testar_conexao_para_status(
-            self._cfg_host_1, self._cfg_port_1, self._cfg_service_1,
-            self._cfg_user_1, self._cfg_password_1,
-            self._cfg_conn_lbl_2, "_oracle_verify_worker_2",
-        )
+        self._testar_conexao_para_status(OracleConnectionContext(
+            f_host=self._cfg_host, f_port=self._cfg_port, f_service=self._cfg_service,
+            f_user=self._cfg_user, f_password=self._cfg_password,
+            lbl=self._cfg_conn_lbl_1, worker_attr="_oracle_verify_worker_1",
+        ))
+        self._testar_conexao_para_status(OracleConnectionContext(
+            f_host=self._cfg_host_1, f_port=self._cfg_port_1, f_service=self._cfg_service_1,
+            f_user=self._cfg_user_1, f_password=self._cfg_password_1,
+            lbl=self._cfg_conn_lbl_2, worker_attr="_oracle_verify_worker_2",
+        ))
 
-    def _testar_conexao_para_status(
-        self,
-        f_host: QLineEdit,
-        f_port: QLineEdit,
-        f_service: QLineEdit,
-        f_user: QLineEdit,
-        f_password: QLineEdit,
-        lbl: QLabel,
-        worker_attr: str,
-    ) -> None:
+    def _testar_conexao_para_status(self, ctx: OracleConnectionContext) -> None:
         """Worker isolado que atualiza apenas o label de status (sem botão dedicado)."""
         from interface_grafica.services.oracle_test_worker import OracleConnectionTestWorker
 
-        existing = getattr(self, worker_attr, None)
+        existing = getattr(self, ctx.worker_attr, None)
         if existing is not None and existing.isRunning():
             return
 
-        lbl.setText("⏳ verificando…")
-        lbl.setStyleSheet("color: #ccaa00;")
+        ctx.lbl.setText("⏳ verificando…")
+        ctx.lbl.setStyleSheet("color: #ccaa00;")
 
         worker = OracleConnectionTestWorker(
-            host=f_host.text(), port=f_port.text(),
-            service=f_service.text(), user=f_user.text(),
-            password=f_password.text(), parent=self,
+            host=ctx.f_host.text(), port=ctx.f_port.text(),
+            service=ctx.f_service.text(), user=ctx.f_user.text(),
+            password=ctx.f_password.text(), parent=self,
         )
-        setattr(self, worker_attr, worker)
+        setattr(self, ctx.worker_attr, worker)
 
         def _on(ok: bool, msg: str, ms: int) -> None:
             first_line = msg.splitlines()[0] if msg else ""
             if ok:
-                lbl.setText(f"✔ {first_line}")
-                lbl.setStyleSheet("color: #4caf50; font-weight: bold;")
+                ctx.lbl.setText(f"✔ {first_line}")
+                ctx.lbl.setStyleSheet("color: #4caf50; font-weight: bold;")
                 self.status.showMessage(
-                    f"[Oracle] {lbl.parent().parent().parent().title() if False else worker_attr.replace('_oracle_verify_worker_','Conexão ')} — OK ({ms} ms)",
+                    f"[Oracle] {ctx.lbl.parent().parent().parent().title() if False else ctx.worker_attr.replace('_oracle_verify_worker_','Conexão ')} — OK ({ms} ms)",
                     5000,
                 )
             else:
                 short = first_line[:100]
-                lbl.setText(f"✖ {short}")
-                lbl.setStyleSheet("color: #e57373;")
+                ctx.lbl.setText(f"✖ {short}")
+                ctx.lbl.setStyleSheet("color: #e57373;")
             worker.deleteLater()
-            setattr(self, worker_attr, None)
+            setattr(self, ctx.worker_attr, None)
 
         worker.resultado.connect(_on)
         worker.start()
 
-    def _testar_conexao(
-        self,
-        f_host: QLineEdit,
-        f_port: QLineEdit,
-        f_service: QLineEdit,
-        f_user: QLineEdit,
-        f_password: QLineEdit,
-        btn: QPushButton,
-        lbl: QLabel,
-        worker_attr: str,
-    ) -> None:
+    def _testar_conexao(self, ctx: OracleConnectionContext) -> None:
         """Lança o teste de conexão Oracle em background (não bloqueia a UI)."""
         from interface_grafica.services.oracle_test_worker import OracleConnectionTestWorker
 
         # evitar múltiplos testes simultâneos no mesmo slot
-        existing: OracleConnectionTestWorker | None = getattr(self, worker_attr, None)
+        existing: OracleConnectionTestWorker | None = getattr(self, ctx.worker_attr, None)
         if existing is not None and existing.isRunning():
             return
 
-        btn.setEnabled(False)
-        lbl.setText("⏳ Testando…")
-        lbl.setStyleSheet("color: #ccaa00;")
+        if ctx.btn:
+            ctx.btn.setEnabled(False)
+        ctx.lbl.setText("⏳ Testando…")
+        ctx.lbl.setStyleSheet("color: #ccaa00;")
 
         worker = OracleConnectionTestWorker(
-            host=f_host.text(),
-            port=f_port.text(),
-            service=f_service.text(),
-            user=f_user.text(),
-            password=f_password.text(),
+            host=ctx.f_host.text(),
+            port=ctx.f_port.text(),
+            service=ctx.f_service.text(),
+            user=ctx.f_user.text(),
+            password=ctx.f_password.text(),
             parent=self,
         )
-        setattr(self, worker_attr, worker)
+        setattr(self, ctx.worker_attr, worker)
 
         def _on_result(ok: bool, msg: str, _ms: int) -> None:
             if ok:
-                lbl.setText(f"✔ {msg}")
-                lbl.setStyleSheet("color: #4caf50;")
+                ctx.lbl.setText(f"✔ {msg}")
+                ctx.lbl.setStyleSheet("color: #4caf50;")
             else:
-                lbl.setText(f"✖ {msg}")
-                lbl.setStyleSheet("color: #e57373;")
-            btn.setEnabled(True)
+                ctx.lbl.setText(f"✖ {msg}")
+                ctx.lbl.setStyleSheet("color: #e57373;")
+            if ctx.btn:
+                ctx.btn.setEnabled(True)
             worker.deleteLater()
-            setattr(self, worker_attr, None)
+            setattr(self, ctx.worker_attr, None)
 
         worker.resultado.connect(_on_result)
         worker.start()
