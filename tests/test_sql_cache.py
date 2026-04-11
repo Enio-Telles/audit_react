@@ -48,3 +48,25 @@ def test_schema_registry_records_and_diffs(tmp_path: Path):
         "removed": [],
         "type_changed": ["valor"],
     }
+
+
+def test_schema_registry_summary_and_find_by_source_path(tmp_path: Path):
+    registry = SchemaRegistry(tmp_path / "schema_registry.json")
+    source_path = str(tmp_path / "tb_documentos.parquet")
+
+    registry.record_schema(
+        "tb_documentos",
+        {"cnpj": "Utf8", "valor": "Float64"},
+        source_path=source_path,
+        metadata={"format": "parquet"},
+    )
+
+    summary = registry.summary()
+    assert summary["total_tables"] == 1
+    assert summary["total_versions"] == 1
+    assert summary["latest_versions"]["tb_documentos"]["version"] == 1
+
+    latest = registry.find_latest_by_source_path(source_path)
+    assert latest is not None
+    assert latest.table_name == "tb_documentos"
+    assert latest.source_path == source_path

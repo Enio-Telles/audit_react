@@ -7,8 +7,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from interface_grafica.config import CNPJ_ROOT
-from interface_grafica.services.parquet_service import FilterCondition, ParquetService
+from services.parquet_service import FilterCondition, ParquetService
+from utilitarios.project_paths import CNPJ_ROOT
 
 from .fiscal_storage import resolve_materialized_path
 

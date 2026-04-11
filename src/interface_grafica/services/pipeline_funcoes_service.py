@@ -19,10 +19,8 @@ from typing import Any, Callable
 import polars as pl
 
 from extracao.extracao_oracle_eficiente import descobrir_consultas_sql, executar_extracao_oracle
-from interface_grafica.config import CNPJ_ROOT, SQL_DIR
-
 from utilitarios.sql_catalog import list_sql_entries
-
+from utilitarios.project_paths import CNPJ_ROOT, SQL_ROOT as SQL_DIR
 from utilitarios.extrair_parametros import extrair_parametros_sql
 
 

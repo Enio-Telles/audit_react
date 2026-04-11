@@ -53,12 +53,18 @@ function getPage(path: string, cnpj: string, options: PageQueryOptions = {}) {
 
 export const fiscalFeatureApi = {
   getEfdResumo: (cnpj?: string | null) => getResumo("/fiscal/efd/resumo", cnpj),
+  getProdutoResumo: (cnpj?: string | null) => getResumo("/fiscal/produto/resumo", cnpj),
+  getConversaoResumo: (cnpj?: string | null) => getResumo("/fiscal/conversao/resumo", cnpj),
+  getEstoqueResumo: (cnpj?: string | null) => getResumo("/fiscal/estoque/resumo", cnpj),
   getDocumentosResumo: (cnpj?: string | null) =>
     getResumo("/fiscal/documentos/resumo", cnpj),
   getFiscalizacaoResumo: (cnpj?: string | null) =>
     getResumo("/fiscal/fiscalizacao/resumo", cnpj),
   getAnaliseResumo: (cnpj?: string | null) =>
     getResumo("/fiscal/analise/resumo", cnpj),
+  getRessarcimentoResumo: (cnpj?: string | null) =>
+    getResumo("/fiscal/ressarcimento/resumo", cnpj),
+
   getDatasetCatalogSummary: () =>
     api.get<DatasetCatalogSummary>("/observabilidade/dataset-catalog").then((response) => response.data),
   getDatasetCatalogForCnpj: (cnpj: string) =>
@@ -69,6 +75,30 @@ export const fiscalFeatureApi = {
     getPage("/fiscal/efd/c170", cnpj, options),
   getEfdBlocoH: (cnpj: string, options: PageQueryOptions = {}) =>
     getPage("/fiscal/efd/bloco-h", cnpj, options),
+  getEfdC176: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/efd/c176", cnpj, options),
+  getEfdC197: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/efd/c197", cnpj, options),
+  getEfdE111: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/efd/e111", cnpj, options),
+  getEfdE110: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/efd/e110", cnpj, options),
+  getEfdK200: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/efd/k200", cnpj, options),
+  getProdutoAgrupacoes: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/produto/agrupacoes", cnpj, options),
+  getProdutoBase: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/produto/produtos-base", cnpj, options),
+  getConversaoFatores: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/conversao/fatores", cnpj, options),
+  getEstoqueMov: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/estoque/mov", cnpj, options),
+  getEstoqueMensal: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/estoque/mensal", cnpj, options),
+  getEstoqueAnual: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/estoque/anual", cnpj, options),
+  getEstoqueBlocoH: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/estoque/bloco-h", cnpj, options),
   getDocumentosNfe: (cnpj: string, options: PageQueryOptions = {}) =>
     getPage("/fiscal/documentos/nfe", cnpj, options),
   getDocumentosNfce: (cnpj: string, options: PageQueryOptions = {}) =>
@@ -101,4 +131,10 @@ export const fiscalFeatureApi = {
     getPage("/fiscal/analise/conversao", cnpj, options),
   getAnaliseProdutosBase: (cnpj: string, options: PageQueryOptions = {}) =>
     getPage("/fiscal/analise/produtos-base", cnpj, options),
+  getRessarcimentoMensal: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/ressarcimento/mensal", cnpj, options),
+  getRessarcimentoItens: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/ressarcimento/itens", cnpj, options),
+  getRessarcimentoConciliacao: (cnpj: string, options: PageQueryOptions = {}) =>
+    getPage("/fiscal/ressarcimento/conciliacao", cnpj, options),
 };

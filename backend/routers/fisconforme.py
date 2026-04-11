@@ -25,10 +25,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from interface_grafica.config import CNPJ_ROOT
-from interface_grafica.services.sql_service import SqlService
+from utilitarios.project_paths import CNPJ_ROOT
 from utilitarios.dataset_registry import criar_metadata, obter_caminho, registrar_dataset
 from utilitarios.project_paths import APP_STATE_ROOT, ENV_PATH
+from utilitarios.sql_service import SqlService
 from utilitarios.sql_catalog import resolve_sql_path
 
 from services.report_docx_service import ReportDocxService

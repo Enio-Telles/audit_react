@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from observabilidade.openlineage import LineageDataset, get_openlineage_emitter
 from utilitarios.dataset_registry import catalogo_resumido
 from utilitarios.delta_lake import get_delta_runtime_config
+from utilitarios.schema_registry import SchemaRegistry
 from utilitarios.sql_cache import get_sql_catalog_cache
 
 from .fiscal_catalog_inspector import availability_for_cnpj, catalog_status, inspect_dataset
@@ -43,11 +44,13 @@ def _socket_check(url: str) -> dict:
 @router.get("/status")
 def status() -> dict:
     emitter = get_openlineage_emitter("audit_react.api")
+    schema_registry = SchemaRegistry()
     return {
         "sql_cache": get_sql_catalog_cache().stats(),
         "openlineage": emitter.status(),
         "delta": get_delta_runtime_config(),
         "dataset_catalog": catalogo_resumido(),
+        "schema_registry": schema_registry.summary(),
     }
 
 
@@ -64,6 +67,12 @@ def dataset_catalog_for_cnpj(cnpj: str) -> dict:
 @router.get("/dataset-catalog/{cnpj}/{dataset_id}")
 def dataset_catalog_dataset(cnpj: str, dataset_id: str, limit: int = 20) -> dict:
     return inspect_dataset(cnpj, dataset_id, limit=limit)
+
+
+@router.get("/schema-registry")
+def schema_registry_status() -> dict:
+    registry = SchemaRegistry()
+    return registry.summary()
 
 
 @router.get("/stack-smoke")

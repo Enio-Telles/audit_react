@@ -63,6 +63,29 @@ class SchemaRegistry:
                 continue
         return result
 
+    def latest_snapshot(self, table_name: str) -> SchemaVersionSnapshot | None:
+        versions = self.list_versions(table_name)
+        return versions[-1] if versions else None
+
+    def find_latest_by_source_path(self, source_path: str | None) -> SchemaVersionSnapshot | None:
+        if not source_path:
+            return None
+        payload = self._load()
+        normalized = str(source_path)
+        candidates: list[SchemaVersionSnapshot] = []
+        for versions in payload.values():
+            for item in versions:
+                try:
+                    snapshot = SchemaVersionSnapshot(**item)
+                except TypeError:
+                    continue
+                if snapshot.source_path == normalized:
+                    candidates.append(snapshot)
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: (item.recorded_at, item.version))
+        return candidates[-1]
+
     def record_schema(
         self,
         table_name: str,
@@ -114,3 +137,32 @@ class SchemaRegistry:
         provided = set(columns)
         missing = sorted(latest_columns - provided)
         return len(missing) == 0, missing
+
+    def summary(self) -> dict[str, Any]:
+        payload = self._load()
+        table_names = sorted(payload.keys())
+        latest_versions: dict[str, dict[str, Any]] = {}
+        total_versions = 0
+
+        for table_name in table_names:
+            snapshots = self.list_versions(table_name)
+            total_versions += len(snapshots)
+            latest = snapshots[-1] if snapshots else None
+            if latest is None:
+                continue
+            latest_versions[table_name] = {
+                "version": latest.version,
+                "schema_hash": latest.schema_hash,
+                "field_count": len(latest.fields),
+                "recorded_at": latest.recorded_at,
+                "source_path": latest.source_path,
+                "metadata": latest.metadata,
+            }
+
+        return {
+            "registry_path": str(self.registry_path),
+            "total_tables": len(table_names),
+            "total_versions": total_versions,
+            "tables": table_names,
+            "latest_versions": latest_versions,
+        }

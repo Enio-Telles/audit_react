@@ -6,8 +6,8 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
-
-from interface_grafica.services.registry_service import RegistryService
+from services.pipeline_runtime import PipelineRuntime
+from services.registry_service import RegistryService
 from utilitarios.sql_catalog import list_sql_entries, normalize_sql_id, resolve_sql_path
 
 router = APIRouter()
@@ -83,11 +83,7 @@ def _resolver_execucao(
     consultas: list[str],
     tabelas: list[str],
 ) -> tuple[list[Path], list[str]]:
-    from interface_grafica.services.pipeline_funcoes_service import (
-        ServicoPipelineCompleto,
-    )
-
-    svc = ServicoPipelineCompleto()
+    svc = PipelineRuntime()
     consultas = [str(item) for item in consultas]
     consultas_disponiveis = list_sql_entries()
     consultas_por_nome = {entry.path.name.lower(): entry.path for entry in consultas_disponiveis}
@@ -175,11 +171,7 @@ def _run_pipeline(
         etapa_atual="preparacao",
     )
     try:
-        from interface_grafica.services.pipeline_funcoes_service import (
-            ServicoPipelineCompleto,
-        )
-
-        svc = ServicoPipelineCompleto()
+        svc = PipelineRuntime()
         result = svc.executar_completo(
             cnpj=cnpj,
             consultas=consultas,

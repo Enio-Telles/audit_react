@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from backend.routers import fiscal_catalog_inspector as inspector
+from utilitarios.schema_registry import SchemaRegistry
 
 
 class _Localizado:
@@ -22,8 +23,17 @@ def test_inspect_dataset_retorna_preview(monkeypatch, tmp_path: Path):
     arquivo = tmp_path / "mov_estoque.parquet"
     arquivo.write_text("ok", encoding="utf-8")
 
+    registry = SchemaRegistry(tmp_path / "schema_registry.json")
+    monkeypatch.setattr(inspector, "SchemaRegistry", lambda: registry)
+    registry.record_schema(
+        "mov_estoque",
+        {"id": "Int64", "valor": "Float64"},
+        source_path=str(arquivo),
+    )
+
     monkeypatch.setattr(inspector, "encontrar_dataset", lambda cnpj, dataset_id: _Localizado(arquivo, metadata={"fonte": "teste"}, dataset_id="mov_estoque"))
     monkeypatch.setattr(inspector, "probe_parquet", lambda path: {"status": "materializado", "rows": 2})
+    monkeypatch.setattr(inspector.pl, "read_parquet_schema", lambda path: {"id": "Int64", "valor": "Float64"})
 
     class _DF:
         columns = ["id", "valor"]
@@ -39,3 +49,10 @@ def test_inspect_dataset_retorna_preview(monkeypatch, tmp_path: Path):
     assert payload["probe"]["status"] == "materializado"
     assert len(payload["preview"]) == 2
     assert payload["metadata"]["fonte"] == "teste"
+    assert payload["schema_registry"]["latest_version"] == 1
+    assert payload["schema_registry"]["schema_hash"] is not None
+    assert payload["schema_registry"]["diff_current_vs_latest"] == {
+        "added": [],
+        "removed": [],
+        "type_changed": [],
+    }

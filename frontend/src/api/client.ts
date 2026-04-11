@@ -30,7 +30,25 @@ import type {
   DossieSyncResponse,
 } from "../features/dossie/types";
 
-const api = axios.create({ baseURL: "/api" });
+function resolveApiBaseUrl() {
+  const explicitBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (explicitBaseUrl) {
+    return explicitBaseUrl.replace(/\/+$/, "");
+  }
+
+  const protocol = window.location.protocol.toLowerCase();
+  const isEmbeddedDesktopShell = protocol !== "http:" && protocol !== "https:";
+
+  if (isEmbeddedDesktopShell) {
+    return "http://127.0.0.1:8000/api";
+  }
+
+  return "/api";
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
+
+const api = axios.create({ baseURL: API_BASE_URL });
 
 interface SortParams {
   sort_by?: string;

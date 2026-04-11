@@ -92,6 +92,27 @@ def _find_c197(cnpj: str) -> Path:
     )
 
 
+def _find_e111(cnpj: str) -> Path:
+    return _first_existing(
+        [
+            _base_cnpj(cnpj) / "arquivos_parquet" / "atomizadas" / "ressarcimento_st" / "referencia" / "14_resumo_mensal_e111.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / f"e111_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"e111_{cnpj}.parquet",
+        ]
+    )
+
+
+def _find_e110(cnpj: str) -> Path:
+    return _first_existing(
+        [
+            _base_cnpj(cnpj) / "arquivos_parquet" / f"e110_reg_0000_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"e110_reg_0000_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / f"e110_{cnpj}.parquet",
+            _base_cnpj(cnpj) / "arquivos_parquet" / "fiscal" / "efd" / f"e110_{cnpj}.parquet",
+        ]
+    )
+
+
 def _efd_probes(cnpj: str | None) -> dict[str, dict[str, Any]]:
     if not cnpj:
         return {}
@@ -102,6 +123,8 @@ def _efd_probes(cnpj: str | None) -> dict[str, dict[str, Any]]:
         "bloco_h": probe_parquet(_find_bloco_h(cnpj)),
         "k200": probe_parquet(_find_k200(cnpj)),
         "c197": probe_parquet(_find_c197(cnpj)),
+        "e111": probe_parquet(_find_e111(cnpj)),
+        "e110": probe_parquet(_find_e110(cnpj)),
     }
 
 
@@ -192,6 +215,8 @@ def _page_from_parquet(
     filter_text: str | None = None,
     filter_column: str | None = None,
     filter_value: str | None = None,
+    dataset_id: str | None = None,
+    camada: str | None = "legado",
 ) -> dict[str, Any]:
     resolved = resolve_materialized_path(path)
     if not resolved.exists():
@@ -221,6 +246,11 @@ def _page_from_parquet(
         "columns": df_page.columns,
         "all_columns": df.columns,
         "rows": rows,
+        "_provenance": {
+            "dataset_id": dataset_id or "desconhecido",
+            "camada": camada,
+            "source_path": str(resolved),
+        },
     }
 
 
@@ -320,6 +350,87 @@ def datasets(cnpj: str | None = None) -> dict[str, object]:
     return build_dataset_listing("efd", cnpj_sanitized, payload["datasets"])
 
 
+@router.get("/c197")
+def c197_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+    filter_text: str | None = None,
+    filter_column: str | None = None,
+    filter_value: str | None = None,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _find_c197(cnpj_sanitized),
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_desc=sort_desc,
+        filter_text=filter_text,
+        filter_column=filter_column,
+        filter_value=filter_value,
+        dataset_id="c197",
+    )
+
+
+@router.get("/e111")
+def e111_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+    filter_text: str | None = None,
+    filter_column: str | None = None,
+    filter_value: str | None = None,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _find_e111(cnpj_sanitized),
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_desc=sort_desc,
+        filter_text=filter_text,
+        filter_column=filter_column,
+        filter_value=filter_value,
+        dataset_id="e111",
+    )
+
+
+@router.get("/e110")
+def e110_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+    filter_text: str | None = None,
+    filter_column: str | None = None,
+    filter_value: str | None = None,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _find_e110(cnpj_sanitized),
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_desc=sort_desc,
+        filter_text=filter_text,
+        filter_column=filter_column,
+        filter_value=filter_value,
+        dataset_id="e110",
+    )
+
+
 @router.get("/c170")
 def c170_rows(
     cnpj: str,
@@ -343,6 +454,34 @@ def c170_rows(
         filter_text=filter_text,
         filter_column=filter_column,
         filter_value=filter_value,
+        dataset_id="c170_xml",
+    )
+
+
+@router.get("/c176")
+def c176_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+    filter_text: str | None = None,
+    filter_column: str | None = None,
+    filter_value: str | None = None,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _find_c176(cnpj_sanitized),
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_desc=sort_desc,
+        filter_text=filter_text,
+        filter_column=filter_column,
+        filter_value=filter_value,
+        dataset_id="c176_xml",
     )
 
 
@@ -369,4 +508,35 @@ def bloco_h_rows(
         filter_text=filter_text,
         filter_column=filter_column,
         filter_value=filter_value,
+        dataset_id="bloco_h",
     )
+
+
+@router.get("/k200")
+def k200_rows(
+    cnpj: str,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str | None = None,
+    sort_desc: bool = False,
+    filter_text: str | None = None,
+    filter_column: str | None = None,
+    filter_value: str | None = None,
+) -> dict[str, Any]:
+    cnpj_sanitized = _sanitize(cnpj)
+    if not cnpj_sanitized:
+        return _empty_page(page, page_size)
+    return _page_from_parquet(
+        _find_k200(cnpj_sanitized),
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_desc=sort_desc,
+        filter_text=filter_text,
+        filter_column=filter_column,
+        filter_value=filter_value,
+        dataset_id="k200",
+    )
+
+
+

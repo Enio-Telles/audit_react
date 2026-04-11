@@ -8,7 +8,7 @@ from typing import Any, Iterable
 import polars as pl
 from fastapi import APIRouter
 
-from interface_grafica.config import CNPJ_ROOT
+from utilitarios.project_paths import CNPJ_ROOT
 
 from .fiscal_dataset_locator import locate_dataset
 from .fiscal_storage import read_materialized_frame, resolve_materialized_path

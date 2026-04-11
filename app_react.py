@@ -237,9 +237,9 @@ def run_dev(backend_port: int, open_browser: bool) -> None:
         _print("Instalando dependências npm...", color="yellow")
         subprocess.run([npm, "install"], cwd=FRONTEND_DIR, check=True)
 
-    # Inicia backend
+    # Inicia backend usando o mesmo interpretador Python para garantir ambiente
     proc_backend = subprocess.Popen(
-        [uvicorn, "main:app", "--host", "0.0.0.0", "--port", str(backend_port), "--reload"],
+        [sys.executable, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", str(backend_port), "--reload"],
         cwd=BACKEND_DIR,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -331,7 +331,7 @@ def run_prod(port: int, open_browser: bool) -> None:
     }
 
     proc = subprocess.Popen(
-        [uvicorn_bin, "main_prod:app", "--host", "0.0.0.0", "--port", str(port)],
+        [sys.executable, "-m", "uvicorn", "main_prod:app", "--host", "0.0.0.0", "--port", str(port)],
         cwd=BACKEND_DIR,
         env=env,
     )
@@ -404,8 +404,9 @@ def run_dev(backend_port: int, open_browser: bool) -> None:
     env = {**os.environ, "PYTHONUNBUFFERED": "1"}
     _print(f"Frontend validado com {nome_gerenciador}.", color="yellow")
 
+    # Inicia backend usando o mesmo interpretador Python para garantir ambiente
     proc_backend = subprocess.Popen(
-        [uvicorn, "main:app", "--host", "0.0.0.0", "--port", str(backend_port), "--reload"],
+        [sys.executable, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", str(backend_port), "--reload"],
         cwd=BACKEND_DIR,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
