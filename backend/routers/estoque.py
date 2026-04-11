@@ -490,7 +490,7 @@ def get_bloco_h_resumo(
     else:
         agg_exprs.append(pl.lit(0.0).alias("valor_total_itens"))
 
-    resumo_geral = df.select(agg_exprs).to_dicts()[0]
+    resumo_geral = df.select(agg_exprs).row(0, named=True)
     total_linhas = resumo_geral["total_linhas"]
     inventarios_h005 = resumo_geral["inventarios_h005"]
     total_produtos = resumo_geral["total_produtos"]
