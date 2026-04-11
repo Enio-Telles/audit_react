@@ -9,6 +9,7 @@ from typing import Iterable
 import polars as pl
 
 from interface_grafica.config import CNPJ_ROOT as CONSULTAS_ROOT, DEFAULT_PAGE_SIZE
+from utilitarios.delta_lake import resolve_storage_format, scan_delta_table, write_delta_table
 from utilitarios.perf_monitor import registrar_evento_performance
 
 
@@ -45,6 +46,10 @@ class ParquetService:
         "log_sem_preco_medio_compra_",
         "mov_estoque_",
         "c176_xml_",
+        "aba_mensal_",
+        "aba_anual_",
+        "calculos_mensais_",
+        "calculos_anuais_",
     )
 
     def __init__(self, root: Path = CONSULTAS_ROOT) -> None:
@@ -53,7 +58,7 @@ class ParquetService:
         self._schema_cache: dict[tuple[str, int, int], list[str]] = {}
         self._count_cache: dict[tuple[str, int, int, tuple[tuple[str, str, str], ...]], int] = {}
         self._page_cache: OrderedDict[
-            tuple[str, int, int, tuple[tuple[str, str, str], ...], tuple[str, ...], int, int],
+            tuple[str, int, int, tuple[tuple[str, str, str], ...], tuple[str, ...], str, bool, int, int],
             PageResult,
         ] = OrderedDict()
         self._page_cache_limit = 10
@@ -64,7 +69,20 @@ class ParquetService:
         self._dataset_cache_limit = 6
 
     @staticmethod
-    def _path_signature(parquet_path: Path) -> tuple[str, int, int]:
+    def _is_delta_dir(path: Path) -> bool:
+        return path.exists() and path.is_dir()
+
+    @classmethod
+    def _path_signature(cls, parquet_path: Path) -> tuple[str, int, int]:
+        if cls._is_delta_dir(parquet_path):
+            latest_mtime = parquet_path.stat().st_mtime_ns
+            total_size = 0
+            for child in parquet_path.rglob("*"):
+                if child.is_file():
+                    stat = child.stat()
+                    latest_mtime = max(latest_mtime, stat.st_mtime_ns)
+                    total_size += stat.st_size
+            return (str(parquet_path.resolve()), latest_mtime, total_size)
         stat = parquet_path.stat()
         return (str(parquet_path.resolve()), stat.st_mtime_ns, stat.st_size)
 
@@ -83,43 +101,64 @@ class ParquetService:
     def cnpj_dir(self, cnpj: str) -> Path:
         return self.root / cnpj
 
+    def _collect_entries(self, base_dir: Path) -> list[Path]:
+        if not base_dir.exists():
+            return []
+        arquivos = list(base_dir.glob("*.parquet"))
+        diretorios = [p for p in base_dir.iterdir() if p.is_dir() and not p.name.startswith("_")]
+        return arquivos + diretorios
+
     def list_parquet_files(self, cnpj: str) -> list[Path]:
         base = self.cnpj_dir(cnpj)
         if not base.exists():
             return []
-        
-        # New structure
+
         brutos = base / "arquivos_parquet"
         analises = base / "analises" / "produtos"
-        # Old structure fallback
         old_prod = base / "produtos"
-        
-        files = []
-        if brutos.exists():
-            files.extend(brutos.glob("*.parquet"))
-        if analises.exists():
-            files.extend(analises.glob("*.parquet"))
-        if old_prod.exists():
-            files.extend(old_prod.glob("*.parquet"))
-        
-        # Also check root of CNPJ folder for any loose parquets
-        files.extend(base.glob("*.parquet"))
-        
+
+        files: list[Path] = []
+        files.extend(self._collect_entries(brutos))
+        files.extend(self._collect_entries(analises))
+        files.extend(self._collect_entries(old_prod))
+        files.extend(self._collect_entries(base))
+
         filtrados: list[Path] = []
         for path in set(files):
             parent_str = str(path.parent)
+            nome = path.name
+            if path.is_dir():
+                nome = f"{path.name}_"
             if "arquivos_parquet" in parent_str:
                 if any(tag in path.name for tag in ("_produtos_", "_enriquecido_", "_sem_id_agrupado_")):
                     continue
                 filtrados.append(path)
                 continue
             if "analises" in parent_str or "produtos" in parent_str:
-                if path.name.startswith(self.ANALISES_PREFIXOS_PERMITIDOS):
+                if nome.startswith(self.ANALISES_PREFIXOS_PERMITIDOS):
                     filtrados.append(path)
                 continue
             filtrados.append(path)
-        
+
         return sorted(filtrados, key=lambda p: (str(p.parent), p.name))
+
+    def _scan_dataset(self, parquet_path: Path) -> pl.LazyFrame:
+        if self._is_delta_dir(parquet_path):
+            return scan_delta_table(parquet_path)
+        return pl.scan_parquet(parquet_path)
+
+    def _schema_names(self, parquet_path: Path) -> list[str]:
+        if self._is_delta_dir(parquet_path):
+            schema = self._scan_dataset(parquet_path).collect_schema()
+            return list(schema.names())
+        return list(pl.read_parquet_schema(parquet_path).names())
+
+    def _schema_map(self, parquet_path: Path) -> dict[str, object]:
+        if self._is_delta_dir(parquet_path):
+            schema = self._scan_dataset(parquet_path).collect_schema()
+            return {name: schema[name] for name in schema.names()}
+        schema = pl.read_parquet_schema(parquet_path)
+        return {name: schema[name] for name in schema.names()}
 
     def get_schema(self, parquet_path: Path) -> list[str]:
         inicio = perf_counter()
@@ -136,7 +175,7 @@ class ParquetService:
                 },
             )
             return cached[:]
-        schema = list(pl.read_parquet_schema(parquet_path).names())
+        schema = self._schema_names(parquet_path)
         self._schema_cache[key] = schema[:]
         registrar_evento_performance(
             "parquet_service.get_schema",
@@ -151,9 +190,7 @@ class ParquetService:
 
     @staticmethod
     def _normalize_operator(op: str) -> str:
-        # Aceita variantes com encoding corrompido e sem acentos.
         op_l = (op or "").strip().lower()
-        # Heuristicas tolerantes a texto corrompido (ex.: "cont?m").
         if op_l.startswith("cont"):
             return "contem"
         if op_l.startswith("come"):
@@ -254,7 +291,6 @@ class ParquetService:
             if not cond.column:
                 continue
             if available_columns and cond.column not in available_columns:
-                # Evita erro quando filtros antigos apontam para colunas que nao existem no parquet atual.
                 continue
             op_norm = self._normalize_operator(cond.operator)
             if op_norm not in {"e_nulo", "nao_e_nulo"} and cond.value == "":
@@ -263,10 +299,10 @@ class ParquetService:
         return filtered
 
     def build_lazyframe(self, parquet_path: Path, conditions: Iterable[FilterCondition] | None = None) -> pl.LazyFrame:
-        lf = pl.scan_parquet(parquet_path)
+        lf = self._scan_dataset(parquet_path)
         if conditions:
-            schema = pl.read_parquet_schema(parquet_path)
-            lf = self.apply_filters(lf, conditions, available_columns={name: schema[name] for name in schema.names()})
+            schema = self._schema_map(parquet_path)
+            lf = self.apply_filters(lf, conditions, available_columns=schema)
         return lf
 
     def get_page(
@@ -441,7 +477,11 @@ class ParquetService:
 
     def save_dataset(self, parquet_path: Path, df: pl.DataFrame) -> None:
         parquet_path.parent.mkdir(parents=True, exist_ok=True)
-        df.write_parquet(parquet_path, compression="snappy")
+        formato = resolve_storage_format(parquet_path)
+        if formato == "delta":
+            write_delta_table(df, parquet_path, table_name=parquet_path.stem)
+        else:
+            df.write_parquet(parquet_path, compression="snappy")
         target = str(parquet_path.resolve())
         self._schema_cache = {k: v for k, v in self._schema_cache.items() if k[0] != target}
         self._count_cache = {k: v for k, v in self._count_cache.items() if k[0] != target}
@@ -449,4 +489,3 @@ class ParquetService:
         self._dataset_cache = OrderedDict((k, v) for k, v in self._dataset_cache.items() if k[0] != target)
 
     paginate = get_page
-

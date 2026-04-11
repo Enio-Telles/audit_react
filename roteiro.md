@@ -16,47 +16,7 @@ Quando houver conflito entre velocidade e confiabilidade, priorize confiabilidad
 
 ---
 
-## 2. Arquitetura Geral do Projeto
 
-```
-c:\Sistema_react\
-├── src/                        # ETL principal (Python/Polars)
-│   ├── orquestrador_pipeline.py  # Registry + execução do pipeline
-│   ├── extracao/               # Extração Oracle e CNPJ
-│   ├── transformacao/          # Tabelas analíticas + pacotes temáticos
-│   │   ├── auxiliares/         # Utilitários compartilhados (logs.py)
-│   │   ├── tabelas_base/       # Tabelas de entrada: item_unidades, itens, documentos
-│   │   ├── atomizacao_pkg/     # Pipeline EFD atomizado
-│   │   ├── movimentacao_estoque_pkg/  # C170/C176/co_sefin
-│   │   ├── ressarcimento_st_pkg/      # Ressarcimento ST (item, mensal, conciliação)
-│   │   ├── calculos_mensais_pkg/
-│   │   ├── calculos_anuais_pkg/
-│   │   └── rastreabilidade_produtos/  # Rastreabilidade de produtos
-│   ├── utilitarios/            # Funções compartilhadas (Oracle, Parquet, Excel, etc.)
-│   └── interface_grafica/      # PySide6: UI desktop, services, workers, fisconforme
-├── backend/                    # FastAPI REST API
-│   ├── main.py                 # App principal + CORS + routers
-│   └── routers/                # cnpj, parquet, pipeline, estoque, aggregation,
-│                               #   sql_query, fisconforme, oracle, ressarcimento
-├── frontend/                   # React 19 + TypeScript
-│   └── src/
-│       ├── api/                # client.ts (axios) + types.ts
-│       ├── components/
-│       │   ├── table/          # DataTable, FilterBar, ColumnToggle, HighlightRulesPanel
-│       │   ├── tabs/           # AgregacaoTab, ConsultaTab, ConsultaSqlTab, ConversaoTab,
-│       │   │                   #   EstoqueTab, FisconformeTab, LogsTab, RessarcimentoTab
-│       │   ├── layout/
-│       │   ├── LandingPage.tsx
-│       │   └── OracleStatusPanel.tsx
-│       ├── hooks/              # useRelatorio.ts, usePreferenciasColunas.ts
-│       └── store/              # appStore.ts (Zustand)
-├── dados/                      # Arquivos de entrada (CNPJ, DSF, fisconforme, etc.)
-├── docs/                       # Documentação técnica de features
-├── sql/                        # Queries SQL Oracle
-└── tests/                      # pytest
-```
-
----
 
 ## 3. MCP Integrations
 

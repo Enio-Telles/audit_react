@@ -12,7 +12,7 @@ CNPJ_ROOT = DADOS_DIR / "CNPJ"
 
 
 try:
-    from utilitarios.salvar_para_parquet import salvar_para_parquet
+    from utilitarios.dataset_registry import carregar_lazyframe, criar_metadata, registrar_dataset
     from utilitarios.validacao_schema import (
         SchemaValidacaoError,
         validar_parquet_essencial,
@@ -37,16 +37,7 @@ except ImportError as e:
     sys.exit(1)
 
 
-# --- FunÃ§Ãµes utilitÃ¡rias extraÃ­das para sub-mÃ³dulos ---
-# calculo_saldos.py: _padronizar_tipo_operacao_expr, _boolish_expr,
-#                    gerar_eventos_estoque, calcular_saldo_estoque_anual
-# mapeamento_fontes.py: normalizar_descricao_expr, detectar_coluna_descricao,
-#                       detectar_coluna_unidade, parse_expression, carregar_flags_cfop
-# ---
-
-
 def marcar_mov_rep_por_chave_item(df: pl.DataFrame) -> pl.DataFrame:
-    """Marca mov_rep quando houver mais de uma linha com a mesma Chv_nfe + Num_item."""
     if df.is_empty() or "Chv_nfe" not in df.columns or "Num_item" not in df.columns:
         return df
 
@@ -67,7 +58,6 @@ def marcar_mov_rep_por_chave_item(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def filtrar_movimentacoes_por_fonte(df: pl.DataFrame) -> pl.DataFrame:
-    """Aplica a regra fiscal de direcao por origem na mov_estoque."""
     if df.is_empty() or "fonte" not in df.columns or "Tipo_operacao" not in df.columns:
         return df
 
@@ -96,14 +86,13 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
 
     arq_prod_final = pasta_analises / f"produtos_final_{cnpj}.parquet"
     arq_fatores = pasta_analises / f"fatores_conversao_{cnpj}.parquet"
-    if not arq_prod_final.exists():
-        rprint(f"[red]Arquivo necessario nao encontrado:[/red] {arq_prod_final}")
+    if not arq_prod_final.exists() and carregar_lazyframe(cnpj, "produtos_final") is None:
+        rprint(f"[red]Dataset necessario nao encontrado:[/red] produtos_final")
         return False
-    if not arq_fatores.exists():
-        rprint(f"[red]Arquivo necessario nao encontrado:[/red] {arq_fatores}")
+    if not arq_fatores.exists() and carregar_lazyframe(cnpj, "fatores_conversao") is None:
+        rprint(f"[red]Dataset necessario nao encontrado:[/red] fatores_conversao")
         return False
 
-    # Carregar o map_estoque.json (ou mapeamento hardcoded)
     map_json = ROOT_DIR / "map_estoque.json"
     import json
     if not map_json.exists():
@@ -138,8 +127,14 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
         rprint(f"[red]{exc}[/red]")
         return False
 
+    lf_prod = carregar_lazyframe(cnpj, "produtos_final")
+    lf_fat = carregar_lazyframe(cnpj, "fatores_conversao")
+    if lf_prod is None or lf_fat is None:
+        rprint("[red]Datasets canônicos necessários não localizados.[/red]")
+        return False
+
     df_prod_final = (
-        pl.read_parquet(arq_prod_final)
+        lf_prod[0].collect()
         .select(
             [
                 "id_agrupado",
@@ -156,7 +151,7 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
     )
 
     df_fatores = (
-        pl.read_parquet(arq_fatores)
+        lf_fat[0].collect()
         .select(["id_agrupado", "unid", "unid_ref", "fator"])
         .rename({"unid": "__unid_fator__"})
         .unique(subset=["id_agrupado", "__unid_fator__"])
@@ -221,7 +216,7 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
         arquivo = _resolver_arquivo_origem(prefix_sys)
         if arquivo is None:
             return
-            
+
         df_raw = pl.read_parquet(arquivo)
         col_desc = _detectar_coluna_descricao(df_raw, prefix_sys)
         col_unid = _detectar_coluna_unidade(df_raw, prefix_sys)
@@ -266,11 +261,7 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
                         pl.coalesce([pl.col("finnfe_ref"), finnfe_atual]).alias("finnfe"),
                         pl.coalesce([pl.col("infprot_cstat_ref"), infprot_cstat_atual]).alias("infprot_cstat"),
                         pl.coalesce(
-                            [
-                                pl.col("co_uf_emit_ref"),
-                                co_uf_emit_atual,
-                                pl.col("chv_nfe").cast(pl.Utf8, strict=False).str.slice(0, 2),
-                            ]
+                            [pl.col("co_uf_emit_ref"), co_uf_emit_atual, pl.col("chv_nfe").cast(pl.Utf8, strict=False).str.slice(0, 2)]
                         ).alias("co_uf_emit"),
                         pl.coalesce([pl.col("co_uf_dest_ref"), co_uf_dest_atual]).alias("co_uf_dest"),
                     ]
@@ -278,49 +269,31 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
                 .drop(["nsu_ref", "finnfe_ref", "infprot_cstat_ref", "co_uf_emit_ref", "co_uf_dest_ref"], strict=False)
             )
 
-        # Select apenas os que vao mapear pra evitar excesso, mas as expressoes referenciam colunas q devem existir!
         exprs = []
         for m in mapeamento:
             target = m["Campo/tabela"]
             orig = m[key_map]
-            
-            # Pra previnir erros de coluna que nao existe no raw:
             try:
-                # build expression
-                e = _parse_expression(orig, target)
-                
-                # valida se as dependencias de coluna da expressao existem no df
-                # se "col("x") is missing, we put null"
-                # um try no select isolado descobre
-                # Para producao, uma funcao check columns Ã© melhor, faremos um fallback basico
-                
-                exprs.append(e)
-            except Exception as ex:
+                exprs.append(_parse_expression(orig, target))
+            except Exception:
                 exprs.append(pl.lit(None).alias(target))
-                
-        # Polars: try selecting. Se alguma coluna referenciada falhar, ele crasheia.
-        # Entao adicionamos as colunas q nÃ£o existem como nulas antes.
+
         cols_required = set()
-        # Uma heuristic rapida para descobrir dependencias: vars() de orig
         for m in mapeamento:
             v = str(m[key_map])
-            if v and v not in ["(vazio)", "correspondÃªncia com chave NF", "icms_orig & icms_cst ou icms_csosn", "prod_ceantrib ou caso for nulo -> prod_cean", "vl_item-vl_desc", "prod_vprod+prod_vfrete+prod_vseg+prod_voutro-prod_vdesc", "\"gerado\" ou \"registro\" (se está no bloco_h)"]:
+            if v and v not in ["(vazio)", "correspondência com chave NF", "icms_orig & icms_cst ou icms_csosn", "prod_ceantrib ou caso for nulo -> prod_cean", "vl_item-vl_desc", "prod_vprod+prod_vfrete+prod_vseg+prod_voutro-prod_vdesc", '"gerado" ou "registro" (se está no bloco_h)']:
                 if not v.startswith('"'):
                     cols_required.add(v)
-        
-        # for extra rules 
+
         extra = ["vl_item", "vl_desc", "prod_vprod", "prod_vfrete", "prod_vseg", "prod_voutro", "prod_vdesc", "icms_cst", "icms_orig", "icms_csosn", "prod_cean", "prod_ceantrib", "chv_nfe"]
         cols_required.update(extra)
-        
+
         for c in cols_required:
             if c not in df_raw.columns:
                 df_raw = df_raw.with_columns(pl.lit(None).alias(c))
 
         df_selecionado = df_raw.select(exprs)
-        
-        # Alguns enriquecidos ja tem ncm_padrao, cest_padrao, descr_padrao pelo id_agrupado!
-        # Se existem, preservamos, senao add null (C170 e Bloco H e NFEs enriquecidos ja possuem!)
-        # O map na imagem e task falavam pra puxar campos, ja que estao no enriquecido
+
         cols_extras_manter = ["id_agrupado", "ncm_padrao", "cest_padrao", "descr_padrao", "co_sefin_agr", "unid_ref", "fator"]
         for c in cols_extras_manter:
             if c in df_raw.columns:
@@ -339,16 +312,15 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
 
         df_parts.append(df_selecionado)
 
-    # Sources mapeadas
     _process_source("c170", "C170")
     _process_source("bloco_h", "Bloco_h")
     _process_source("nfe", "Nfe")
     _process_source("nfce", "Nfce")
-    
+
     if not df_parts:
         rprint("[yellow]Nenhuma tabela de origem (enriquecida) foi encontrada.[/yellow]")
         return False
-        
+
     df_mov = pl.concat(df_parts, how="diagonal_relaxed")
     if not df_ref_por_chave.is_empty() and "Chv_nfe" in df_mov.columns:
         nsu_atual = pl.col("nsu").cast(pl.Int64, strict=False) if "nsu" in df_mov.columns else pl.lit(None, pl.Int64)
@@ -359,38 +331,22 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
         df_mov = (
             df_mov
             .with_columns(pl.col("Chv_nfe").cast(pl.Utf8, strict=False).alias("Chv_nfe"))
-            .join(
-                df_ref_por_chave.rename({"chv_nfe": "Chv_nfe"}),
-                on="Chv_nfe",
-                how="left",
-            )
+            .join(df_ref_por_chave.rename({"chv_nfe": "Chv_nfe"}), on="Chv_nfe", how="left")
             .with_columns(
                 [
                     pl.coalesce([pl.col("nsu_ref"), nsu_atual]).alias("nsu"),
                     pl.coalesce([pl.col("finnfe_ref"), finnfe_atual]).alias("finnfe"),
                     pl.coalesce([pl.col("infprot_cstat_ref"), infprot_cstat_atual]).alias("infprot_cstat"),
-                    pl.coalesce(
-                        [
-                            pl.col("co_uf_emit_ref"),
-                            co_uf_emit_atual,
-                            pl.col("Chv_nfe").cast(pl.Utf8, strict=False).str.slice(0, 2),
-                        ]
-                    ).alias("co_uf_emit"),
+                    pl.coalesce([pl.col("co_uf_emit_ref"), co_uf_emit_atual, pl.col("Chv_nfe").cast(pl.Utf8, strict=False).str.slice(0, 2)]).alias("co_uf_emit"),
                     pl.coalesce([pl.col("co_uf_dest_ref"), co_uf_dest_atual]).alias("co_uf_dest"),
                 ]
             )
             .drop(["nsu_ref", "finnfe_ref", "infprot_cstat_ref", "co_uf_emit_ref", "co_uf_dest_ref"], strict=False)
         )
-    df_mov = (
-        df_mov
-        .with_columns(_padronizar_tipo_operacao_expr("Tipo_operacao"))
-        .pipe(filtrar_movimentacoes_por_fonte)
-    )
-    
-    # 2. Ajustar eventos de estoque final/inicial
+    df_mov = df_mov.with_columns(_padronizar_tipo_operacao_expr("Tipo_operacao")).pipe(filtrar_movimentacoes_por_fonte)
+
     df_mov = _gerar_eventos_estoque(df_mov)
 
-    # 3. Enriquecer com campos da co_sefin_class
     rprint("[cyan]Enriquecendo campos co_sefin...[/cyan]")
     df_final = enriquecer_co_sefin_class(df_mov, cnpj)
     if not df_flags_cfop.is_empty() and "Cfop" in df_final.columns:
@@ -404,46 +360,24 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
             df_final = df_final.with_columns(pl.lit(None).alias(col))
     df_final = marcar_mov_rep_por_chave_item(df_final)
 
-    # Ordenacao semantica:
-    # - por id_agrupado
-    # - por data do evento (preferindo Dt_e_s e depois Dt_doc)
-    # - ESTOQUE INICIAL no comeco do dia
-    # - ENTRADAS/SAIDAS no fluxo normal do dia
-    # - ESTOQUE FINAL no fim do dia
-    # - nsu como desempate natural das notas
     df_final = (
         df_final
         .with_columns(
             [
-                pl.coalesce(
-                    [
-                        pl.col("Dt_e_s").cast(pl.Date, strict=False),
-                        pl.col("Dt_doc").cast(pl.Date, strict=False),
-                    ]
-                ).alias("__data_ord__"),
+                pl.coalesce([pl.col("Dt_e_s").cast(pl.Date, strict=False), pl.col("Dt_doc").cast(pl.Date, strict=False)]).alias("__data_ord__"),
                 pl.col("nsu").cast(pl.Int64, strict=False).alias("__nsu_ord__"),
-                pl.when(pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("0 - ESTOQUE INICIAL"))
-                .then(pl.lit(0))
-                .when(pl.col("Tipo_operacao") == "1 - ENTRADA")
-                .then(pl.lit(1))
-                .when(pl.col("Tipo_operacao") == "2 - SAIDAS")
-                .then(pl.lit(2))
-                .when(pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("3 - ESTOQUE FINAL"))
-                .then(pl.lit(3))
-                .otherwise(pl.lit(9))
-                .alias("__ord_tipo__"),
+                pl.when(pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("0 - ESTOQUE INICIAL")).then(pl.lit(0))
+                .when(pl.col("Tipo_operacao") == "1 - ENTRADA").then(pl.lit(1))
+                .when(pl.col("Tipo_operacao") == "2 - SAIDAS").then(pl.lit(2))
+                .when(pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("3 - ESTOQUE FINAL")).then(pl.lit(3))
+                .otherwise(pl.lit(9)).alias("__ord_tipo__"),
             ]
         )
-        .sort(
-            ["id_agrupado", "__data_ord__", "__ord_tipo__", "__nsu_ord__", "Dt_doc", "Dt_e_s"],
-            descending=[False, False, False, False, False, False],
-            nulls_last=True,
-        )
+        .sort(["id_agrupado", "__data_ord__", "__ord_tipo__", "__nsu_ord__", "Dt_doc", "Dt_e_s"], descending=[False, False, False, False, False, False], nulls_last=True)
         .with_row_index("ordem_operacoes", offset=1)
         .drop(["__data_ord__", "__nsu_ord__", "__ord_tipo__"], strict=False)
     )
 
-    # Reordenar colunas para exibiÃ§Ã£o: Descr_item e Descr_compl logo apÃ³s Tipo_operacao
     cols = list(df_final.columns)
     if "Tipo_operacao" in cols:
         for coluna in ["fonte", "Descr_item", "Descr_compl"]:
@@ -457,31 +391,13 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
                 posicao += 1
         df_final = df_final.select(cols)
 
-    data_ref_expr = pl.coalesce(
-        [
-            pl.col("Dt_e_s").cast(pl.Date, strict=False),
-            pl.col("Dt_doc").cast(pl.Date, strict=False),
-        ]
-    )
+    data_ref_expr = pl.coalesce([pl.col("Dt_e_s").cast(pl.Date, strict=False), pl.col("Dt_doc").cast(pl.Date, strict=False)])
     qtd_bruta_expr = pl.col("Qtd").cast(pl.Float64, strict=False).fill_null(0.0).abs()
     fator_expr = pl.col("fator").cast(pl.Float64, strict=False).fill_null(1.0).abs()
-    q_conv_base_expr = (qtd_bruta_expr * fator_expr)
-    linha_neutra_expr = (
-        _boolish_expr("excluir_estoque").fill_null(False)
-        | _boolish_expr("mov_rep").fill_null(False)
-    )
-    infprot_valido_expr = (
-        pl.col("infprot_cstat")
-        .cast(pl.Utf8, strict=False)
-        .fill_null("")
-        .str.strip_chars()
-        .is_in(["", "100", "150"])
-    )
-    q_conv_valido_expr = (
-        pl.when(infprot_valido_expr & ~linha_neutra_expr)
-        .then(q_conv_base_expr)
-        .otherwise(pl.lit(0.0))
-    )
+    q_conv_base_expr = qtd_bruta_expr * fator_expr
+    linha_neutra_expr = _boolish_expr("excluir_estoque").fill_null(False) | _boolish_expr("mov_rep").fill_null(False)
+    infprot_valido_expr = pl.col("infprot_cstat").cast(pl.Utf8, strict=False).fill_null("").str.strip_chars().is_in(["", "100", "150"])
+    q_conv_valido_expr = pl.when(infprot_valido_expr & ~linha_neutra_expr).then(q_conv_base_expr).otherwise(pl.lit(0.0))
 
     df_final = (
         df_final
@@ -494,50 +410,20 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
         )
         .with_columns(
             [
-                # __qtd_decl_final_audit__: captura a quantidade declarada em TODO estoque final do ano
-                # A restricao de 31/12 foi removida para permitir auditoria anual correta
-                pl.when(
-                    pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("3 - ESTOQUE FINAL")
-                )
-                .then(q_conv_valido_expr)
-                .otherwise(pl.lit(0.0))
-                .alias("__qtd_decl_final_audit__"),
-                # q_conv: estoque inicial, entradas, saidas e final capturados independente da data
-                # para permitir auditoria anual completa
-                # Nota: estoque final tem q_conv populado, mas nao afeta o saldo sequencial
-                pl.when(
-                    pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("0 - ESTOQUE INICIAL")
-                )
-                .then(q_conv_valido_expr)
-                .when(pl.col("Tipo_operacao") == "1 - ENTRADA")
-                .then(q_conv_valido_expr)
-                .when(pl.col("Tipo_operacao") == "2 - SAIDAS")
-                .then(q_conv_valido_expr)
-                .when(
-                    pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("3 - ESTOQUE FINAL")
-                )
-                .then(q_conv_valido_expr)
-                .otherwise(pl.lit(0.0))
-                .alias("q_conv"),
-                # __q_conv_sinal__: usado no calculo sequencial de saldo
-                # estoque final nao entra aqui para nao afetar o saldo acumulado
-                pl.when(
-                    pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("0 - ESTOQUE INICIAL")
-                )
-                .then(q_conv_valido_expr)
-                .when(pl.col("Tipo_operacao") == "1 - ENTRADA")
-                .then(q_conv_valido_expr)
-                .when(pl.col("Tipo_operacao") == "2 - SAIDAS")
-                .then(-q_conv_valido_expr)
-                .otherwise(pl.lit(0.0))
-                .alias("__q_conv_sinal__"),
+                pl.when(pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("3 - ESTOQUE FINAL")).then(q_conv_valido_expr).otherwise(pl.lit(0.0)).alias("__qtd_decl_final_audit__"),
+                pl.when(pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("0 - ESTOQUE INICIAL")).then(q_conv_valido_expr)
+                .when(pl.col("Tipo_operacao") == "1 - ENTRADA").then(q_conv_valido_expr)
+                .when(pl.col("Tipo_operacao") == "2 - SAIDAS").then(q_conv_valido_expr)
+                .when(pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("3 - ESTOQUE FINAL")).then(q_conv_valido_expr)
+                .otherwise(pl.lit(0.0)).alias("q_conv"),
+                pl.when(pl.col("Tipo_operacao").cast(pl.Utf8, strict=False).str.starts_with("0 - ESTOQUE INICIAL")).then(q_conv_valido_expr)
+                .when(pl.col("Tipo_operacao") == "1 - ENTRADA").then(q_conv_valido_expr)
+                .when(pl.col("Tipo_operacao") == "2 - SAIDAS").then(-q_conv_valido_expr)
+                .otherwise(pl.lit(0.0)).alias("__q_conv_sinal__"),
             ]
         )
         .with_columns(
-            pl.when(pl.col("q_conv") > 0)
-            .then(pl.col("preco_item").cast(pl.Float64, strict=False).fill_null(0.0) / pl.col("q_conv"))
-            .otherwise(pl.lit(0.0))
-            .alias("preco_unit")
+            pl.when(pl.col("q_conv") > 0).then(pl.col("preco_item").cast(pl.Float64, strict=False).fill_null(0.0) / pl.col("q_conv")).otherwise(pl.lit(0.0)).alias("preco_unit")
         )
         .group_by("id_agrupado", "__ano_saldo__", maintain_order=True)
         .map_groups(_calcular_saldo_estoque_anual)
@@ -552,13 +438,18 @@ def gerar_movimentacao_estoque(cnpj: str, pasta_cnpj: Path | None = None) -> boo
             cols.insert(idx_ref + 1, coluna)
             df_final = df_final.select(cols)
 
-    # Salvar
-    saida = pasta_analises / f"mov_estoque_{cnpj}.parquet"
-    ok = salvar_para_parquet(df_final, pasta_analises, saida.name)
+    metadata = criar_metadata(
+        cnpj=cnpj,
+        dataset_id="mov_estoque",
+        linhas=df_final.height,
+        parametros={"fontes": ["c170", "bloco_h", "nfe", "nfce"]},
+    )
+    destino = registrar_dataset(cnpj, "mov_estoque", df_final, metadata=metadata)
+    ok = destino is not None
     if ok:
-        rprint(f"[green]Sucesso! {df_final.height} registros salvos.[/green]")
-        
+        rprint(f"[green]Sucesso! {df_final.height} registros salvos em {destino}.[/green]")
     return ok
+
 
 if __name__ == "__main__":
     try:
@@ -567,10 +458,8 @@ if __name__ == "__main__":
         else:
             c = input("CNPJ: ")
             gerar_movimentacao_estoque(c)
-    except Exception as e:
+    except Exception:
         import traceback
         with open(TRACEBACK_PATH, "w", encoding="utf-8") as f:
             traceback.print_exc(file=f)
         raise
-
-

@@ -7,6 +7,7 @@ interface Props {
   onClose: () => void;
   onConfirm: (consultas: string[] | null) => void;
   sqlFiles: SqlFile[];
+  confirmLabel?: string;
 }
 
 /** Agrupa arquivos SQL por pasta (prefixo antes de '/').
@@ -42,7 +43,7 @@ function loadFromStorage(
 }
 
 /** Montado condicionalmente pelo pai - sempre visivel quando montado. */
-export function ExtrairSelecaoModal({ onClose, onConfirm, sqlFiles }: Props) {
+export function ExtrairSelecaoModal({ onClose, onConfirm, sqlFiles, confirmLabel = "Aplicar seleção" }: Props) {
   const allPaths = useMemo(() => sqlFiles.map((f) => f.path), [sqlFiles]);
   const allPathSet = useMemo(() => new Set(allPaths), [allPaths]);
   const groups = useMemo(() => groupByFolder(sqlFiles), [sqlFiles]);
@@ -104,7 +105,7 @@ export function ExtrairSelecaoModal({ onClose, onConfirm, sqlFiles }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-700 px-5 py-3">
           <h2 className="text-sm font-semibold text-slate-100">
-            Selecionar Consultas SQL para Extracao
+            Selecionar Consultas SQL para Extração
           </h2>
           <button
             onClick={onClose}
@@ -204,7 +205,7 @@ export function ExtrairSelecaoModal({ onClose, onConfirm, sqlFiles }: Props) {
             disabled={selected.size === 0}
             className="rounded bg-blue-700 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Executar Extracao ({selected.size})
+            {confirmLabel} ({selected.size})
           </button>
         </div>
       </div>
