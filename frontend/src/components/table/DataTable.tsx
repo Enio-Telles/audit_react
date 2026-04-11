@@ -75,7 +75,10 @@ function readAppearance(storageKey: string | undefined): TableAppearance {
   try {
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) return DEFAULT_APPEARANCE;
-    return { ...DEFAULT_APPEARANCE, ...(JSON.parse(raw) as Partial<TableAppearance>) };
+    return {
+      ...DEFAULT_APPEARANCE,
+      ...(JSON.parse(raw) as Partial<TableAppearance>),
+    };
   } catch {
     return DEFAULT_APPEARANCE;
   }
@@ -137,29 +140,42 @@ function moverColunaNaOrdem(
   return proximaOrdem;
 }
 
+type CompiledRule = HighlightRule & {
+  _vLower: string;
+  _vFloat: number;
+};
+
+function compileRule(rule: HighlightRule): CompiledRule {
+  const v = rule.value ?? "";
+  return {
+    ...rule,
+    _vLower: v.toLowerCase(),
+    _vFloat: parseFloat(v.replace(",", ".")),
+  };
+}
+
 function matchesRule(
-  rule: HighlightRule,
+  rule: CompiledRule,
   row: Record<string, unknown>,
 ): boolean {
-  const cellVal = String(row[rule.column] ?? "");
-  const v = rule.value ?? "";
+  const cellValStr = String(row[rule.column] ?? "");
   switch (rule.operator) {
     case "igual":
-      return cellVal === v;
+      return cellValStr === (rule.value ?? "");
     case "contem":
-      return cellVal.toLowerCase().includes(v.toLowerCase());
+      return cellValStr.toLowerCase().includes(rule._vLower);
     case "maior":
-      return (
-        parseFloat(cellVal.replace(",", ".")) > parseFloat(v.replace(",", "."))
-      );
+      return parseFloat(cellValStr.replace(",", ".")) > rule._vFloat;
     case "menor":
-      return (
-        parseFloat(cellVal.replace(",", ".")) < parseFloat(v.replace(",", "."))
-      );
+      return parseFloat(cellValStr.replace(",", ".")) < rule._vFloat;
     case "e_nulo":
-      return cellVal === "" || cellVal === "null" || cellVal === "undefined";
+      return (
+        cellValStr === "" || cellValStr === "null" || cellValStr === "undefined"
+      );
     case "nao_e_nulo":
-      return cellVal !== "" && cellVal !== "null" && cellVal !== "undefined";
+      return (
+        cellValStr !== "" && cellValStr !== "null" && cellValStr !== "undefined"
+      );
     default:
       return false;
   }
@@ -194,7 +210,9 @@ export function DataTable({
   showColumnFilters,
   highlightRules,
 }: DataTableProps) {
-  const storageKey = appearanceKey ? `datatable_appearance_${appearanceKey}` : undefined;
+  const storageKey = appearanceKey
+    ? `datatable_appearance_${appearanceKey}`
+    : undefined;
   const selectable = !!onRowSelect && !!rowKey;
   const showCheckboxes = selectable && (showSelectionCheckboxes ?? true);
   const shouldAutoHighlight = autoHighlight ?? highlightRows ?? false;
@@ -321,11 +339,15 @@ export function DataTable({
   };
 
   const rowRules = useMemo(
-    () => (highlightRules ?? []).filter((r) => r.type === "row"),
+    () =>
+      (highlightRules ?? []).filter((r) => r.type === "row").map(compileRule),
     [highlightRules],
   );
   const colRules = useMemo(
-    () => (highlightRules ?? []).filter((r) => r.type === "column"),
+    () =>
+      (highlightRules ?? [])
+        .filter((r) => r.type === "column")
+        .map(compileRule),
     [highlightRules],
   );
 
@@ -556,12 +578,12 @@ export function DataTable({
                           handleHeaderClick(h.column.id);
                         }}
                         onMouseEnter={(evento) => {
-                          (evento.currentTarget.style.backgroundColor =
-                            "rgba(51, 65, 85, 0.35)");
+                          evento.currentTarget.style.backgroundColor =
+                            "rgba(51, 65, 85, 0.35)";
                         }}
                         onMouseLeave={(evento) => {
-                          (evento.currentTarget.style.backgroundColor =
-                            "transparent");
+                          evento.currentTarget.style.backgroundColor =
+                            "transparent";
                         }}
                       >
                         <span className="flex items-center gap-1 pr-3">
