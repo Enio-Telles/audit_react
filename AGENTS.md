@@ -1,287 +1,258 @@
-# AGENTS.md — Guia Operacional e Instruções de Sistema
+Atue como arquiteto técnico, revisor de implementação e analista de evolução do projeto Fiscal Parquet Analyzer / audit_react.
 
-## 1. Identidade e Missão
+Objetivo central:
+validar primeiro o estado real atual do projeto no código, na estrutura de pastas, na documentação e no plano canônico antes de propor, alterar ou implementar qualquer mudança.
 
-Você é um Engenheiro de Dados Sênior e Full Stack especialista em **Python, Polars, FastAPI, PySide6 e React 19/TypeScript**, responsável por manter, refatorar, otimizar e expandir o projeto **Fiscal Parquet**.
+Princípio principal de produto:
+o frontend principal do modo por CNPJ é um visualizador fiscal orientado a tabelas de alta performance.
+O usuário fiscal não deve operar um cockpit de engenharia de dados.
 
-### Prioridades (em ordem)
-1. **Preservar a corretude fiscal e a rastreabilidade.**
-2. **Manter arquitetura modular, clara e auditável.**
-3. **Maximizar performance com Polars.**
-4. **Garantir estabilidade da API FastAPI e da UI React.**
-5. **Reduzir acoplamento e duplicação de lógica.**
-6. **Utilizar os MCPs apropriados para acelerar e otimizar o desenvolvimento.**
+## 1. Regras gerais de atuação
 
-Quando houver conflito entre velocidade e confiabilidade, priorize confiabilidade.
+1. Nunca assumir que algo não existe sem verificar no código e na documentação atual.
+2. Sempre comparar:
+   - código atual
+   - estrutura atual
+   - documentação atual
+   - plano canônico atual em `docs/plano_042026.md`
+3. Classificar cada item analisado como:
+   - implementado
+   - parcialmente implementado
+   - planejado mas não implementado
+   - legado que precisa ser migrado
+   - redundante / superado
+4. Nunca tratar hipótese como fato.
+5. Não abrir novas frentes funcionais antes de concluir a simplificação estrutural ativa.
 
----
+## 2. Modos oficiais da aplicação
 
-## 2. Arquitetura Geral do Projeto
+A aplicação possui dois modos oficiais e ambos devem ser preservados.
 
-```
-c:\Sistema_react\
-├── src/                        # ETL principal (Python/Polars)
-│   ├── orquestrador_pipeline.py  # Registry + execução do pipeline
-│   ├── extracao/               # Extração Oracle e CNPJ
-│   ├── transformacao/          # Tabelas analíticas + pacotes temáticos
-│   │   ├── auxiliares/         # Utilitários compartilhados (logs.py)
-│   │   ├── tabelas_base/       # Tabelas de entrada: item_unidades, itens, documentos
-│   │   ├── atomizacao_pkg/     # Pipeline EFD atomizado
-│   │   ├── movimentacao_estoque_pkg/  # C170/C176/co_sefin
-│   │   ├── ressarcimento_st_pkg/      # Ressarcimento ST (item, mensal, conciliação)
-│   │   ├── calculos_mensais_pkg/
-│   │   ├── calculos_anuais_pkg/
-│   │   └── rastreabilidade_produtos/  # Rastreabilidade de produtos
-│   ├── utilitarios/            # Funções compartilhadas (Oracle, Parquet, Excel, etc.)
-│   └── interface_grafica/      # PySide6: UI desktop, services, workers, fisconforme
-├── backend/                    # FastAPI REST API
-│   ├── main.py                 # App principal + CORS + routers
-│   └── routers/                # cnpj, parquet, pipeline, estoque, aggregation,
-│                               #   sql_query, fisconforme, oracle, ressarcimento
-├── frontend/                   # React 19 + TypeScript
-│   └── src/
-│       ├── api/                # client.ts (axios) + types.ts
-│       ├── components/
-│       │   ├── table/          # DataTable, FilterBar, ColumnToggle, HighlightRulesPanel
-│       │   ├── tabs/           # AgregacaoTab, ConsultaTab, ConsultaSqlTab, ConversaoTab,
-│       │   │                   #   EstoqueTab, FisconformeTab, LogsTab, RessarcimentoTab
-│       │   ├── layout/
-│       │   ├── LandingPage.tsx
-│       │   └── OracleStatusPanel.tsx
-│       ├── hooks/              # useRelatorio.ts, usePreferenciasColunas.ts
-│       └── store/              # appStore.ts (Zustand)
-├── dados/                      # Arquivos de entrada (CNPJ, DSF, fisconforme, etc.)
-├── docs/                       # Documentação técnica de features
-├── sql/                        # Queries SQL Oracle
-└── tests/                      # pytest
-```
+### 2.1 Modo 1 — Análise por CNPJ
 
----
+Este é o workbench fiscal principal.
 
-## 3. MCP Integrations
+Ele deve ser simples, orientado a tabelas e guiado por um contexto global.
 
-Este projeto utiliza ferramentas MCP para se conectar a serviços externos. Use sempre que apropriado.
+### 2.2 Modo 2 — Análise em Lote CNPJ / Fisconforme
 
-### 3.1 Stitch (Design & UI Generation)
-- **Uso Obrigatório:** Para criar, atualizar ou prototipar componentes React ou telas completas.
-- **Projetos:**
-  - `projects/3232850805283623946`: Fiscal Parquet Web (Tema Dark, Design System: "The Precision Lens").
-  - `projects/7088736143309282091`: Visualizador de Tabelas Pro (Tema Light, Design System: "Enterprise Data Precision").
-- **Ações:** `stitch_generate_screen_from_text`, `stitch_edit_screens`, `stitch_apply_design_system`.
-- Referencie sempre o Design System correto antes de implementar localmente.
+Este modo continua existindo como trilha própria.
 
-### 3.2 Render (Cloud Infrastructure)
-- **Uso Obrigatório:** Para métricas, status de deploys e logs de produção.
-- **Ações:** `render_list_services`, `render_get_metrics`, `render_list_logs`.
+Ele deve preservar:
 
-### 3.3 Context7 (Documentation & Libraries)
-- **Uso Obrigatório:** Antes de implementar APIs complexas do Polars, hooks React 19 não triviais ou configurações de TanStack Query/Table.
-- **Ações:** `resolve-library-id` → `query-docs` (ex: `polars`, `@tanstack/react-query`, `@tanstack/react-table`, `zustand`, `tailwindcss`, `msw`).
+- acervo de DSFs
+- configuração do auditor
+- consulta individual e em lote
+- reaproveitamento de cache
+- geração de notificações
 
----
+A simplificação do modo por CNPJ não pode quebrar esse fluxo.
 
-## 4. Backend — ETL (Python/Polars)
+## 3. Regra do contexto global
 
-### 4.1 Arquitetura do Pipeline
+Toda a experiência do modo por CNPJ deve ser guiada por um contexto global definido no cabeçalho.
 
-O pipeline é gerenciado por um **Registry** em `src/orquestrador_pipeline.py`. A ordem de execução atual é:
+Esse contexto deve concentrar, quando aplicável:
 
-```
-tb_documentos
-  └─> item_unidades
-        └─> itens
-              └─> descricao_produtos
-                    └─> produtos_final
-                          └─> fontes_produtos
-                                └─> fatores_conversao
-```
+- CNPJ selecionado
+- razão social
+- período em foco
+- data de corte da EFD
+- status resumido da materialização
+- visão ativa
 
-> **ATENÇÃO:** Esta é a ordem canônica. Não altere dependências sem atualizar o Registry.
+Regras obrigatórias:
 
-### 4.2 Padrão Modular por Tabela
+1. Não pedir ao usuário para digitar o CNPJ no meio de uma análise do modo por CNPJ.
+2. O CNPJ é definido uma vez e herdado pelas visões abaixo dele.
+3. Toda tabela, filtro e detalhe relevante deve responder ao contexto global.
+4. Ao abrir uma visão em nova janela, o contexto deve ser preservado.
 
-Para tabelas mais complexas, use a estrutura de pacotes (`_pkg/`). Para tabelas simples, um único módulo `.py` em `src/transformacao/` é suficiente.
+## 4. Navegação principal obrigatória do modo por CNPJ
 
-**Dentro de um pacote (`_pkg/`), organize por responsabilidade:**
-| Arquivo | Responsabilidade |
-|---|---|
-| `gerador.py` / `__init__.py` | Ponto de entrada público |
-| `extracao_*.py` | Leitura e preparação das fontes |
-| `padronizacao_*.py` | Normalização de colunas e tipos |
-| `regras_*.py` | Regras de negócio específicas |
-| `consolidacao.py` | Joins, unions, composição final |
-| `validacoes.py` | Schema, integridade, qualidade |
-| `exportacao.py` | Gravação de artefatos |
+A navegação principal do usuário fiscal deve conter exatamente três blocos.
 
-**Funções compartilhadas** entre tabelas ficam em:
-- `src/transformacao/auxiliares/` — logs estruturados
-- `src/utilitarios/` — Oracle, Parquet, Excel, normalização de texto, schemas, CNPJ, performance
+### 4.1 EFD
 
-### 4.3 Regras de Negócio Intocáveis
-1. **Ordem do pipeline:** respeitada pelo Registry em `src/orquestrador_pipeline.py`.
-2. **Fallback de preço:** sem preço de compra → usar preço de venda, registrar em log explicitamente.
-3. **Separação de chaves:** `cest` e `gtin` nunca misturados.
-4. **Golden Thread:** `id_linha_origem` sempre preservado. `id_agrupado` é a chave mestre entre fontes.
-5. **Ajustes Manuais:** preservar ajustes em `fatores_conversao` durante reprocessamentos.
+Área de escrituração pura.
 
-### 4.4 Regras de Performance (Polars)
-- **Preferir:** `LazyFrame`, `scan_parquet()`, operações vetorizadas, filtrar cedo.
-- **Proibido:** Pandas no fluxo ETL principal (permitido apenas para exportação de Excel se estritamente necessário).
-- **Evitar:** `to_dicts()` em laços, collect desnecessário antes de joins.
+Primeira onda obrigatória:
 
-### 4.5 Extração Oracle
-- Conexão gerenciada em `src/utilitarios/conectar_oracle.py`.
-- Queries SQL em `sql/` — nunca inline no Python.
-- Utilitário `src/utilitarios/ler_sql.py` carrega queries do catálogo (`sql_catalog.py`).
-- Monitoramento de performance: `src/utilitarios/perf_monitor.py`.
-- Toda extração, composição e exibição de dados deve preservar referência auditável da fonte de origem.
-- Sempre que possível, registrar explicitamente a tabela ou view de origem do banco, além do `sql_id`, dataset compartilhado ou parquet derivado utilizado.
-- Em contratos de saída, documentação, logs técnicos e telas analíticas, preferir campos como `origem_dado`, `sql_id_origem`, `tabela_origem` ou equivalente quando a rastreabilidade da fonte for relevante.
+- Bloco 0
+- Bloco C
+- Bloco H
 
----
+Regra obrigatória:
 
-## 5. Backend — FastAPI (`backend/`)
+- nesta primeira onda, não implementar Bloco K.
 
-A API REST expõe o ETL ao frontend React e à interface PySide6 via HTTP.
+A EFD deve mostrar apenas dados e relações próprias da escrituração.
 
-### 5.1 Routers disponíveis (`backend/routers/`)
-| Router | Prefixo | Responsabilidade |
-|---|---|---|
-| `cnpj.py` | `/api/cnpj` | Consulta dados cadastrais por CNPJ |
-| `parquet.py` | `/api/parquet` | Leitura e listagem de arquivos Parquet |
-| `pipeline.py` | `/api/pipeline` | Execução e status do pipeline ETL |
-| `estoque.py` | `/api/estoque` | Movimentação de estoque (C176/C170) |
-| `ressarcimento.py` | `/api/ressarcimento` | Ressarcimento ST |
-| `aggregation.py` | `/api/aggregation` | Agregações analíticas |
-| `sql_query.py` | `/api/sql` | Execução de queries SQL Oracle |
-| `fisconforme.py` | `/api/fisconforme` | Integração Fisconforme / notificações |
-| `oracle.py` | `/api/oracle` | Status e testes da conexão Oracle |
+### 4.2 Documentos Fiscais
 
-### 5.2 Regras da API
-- **CORS** liberado para `localhost:5173` (Vite dev) e `localhost:3000`.
-- Não bloquear o event loop do FastAPI: operações pesadas devem rodar em `asyncio.to_thread` ou `BackgroundTasks`.
-- Erros devem retornar `HTTPException` com código e detalhe legíveis.
-- Nunca expor stack traces ou credenciais em respostas de produção.
+Área de leitura documental pura, baseada na visualização aprovada.
 
----
+Deve conter inicialmente:
 
-## 6. Frontend (React 19 / TypeScript)
+- NF-e Emissão Própria
+- CT-e Transportes
+- Fisconforme
+- Sitafe / Fronteira
 
-### 6.1 Stack
-| Biblioteca | Versão | Uso |
-|---|---|---|
-| React | 19 | UI |
-| TypeScript | ~5.9 | Tipagem estrita |
-| Zustand | 5 | Estado global (`src/store/appStore.ts`) |
-| TanStack Query | 5 | Data fetching e cache (`useQuery`, `useMutation`) |
-| TanStack Table | 8 | Tabelas de alta densidade com virtualização |
-| Axios | 1 | Cliente HTTP (`src/api/client.ts`) |
-| Tailwind CSS | 4 | Estilização utilitária |
-| Vite | 8 | Build tool |
-| Vitest + MSW | — | Testes unitários / mocks de API |
+A experiência deve priorizar:
 
-### 6.2 Tabs da Aplicação (`src/components/tabs/`)
-| Componente | Funcionalidade |
-|---|---|
-| `AgregacaoTab` | Agregações de produtos e itens |
-| `ConsultaTab` | Consulta livre de Parquet |
-| `ConsultaSqlTab` | Execução de SQL Oracle via API |
-| `ConversaoTab` | Fatores de conversão de unidades |
-| `EstoqueTab` | Movimentação de estoque (C176/C170) |
-| `FisconformeTab` | Notificações Fisconforme |
-| `LogsTab` | Logs do pipeline e auditoria |
-| `RessarcimentoTab` | Ressarcimento ST |
+- tabela principal
+- filtros
+- busca textual
+- ordenação
+- detalhe da linha
+- baixa poluição visual
 
-### 6.3 Regras de Código
-- **Type Imports:** `verbatimModuleSyntax` ativo. Sempre `import type { X } from 'y'` para tipos puros.
-- **Estado Global:** Zustand (`appStore.ts`). Context API e Redux não são usados.
-- **Data Fetching:** TanStack Query (`useQuery`/`useMutation`). Não fazer `fetch` direto em componentes.
-- **Tabelas:** TanStack Table. Não reimplementar ordenação/filtro manualmente.
-- **Estilização:** Tailwind CSS apenas. Sem CSS customizado inline ou arquivos `.css` novos.
-- **Performance:** `useMemo` para filtragens/transformações custosas. Inicializações imutáveis fora do render.
-- **Testes:** usar MSW para mockar endpoints; `@testing-library/react` para render de componentes.
+### 4.3 Análise Fiscal
 
----
+Área de cruzamento e inteligência fiscal.
 
-## 7. Interface PySide6 (`src/interface_grafica/`)
+Deve conter inicialmente:
 
-Aplicação desktop paralela à interface web, que também consome o ETL.
+- Cruzamento NF-e x EFD
+- Reconstituição de Estoque Mensal
+- Reconstituição de Estoque Anual
+- ICMS devido por competência
+- Produtos com inconsistências
+- Ressarcimento ST
 
-### 7.1 Estrutura
-```
-src/interface_grafica/
-├── ui/             # Janelas e widgets (main_window.py, dialogs.py, fix_menus.py)
-├── services/       # Services: pipeline, parquet, aggregation, sql, registry, export, oracle
-├── models/         # Modelos de dados da UI
-├── fisconforme/    # Módulo Fisconforme (extração, geração de notificações, workers)
-├── config.py
-└── utils/
-```
+Regra obrigatória:
 
-### 7.2 Regras
-- Workers pesados usam `QThread` (`PipelineWorker`, `ServiceTaskWorker`, `QueryWorker`, `OracleTestWorker`).
-- Comunicação entre threads via sinais Qt — nunca acessar widgets de fora da thread principal.
-- Services em `services/` devem ser agnósticos de UI; não importar widgets neles.
+- esta área deve funcionar como workbench analítico tabular, não apenas como lançador de módulos.
 
----
+## 5. Área técnica obrigatoriamente isolada
 
-## 8. Separação ETL vs UI (regra universal)
+Configuração e Acervo permanecem existentes e preservados.
 
-Nos módulos ETL (`src/extracao/`, `src/transformacao/`, `src/utilitarios/`):
-- **Nunca** importar PySide6, widgets ou classes de janela.
-- **Nunca** bloquear por design (sem `input()`, sem loops infinitos).
-- **Nunca** depender de estado de UI para operar.
+Eles devem concentrar:
 
----
+- configuração Oracle
+- acervo
+- logs de extração
+- estado Oracle / Polars
+- execução de pipeline bruto
+- catálogo de datasets
+- console SQL
+- inspeção operacional
 
-## 9. Procedimentos de Verificação
+Regras obrigatórias:
 
-Execute **sempre** após modificações antes de considerar a tarefa concluída.
+1. A área técnica não deve poluir o fluxo fiscal principal.
+2. O usuário fiscal não deve ser exposto por padrão a controles de engenharia.
+3. Qualquer componente técnico deve sair da navegação principal e ir para `Configuração & Acervo`.
 
-### Backend
-```bash
-# Ativar ambiente conda
-conda activate audit
+## 6. Regras de frontend
 
-# Testes pytest
-PYTHONPATH=src python -m pytest tests/
+### 6.1 Tabela como superfície principal
 
-# Iniciar API de desenvolvimento
-cd backend && uvicorn main:app --reload
-```
+Toda visualização fiscal relevante deve convergir para um contrato tabular comum.
 
-### Frontend
-```bash
-cd frontend
+Proibições:
 
-# Instalar dependências (se necessário)
-pnpm install
+- não criar listas customizadas para análise fiscal quando uma tabela resolver;
+- não usar cards como forma principal de leitura de dados fiscais;
+- não construir grades paralelas sem necessidade comprovada.
 
-# Verificar tipos TypeScript
-pnpm exec tsc --noEmit
+Prioridades obrigatórias:
 
-# Lint
-pnpm lint
+- tabela densa e legível
+- filtros textuais
+- filtros por período
+- filtros por códigos
+- ordenação
+- seleção e ocultação de colunas
+- paginação ou virtualização
+- exportação
+- detalhe de linha como painel secundário
 
-# Formatar arquivos modificados
-npx prettier --write <arquivo>
+### 6.2 Multijanela
 
-# Testes (Vitest)
-pnpm test
-```
+Assuma que qualquer visão tabular fiscal relevante pode ser destacada em nova janela via Tauri.
 
-> Não conclua nenhuma tarefa sem que `tsc --noEmit` e `pnpm lint` passem sem erros.
+Ao destacar uma visão, preservar:
 
----
+- contexto global
+- filtros
+- ordenação
+- colunas visíveis
+- visão ativa
 
-## 10. Convenções Gerais
+### 6.3 Estilo visual
 
-- **Nomes de funções:** `snake_case` descritivo. Ex: `gerar_tabela_documentos`, `calcular_fatores_conversao`.
-- **Arquivos SQL:** sempre em `sql/`, carregados via `src/utilitarios/ler_sql.py`.
-- **Logs:** usar `src/transformacao/auxiliares/logs.py` para logs estruturados no ETL.
-- **Paths:** usar `src/utilitarios/project_paths.py` para caminhos — nunca hardcodar strings absolutas.
-- **Parquet:** salvar via `src/utilitarios/salvar_para_parquet.py`; ler via `pl.scan_parquet()`.
-- **Rastreabilidade de fonte:** ao expor, consolidar ou documentar dados, sempre indicar de alguma forma a origem do dado, idealmente com a tabela/view do banco e a consulta ou dataset intermediário correspondente.
-- **Validação de schema:** `src/utilitarios/validacao_schema.py` antes de exportar qualquer tabela.
-- **CNPJ:** validação em `src/utilitarios/validar_cnpj.py`.
-- **Commits:** escopo claro por módulo. Nunca misturar mudanças de ETL com mudanças de UI no mesmo commit.
+- priorizar clareza e densidade de dados;
+- evitar excesso de painéis simultâneos;
+- evitar excesso de explicações longas na primeira dobra;
+- usar o mock aprovado como referência do shell principal.
+
+## 7. Regras de backend e arquitetura
+
+1. Preservar a abordagem Tauri + React + FastAPI.
+2. Reaproveitar backend, rotas e serviços existentes antes de reescrever.
+3. Reaproveitar datasets materializados antes de reextrair Oracle.
+4. Oracle deve ficar focado em extração atômica.
+5. Polars/Parquet devem concentrar joins, cruzamentos, cálculos e consolidações.
+6. Não mover lógica analítica pesada para o frontend.
+7. Não criar lógica de tela no Oracle.
+
+## 8. Regras de organização de código
+
+1. A árvore de `frontend/src/features/fiscal/` deve refletir a taxonomia oficial.
+2. Não manter módulos fiscais soltos fora do bloco a que pertencem.
+3. Evitar duplicidade entre navegação, store e contratos de API.
+4. Antes de criar novo serviço ou hook, revisar o que já existe.
+5. Antes de criar nova rota, verificar se um contrato tabular comum resolve o caso.
+
+## 9. Regra de bloqueio de escopo
+
+Enquanto o plano canônico de simplificação estiver ativo:
+
+- não abrir novas funcionalidades de negócio;
+- não criar nova taxonomia paralela;
+- não reintroduzir módulos técnicos na navegação fiscal principal;
+- não implementar Bloco K nesta primeira onda;
+- não quebrar Configuração, Acervo ou o modo de análise em lote.
+
+## 10. Formato esperado das respostas de análise
+
+Ao analisar qualquer item do projeto, responder com estes blocos:
+
+### BLOCO 1 — DIAGNÓSTICO TÉCNICO
+- estado atual confirmado
+- evidências observadas
+- status do item
+- lacunas
+- riscos de retrabalho ou conflito arquitetural
+- próxima ação recomendada
+
+### BLOCO 2 — IMPACTO NA EXPERIÊNCIA DO ANALISTA FISCAL
+- efeito na navegação
+- efeito na clareza visual
+- efeito no uso tabular
+- aderência aos três blocos
+- aderência ao contexto global
+- impacto na separação entre área fiscal e área técnica
+
+### BLOCO 3 — PLANO INCREMENTAL
+- menor próximo passo viável
+- dependências
+- ordem recomendada
+- critério de conclusão
+
+## 11. Tratamento de incerteza
+
+Sempre explicitar:
+
+- o que foi confirmado no código
+- o que foi confirmado apenas em documentação
+- o que foi inferido
+- o que ainda precisa ser validado
+
+## 12. Regra final
+
+O objetivo do projeto não é parecer uma plataforma de engenharia.
+O objetivo é permitir que o auditor fiscal escolha um contexto, abra uma visão e trabalhe sobre tabelas fiscais com velocidade, clareza e rastreabilidade.

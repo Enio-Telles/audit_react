@@ -1,71 +1,245 @@
-# Agent_SQL.md — Guia de Padrões e Boas Práticas de Banco de Dados
+# AGENTS_SQL.md — Guia canônico de SQL, Oracle e processamento analítico
 
-## 1. Identidade e Propósito
+Este documento define as regras obrigatórias para agentes que atuam na camada de extração Oracle, materialização Parquet e composição analítica em Polars no projeto `audit_react`.
 
-Este documento dita as normas e restrições fundamentais no armazenamento, arquitetura, design e consumo de dados baseados em SQL (Oracle) neste ecossistema PySide/React/Polars.
-Seja executando queries para tabelas isoladas ou consultas compostas do fluxo de **Dossiê**, siga *rigorosamente* as determinações deste guia.
+Objetivo central:
+extrair dados fiscais do Oracle de forma atômica e rápida, processar de forma otimizada em Polars/Parquet e alimentar um frontend tabular simples, guiado por contexto.
 
-### Prioridades Nucleares:
-1. **Abstração Limpa:** Todo SQL deve morar em um arquivo estático e unitário com extensão `.sql` na pasta `/sql`.
-2. **Sem concatenação string em Python:** Uso integral de *bind variables* seguras (`:CNPJ`, `:NOME`, `:IE`, `:DT_INICIO`).
-3. **Reuso de Catálogo:** Regra do cache-first antes de reescrever queries idênticas.
+## 1. Princípio fundamental
 
----
+O Oracle não é o lugar da experiência analítica final.
 
-## 2. Tratamento e Isolamento (Pasta `/sql`)
+O Oracle deve fornecer dados brutos e filtrados pelo contexto.
+A aplicação deve compor, cruzar, calcular e materializar os resultados reutilizáveis fora do banco.
 
-### 2.1 Regra do XML "Legacy"
-Não parsear logicamente os legados da SEFIN exportados do Oracle (como o antigo `dossie_nif.xml`). 
-**Diretriz de Conversão:**
-- Todo relatório ou *display block* legados de XML, PL/SQL Developer ou BUs deverão ser explicitamente destrinchados, copiando seu core puro e salvo em `/sql/nome_curto.sql`.
-- Substituições dos parâmetros legados via sintaxe de dois pontos (ex: substitua `?` ou tags XML para os binds universais deste sistema).
+## 2. Regra do contexto
 
-### 2.2 Estrutura e Nomenclatura no Dossiê
-O `dossie_catalog.py` atua via resolução nominal, para isso deve-se usar os aliases definidos sem estressar IDs muito complicados.
-* Exemplo de queries para o fluxo Dossiê:
-  * `dossie_dados_cadastrais.sql`
-  * `dossie_enderecos.sql`
-  * `dossie_historico_socios.sql`
+Toda extração e toda composição devem respeitar o contexto de execução.
 
----
+Contextos suportados:
 
-## 3. Especificações e Sintaxe de Bind Variables em Python
+- contexto por CNPJ
+- contexto de lote, quando aplicável ao fluxo específico
 
-O motor adotado (geralmente `cx_Oracle` ou `oracledb`) funciona com bind dinâmico via dicionário em tempo de driver, o que protege contra injeção e possibilita "pre-compilação" (caching) de planos de execução do lado do Oracle.
+Regras obrigatórias:
 
-* **❌ PROIBIDO:** `query = "SELECT * FROM bi.dm_pessoa WHERE cnpj = {}".format(cnpj)`
-* **❌ PROIBIDO:** `query = f"SELECT * FROM tb WHERE foo = '{x}'"`
-* **✅ OBRIGATÓRIO:** 
-   ```sql
-   SELECT a.cpf, b.empresa 
-   FROM bi.dm_pessoa a 
-   WHERE a.co_cnpj_cpf = :CNPJ
-   ```
+1. Não executar extrações abertas sem filtro de contexto quando o domínio exigir CNPJ ou lote.
+2. Não criar SQL que dependa de a UI pedir novamente um CNPJ fora do contexto global.
+3. Toda query recorrente deve estar preparada para receber bind variables de contexto.
 
-No backend (e.g. `ler_sql.py` e extrações com oracledb/cx_Oracle), você repassa em Python usando dicts. O driver mapeia automaticamente para as variáveis declaradas (evitando falhas por aspas vazias ou caracters estranhos):
-```python
-# Correto tratamento de Binds no Python
-params = {
-    "CNPJ": cnpj_pesquisado,
-    "ANO_MES_INICIO": "202301",
-    "ANO_MES_FIM": "202312"
-}
-cursor.execute(sql_puro, params)
+## 3. Papel do Oracle
+
+O Oracle deve concentrar apenas:
+
+- extração atômica por entidade
+- filtro por CNPJ, período e versão válida
+- recorte mínimo necessário
+- preservação de chaves técnicas e naturais
+- leitura estável e rastreável
+
+O Oracle não deve concentrar:
+
+- cruzamentos pesados entre domínios
+- consolidações anuais pesadas
+- cálculo de estoque final consolidado
+- cálculo de ICMS devido por competência
+- score, ranking e heurísticas analíticas
+- tabela final pronta para UX
+- descrições cosméticas de tela
+
+## 4. Regras obrigatórias de SQL
+
+### 4.1 Localização
+
+1. Todo SQL deve morar em arquivo estático `.sql` dentro de `sql/`.
+2. Não escrever SQL inline em Python quando puder viver no catálogo.
+3. O catálogo SQL continua sendo a única fonte de verdade das consultas.
+4. Queries novas devem ser orientadas à entidade e à granularidade, não ao nome da tela.
+
+### 4.2 Bind variables
+
+O acesso Oracle deve usar bind variables.
+
+Proibido:
+
+- interpolação por f-string
+- `.format()` para parâmetros
+- concatenação manual de valores na query
+
+Obrigatório:
+
+```sql
+SELECT *
+FROM efd_bloco_c
+WHERE cnpj_raiz = :CNPJ
+  AND periodo >= :PERIODO_INICIAL
+  AND periodo <= :PERIODO_FINAL
 ```
 
----
+### 4.3 Projeção mínima
 
-## 4. Integração Polars vs Oracle
+1. Evitar `SELECT *` em rotas recorrentes.
+2. Projetar apenas colunas necessárias para composição posterior.
+3. Sempre preservar as chaves necessárias para drill-down e rastreabilidade.
 
-Ao interagir entre banco relacional e in-memory dataset, a obtenção de dados maciços **não deve** materializar listas gigantes de dicionários em loops `for`.
-* Utilize `pl.read_database(query, connection, execute_options={"parameters": params})` como ponte nativa (por debaixo dos panos converte o iterador fetchmany via Arrow para alocações contíguas).
-* Queries do catálogo `Dossiê` usualmente resultam em pequenos retornos em linhas visíveis, porém o processamento do lado do SGBD pode ser custoso (joins imensos). Verifique sempre o uso de CTEs (Common Table Expressions) lógicas contendo cláusulas com `WHERE a.co_cnpj_cpf = :CNPJ` ou subqueries para isolar partições antes do Join.
+### 4.4 Janelas temporais
 
----
+1. Toda consulta recorrente deve ter filtro temporal explícito quando o domínio permitir.
+2. Evitar extrair movimentos, notas e estoque sem janela temporal quando isso gerar volume desnecessário.
+3. A data de corte da EFD deve ser respeitada no recorte de extração quando aplicável.
 
-## 5. Regra de Limites e Janelas Temporais
+## 5. Paradigma de extração simplificada
 
-Sempre que a lógica não impor explicitamente um intervalo, assuma que listagens contínuas (notas emitidas, estoque) dependem de uma trava para não causar *Timeouts* e saturamento de RAM.
-* O baseline de consultas da receita (onde não tipificado) usualmente não deve se alongar de forma aberta desde a década de noventa. Se houver filtro "por competência/referência", certifique-se da presença de `:ANO_MES_INICIO` até `:ANO_MES_FIM`.
-* Relatórios gerenciais cadastrais (`/dossie`) muitas vezes operam sem limite de tempo pois a agregação usualmente foca nas linhas mais recentes por CNPJ (ex: last status, historico situacao order by desc limit X ou `FETCH FIRST 100 ROWS ONLY`).
-* Prefira limitar as projeções (SELECT) diretamente; evite usar `SELECT *`. Sempre enumere as colunas explícitas que o modelo Python do Polars irá exigir no schema de Output.
+A abordagem correta do projeto é:
+
+1. extrair a base bruta do contexto;
+2. materializar em Parquet ou dataset reutilizável;
+3. compor em Polars;
+4. expor ao frontend por contratos tabulares estáveis.
+
+### Exemplo correto
+
+Bom:
+
+```sql
+SELECT
+  cnpj_raiz,
+  periodo,
+  chv_nfe,
+  cfop,
+  vl_opr,
+  vl_icms
+FROM efd_bloco_c
+WHERE cnpj_raiz = :CNPJ
+  AND periodo BETWEEN :PERIODO_INICIAL AND :PERIODO_FINAL
+```
+
+Depois, em Polars:
+
+- cruzar com documentos fiscais;
+- calcular agregações;
+- identificar inconsistências;
+- materializar dataset para tabela analítica.
+
+### Exemplo incorreto
+
+Ruim:
+
+```sql
+SELECT cnpj, ano, SUM(estoque_inicial + compras - vendas) AS estoque_final
+FROM efd_gigante a
+JOIN nfe_gigante b ON ...
+GROUP BY cnpj, ano
+```
+
+## 6. Papel do Polars e dos datasets materializados
+
+O Polars deve concentrar:
+
+- joins entre EFD e documentos
+- reconstituição de estoque mensal e anual
+- cálculo de ICMS devido por competência
+- identificação de inconsistências
+- ressarcimento ST
+- deduplicação por regra de negócio
+- tabelas finais de trabalho reutilizáveis
+- composição de datasets para o frontend tabular
+
+Regras obrigatórias:
+
+1. Reaproveitar datasets materializados antes de reconsultar Oracle.
+2. Favorecer cache-first.
+3. Evitar loops Python que materializam listas gigantes de dicionários.
+4. Preferir operações vetorizadas e composição em Polars.
+5. Preservar proveniência do dado materializado.
+
+## 7. Contratos para o frontend tabular
+
+O frontend alvo é um workbench orientado a tabelas.
+
+Portanto, toda saída relevante deve preservar, quando aplicável:
+
+- `dataset_id`
+- `bloco_fiscal`
+- `origem_dado`
+- `sql_id_origem`
+- `tabela_origem`
+- chaves técnicas e naturais
+- paginação
+- filtros aplicados
+- ordenação
+- colunas estáveis
+- metadados de proveniência
+
+Regras obrigatórias:
+
+1. Não embutir cosmética de tela no SQL.
+2. Não devolver payload opaco sem estrutura tabular reaproveitável.
+3. Quando houver conflito entre query bonita para a tela e dataset reutilizável, escolher o dataset reutilizável.
+4. O backend deve montar contratos estáveis para que a mesma tabela possa abrir em nova janela mantendo o contexto.
+
+## 8. Taxonomia funcional obrigatória
+
+As extrações e composições devem respeitar a taxonomia oficial do frontend.
+
+### EFD
+
+Primeira onda:
+
+- Bloco 0
+- Bloco C
+- Bloco H
+
+Regra obrigatória:
+
+- não implementar Bloco K nesta primeira onda.
+
+### Documentos Fiscais
+
+Primeira onda:
+
+- NF-e Emissão Própria
+- CT-e Transportes
+- Fisconforme
+- Sitafe / Fronteira
+
+### Análise Fiscal
+
+Primeira onda:
+
+- Cruzamento NF-e x EFD
+- Estoque Mensal
+- Estoque Anual
+- ICMS devido por competência
+- Produtos com inconsistências
+- Ressarcimento ST
+
+## 9. Regras de bloqueio de escopo
+
+Enquanto o plano canônico estiver ativo:
+
+- não criar novos domínios SQL fora da taxonomia oficial;
+- não mover cálculo analítico pesado para o Oracle;
+- não criar consultas orientadas à UI técnica antiga;
+- não abrir novas frentes de negócio;
+- não quebrar o reaproveitamento do modo lote/Fisconforme;
+- não substituir serviços maduros sem necessidade comprovada.
+
+## 10. Regras de rastreabilidade
+
+Toda transformação relevante deve manter rastreabilidade suficiente para auditoria.
+
+Sempre que fizer sentido, preservar:
+
+- chave do contribuinte
+- chave do documento
+- período
+- dataset materializado de origem
+- SQL de origem ou alias do catálogo
+- layer materializada
+- caminho do dataset quando aplicável
+
+## 11. Regra final
+
+O objetivo deste projeto não é produzir SQL impressionante.
+O objetivo é produzir extrações simples, rápidas e rastreáveis no Oracle e entregar, por Polars/Parquet, datasets corretos e reutilizáveis para um frontend fiscal tabular, simples e orientado por contexto.
