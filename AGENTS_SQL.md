@@ -1,71 +1,123 @@
-# Agent_SQL.md — Guia de Padrões e Boas Práticas de Banco de Dados
+# AGENTS_SQL.md - Guia de padroes SQL, Oracle e contratos analiticos
 
-## 1. Identidade e Propósito
+## 1. Identidade e proposito
 
-Este documento dita as normas e restrições fundamentais no armazenamento, arquitetura, design e consumo de dados baseados em SQL (Oracle) neste ecossistema PySide/React/Polars.
-Seja executando queries para tabelas isoladas ou consultas compostas do fluxo de **Dossiê**, siga *rigorosamente* as determinações deste guia.
+Este documento define as regras de arquitetura, escrita e consumo de SQL no projeto fiscal.
+Ele vale para extracoes Oracle, consultas de apoio ao Dossie, contratos reutilizaveis para Polars/Parquet e dados expostos ao frontend analitico.
 
-### Prioridades Nucleares:
-1. **Abstração Limpa:** Todo SQL deve morar em um arquivo estático e unitário com extensão `.sql` na pasta `/sql`.
-2. **Sem concatenação string em Python:** Uso integral de *bind variables* seguras (`:CNPJ`, `:NOME`, `:IE`, `:DT_INICIO`).
-3. **Reuso de Catálogo:** Regra do cache-first antes de reescrever queries idênticas.
+### Prioridades
 
----
+1. Corretude fiscal e rastreabilidade acima de conveniencia.
+2. SQL minima, atomica e reutilizavel.
+3. Cache-first e reaproveitamento de datasets antes de nova consulta ao Oracle.
+4. Joins, consolidacoes e regras analiticas preferencialmente fora do Oracle.
+5. Contratos estaveis para FastAPI, React e shell desktop.
 
-## 2. Tratamento e Isolamento (Pasta `/sql`)
+## 2. Regras estruturais para SQL
 
-### 2.1 Regra do XML "Legacy"
-Não parsear logicamente os legados da SEFIN exportados do Oracle (como o antigo `dossie_nif.xml`). 
-**Diretriz de Conversão:**
-- Todo relatório ou *display block* legados de XML, PL/SQL Developer ou BUs deverão ser explicitamente destrinchados, copiando seu core puro e salvo em `/sql/nome_curto.sql`.
-- Substituições dos parâmetros legados via sintaxe de dois pontos (ex: substitua `?` ou tags XML para os binds universais deste sistema).
+### 2.1 Localizacao e organizacao
 
-### 2.2 Estrutura e Nomenclatura no Dossiê
-O `dossie_catalog.py` atua via resolução nominal, para isso deve-se usar os aliases definidos sem estressar IDs muito complicados.
-* Exemplo de queries para o fluxo Dossiê:
-  * `dossie_dados_cadastrais.sql`
-  * `dossie_enderecos.sql`
-  * `dossie_historico_socios.sql`
+1. Todo SQL deve morar em arquivo estatico `.sql` dentro de `sql/`.
+2. Nao escrever SQL inline em Python quando a consulta puder viver no catalogo.
+3. Toda query nova deve ter nome curto, claro e orientado a entidade, nao a tela.
+4. SQL legada oriunda de XML, PL/SQL Developer ou export antigo deve ser destrinchada e salva como arquivo `.sql` independente.
 
----
+### 2.2 Nomenclatura
 
-## 3. Especificações e Sintaxe de Bind Variables em Python
+1. Preferir nomes por entidade e granularidade.
+2. Evitar nomes que descrevam apenas relatorio final ou tela final.
+3. No Dossie, respeitar os aliases do catalogo e da resolucao nominal.
 
-O motor adotado (geralmente `cx_Oracle` ou `oracledb`) funciona com bind dinâmico via dicionário em tempo de driver, o que protege contra injeção e possibilita "pre-compilação" (caching) de planos de execução do lado do Oracle.
+Exemplos validos:
 
-* **❌ PROIBIDO:** `query = "SELECT * FROM bi.dm_pessoa WHERE cnpj = {}".format(cnpj)`
-* **❌ PROIBIDO:** `query = f"SELECT * FROM tb WHERE foo = '{x}'"`
-* **✅ OBRIGATÓRIO:** 
-   ```sql
-   SELECT a.cpf, b.empresa 
-   FROM bi.dm_pessoa a 
-   WHERE a.co_cnpj_cpf = :CNPJ
-   ```
+- `dossie_dados_cadastrais.sql`
+- `dossie_enderecos.sql`
+- `dossie_historico_socios.sql`
+- `reg_c170_raw.sql`
+- `reg_c190_raw.sql`
 
-No backend (e.g. `ler_sql.py` e extrações com oracledb/cx_Oracle), você repassa em Python usando dicts. O driver mapeia automaticamente para as variáveis declaradas (evitando falhas por aspas vazias ou caracters estranhos):
+## 3. Bind variables e seguranca
+
+O acesso Oracle deve usar bind variables.
+
+### Proibido
+
+- `query = "SELECT * FROM bi.dm_pessoa WHERE cnpj = {}".format(cnpj)`
+- `query = f"SELECT * FROM tb WHERE foo = '{x}'"`
+
+### Obrigatorio
+
+```sql
+SELECT a.cpf, b.empresa
+FROM bi.dm_pessoa a
+WHERE a.co_cnpj_cpf = :CNPJ
+```
+
 ```python
-# Correto tratamento de Binds no Python
 params = {
     "CNPJ": cnpj_pesquisado,
     "ANO_MES_INICIO": "202301",
-    "ANO_MES_FIM": "202312"
+    "ANO_MES_FIM": "202312",
 }
 cursor.execute(sql_puro, params)
 ```
 
----
+## 4. Papel do Oracle vs Polars
 
-## 4. Integração Polars vs Oracle
+### O que deve ficar no Oracle
 
-Ao interagir entre banco relacional e in-memory dataset, a obtenção de dados maciços **não deve** materializar listas gigantes de dicionários em loops `for`.
-* Utilize `pl.read_database(query, connection, execute_options={"parameters": params})` como ponte nativa (por debaixo dos panos converte o iterador fetchmany via Arrow para alocações contíguas).
-* Queries do catálogo `Dossiê` usualmente resultam em pequenos retornos em linhas visíveis, porém o processamento do lado do SGBD pode ser custoso (joins imensos). Verifique sempre o uso de CTEs (Common Table Expressions) lógicas contendo cláusulas com `WHERE a.co_cnpj_cpf = :CNPJ` ou subqueries para isolar partições antes do Join.
+1. Extracao base por entidade.
+2. Filtro por CNPJ, periodo e versao valida.
+3. Preservacao de chaves tecnicas e naturais.
+4. Recortes minimos para reduzir custo de leitura.
 
----
+### O que deve sair do Oracle
 
-## 5. Regra de Limites e Janelas Temporais
+1. Join pesado entre dominios.
+2. Agregacao mensal ou anual.
+3. Score, ranking ou heuristica analitica.
+4. Deduplicacao por regra de negocio.
+5. Descricoes e campos montados apenas para UX.
+6. Tabela final de trabalho pronta para tela.
 
-Sempre que a lógica não impor explicitamente um intervalo, assuma que listagens contínuas (notas emitidas, estoque) dependem de uma trava para não causar *Timeouts* e saturamento de RAM.
-* O baseline de consultas da receita (onde não tipificado) usualmente não deve se alongar de forma aberta desde a década de noventa. Se houver filtro "por competência/referência", certifique-se da presença de `:ANO_MES_INICIO` até `:ANO_MES_FIM`.
-* Relatórios gerenciais cadastrais (`/dossie`) muitas vezes operam sem limite de tempo pois a agregação usualmente foca nas linhas mais recentes por CNPJ (ex: last status, historico situacao order by desc limit X ou `FETCH FIRST 100 ROWS ONLY`).
-* Prefira limitar as projeções (SELECT) diretamente; evite usar `SELECT *`. Sempre enumere as colunas explícitas que o modelo Python do Polars irá exigir no schema de Output.
+### Regra operacional
+
+Quando houver duvida entre resolver no Oracle ou no lake, preferir extrair a base granular e recompor em Polars.
+
+## 5. Integracao com Polars e datasets compartilhados
+
+1. Evitar materializar listas gigantes de dicionarios em loops.
+2. Preferir leitura orientada a dataset reutilizavel.
+3. Antes de reexecutar Oracle, verificar cache compartilhado e parquets canonicos.
+4. Queries base devem suportar composicao posterior por Polars sem perder rastreabilidade.
+
+## 6. Limites e janelas temporais
+
+1. Toda consulta recorrente deve ter filtro temporal explicito quando o dominio permitir.
+2. Evitar consulta aberta sem janela em movimentos, notas ou estoque.
+3. Preferir projetar apenas colunas necessarias.
+4. Evitar `SELECT *`.
+
+## 7. Contratos para frontend analitico
+
+O frontend alvo deve evoluir para uma interface minimalista no chrome, mas com o maximo possivel de recursos na visualizacao de tabelas.
+
+### Regras
+
+1. SQL e datasets nao devem embutir cosmetica de tela.
+2. O enriquecimento para UX deve acontecer no backend e no frontend, sem distorcer a base fiscal.
+3. Toda consulta candidata a alimentar grade analitica deve preservar colunas atomicas, e nao blocos textuais consolidados apenas para exibicao.
+4. Sempre que fizer sentido, manter nos contratos de saida:
+   - `origem_dado`
+   - `sql_id_origem`
+   - `tabela_origem`
+   - chaves tecnicas e naturais suficientes para drill-down
+5. Evitar nomes de colunas opacos ou descartaveis. A grade analitica depende de ordenacao, filtro, comparacao e exportacao sobre nomes estaveis.
+6. Nao mover para o Oracle logica de destaque visual, agrupamento de interface ou descricao pronta para tela.
+7. Quando uma consulta for base de workbench, priorizar colunas que suportem filtro avancado, ordenacao, comparacao, exportacao e rastreabilidade.
+8. Quando houver conflito entre SQL mais bonita para exibir e dataset mais reutilizavel, escolher o dataset mais reutilizavel.
+
+## 8. Regra final
+
+O objetivo nao e produzir SQL impressionante.
+O objetivo e produzir datasets corretos, rastreaveis, reutilizaveis e aptos a sustentar workbenches analiticos ricos com o menor custo possivel no Oracle.

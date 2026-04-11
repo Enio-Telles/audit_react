@@ -15,6 +15,15 @@ import { ConversaoTab } from "./components/tabs/ConversaoTab";
 import { EstoqueTab } from "./components/tabs/EstoqueTab";
 import { FisconformeTab } from "./components/tabs/FisconformeTab";
 import { LogsTab } from "./components/tabs/LogsTab";
+import { AnaliseFiscalTab } from "./features/fiscal/analise/AnaliseFiscalTab";
+import { CatalogoDatasetsTab } from "./features/fiscal/catalogo/CatalogoDatasetsTab";
+import { ConversaoFiscalTab } from "./features/fiscal/conversao/ConversaoFiscalTab";
+import { DocumentosFiscaisTab } from "./features/fiscal/documentos_fiscais/DocumentosFiscaisTab";
+import { EfdTab } from "./features/fiscal/efd/EfdTab";
+import { EstoqueFiscalTab } from "./features/fiscal/estoque/EstoqueFiscalTab";
+import { FiscalizacaoTab } from "./features/fiscal/fiscalizacao/FiscalizacaoTab";
+import { ProdutoMasterTab } from "./features/fiscal/produto_master/ProdutoMasterTab";
+import { RessarcimentoTab } from "./features/fiscal/ressarcimento/RessarcimentoTab";
 import { DossieTab } from "./features/dossie/components/DossieTab";
 import {
   ler_bootstrap_dossie_da_url,
@@ -30,9 +39,18 @@ const TABS = [
   { id: "dossie", label: "Dossiê" },
   { id: "consulta", label: "Consulta" },
   { id: "sql", label: "Consulta SQL" },
-  { id: "agregacao", label: "Agregacao" },
-  { id: "conversao", label: "Conversao" },
-  { id: "estoque", label: "Estoque" },
+  { id: "efd", label: "EFD" },
+  { id: "produto-master", label: "Produto Master" },
+  { id: "fiscal-conversao", label: "Conversão" },
+  { id: "fiscal-estoque", label: "Estoque" },
+  { id: "documentos-fiscais", label: "Documentos Fiscais" },
+  { id: "fiscalizacao", label: "Fiscalização" },
+  { id: "analise-fiscal", label: "Análise Fiscal" },
+  { id: "ressarcimento", label: "Ressarcimento" },
+  { id: "catalogo-datasets", label: "Catálogo Datasets" },
+  { id: "agregacao", label: "Agregação (legado)" },
+  { id: "conversao", label: "Conversão (legado)" },
+  { id: "estoque", label: "Estoque (legado)" },
   { id: "logs", label: "Logs" },
 ];
 
@@ -229,6 +247,15 @@ function MainContent() {
           )}
           {activeTab === "consulta" && <ConsultaTab />}
           {activeTab === "sql" && <ConsultaSqlTab />}
+          {activeTab === "efd" && <EfdTab />}
+          {activeTab === "produto-master" && <ProdutoMasterTab />}
+          {activeTab === "fiscal-conversao" && <ConversaoFiscalTab />}
+          {activeTab === "fiscal-estoque" && <EstoqueFiscalTab />}
+          {activeTab === "documentos-fiscais" && <DocumentosFiscaisTab />}
+          {activeTab === "fiscalizacao" && <FiscalizacaoTab />}
+          {activeTab === "analise-fiscal" && <AnaliseFiscalTab />}
+          {activeTab === "ressarcimento" && <RessarcimentoTab />}
+          {activeTab === "catalogo-datasets" && <CatalogoDatasetsTab />}
           {activeTab === "agregacao" && <AgregacaoTab />}
           {activeTab === "conversao" && <ConversaoTab />}
           {activeTab === "estoque" && <EstoqueTab />}

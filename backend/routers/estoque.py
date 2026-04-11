@@ -11,7 +11,7 @@ import polars as pl
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from interface_grafica.config import CNPJ_ROOT
+from utilitarios.project_paths import CNPJ_ROOT
 
 router = APIRouter()
 

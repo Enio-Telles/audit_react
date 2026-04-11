@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: audit-react
+    orgId: 1
+    folder: Audit React
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

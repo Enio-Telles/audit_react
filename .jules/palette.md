@@ -1,0 +1,3 @@
+## 2024-05-18 - Missing loading and disabled states on primary action buttons
+**Learning:** The main primary action buttons (like "Extrair + Processar") were missing loading text, `disabled` conditions mapped to their underlying mutations, and `aria-busy` attributes, which allowed for multiple submissions and confused users using screen readers. Furthermore, common button classes lack proper focus indicators.
+**Action:** Always map primary asynchronous actions to their respective `isPending` states to disable the button, update its text, provide `aria-busy` indicators, and verify `btnCls` patterns include `focus-visible` outline utilities for keyboard accessibility.

@@ -10,11 +10,14 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from pydantic import BaseModel
 
-from interface_grafica.services.dossie_catalog import listar_secoes_dossie
-from interface_grafica.services.dossie_catalog import obter_secao_dossie
-from interface_grafica.services.dossie_catalog import listar_sql_prioritarias
-from interface_grafica.services.dossie_resolution import resolver_secao_dossie
-from interface_grafica.services.dossie_extraction_service import obter_caminho_historico_comparacao_contato
+from services.dossie_service import (
+    executar_sync_secao,
+    listar_secoes_dossie,
+    listar_sql_prioritarias,
+    obter_caminho_historico_comparacao_contato,
+    obter_secao_dossie,
+    resolver_secao_dossie,
+)
 from utilitarios.project_paths import CNPJ_ROOT
 
 router = APIRouter()
@@ -657,8 +660,6 @@ async def sincronizar_secao_dossie(
     payload: SyncDossieRequest | None = None,
 ):
     """Centraliza a sincronizacao do dossie para manter os contratos compativeis."""
-
-    from interface_grafica.services.dossie_extraction_service import executar_sync_secao
 
     parametros = payload.parametros if payload else None
     cnpj_normalizado = normalizar_cnpj(cnpj)

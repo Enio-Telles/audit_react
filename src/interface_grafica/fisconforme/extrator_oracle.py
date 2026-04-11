@@ -25,7 +25,7 @@ from decimal import Decimal
 import polars as pl
 import pyarrow.parquet as pq
 
-from interface_grafica.services.sql_service import SqlService
+from utilitarios.sql_service import SqlService
 
 # Configuração de logging
 logging.basicConfig(
