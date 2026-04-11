@@ -1,22 +1,36 @@
-import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   FilterItem,
   HighlightRule,
   ParquetFile,
   PipelineStatus,
-} from '../api/types';
+} from "../api/types";
 import type {
   DossieTableProfile,
   DossieViewMode,
-} from '../features/dossie/utils/dossie_helpers';
+} from "../features/dossie/utils/dossie_helpers";
 
-export type AppMode = 'audit' | 'fisconforme' | null;
+export type AppMode = "audit" | "fisconforme" | null;
+export type ContextMode = "cnpj" | "lote";
+export type FiscalDomain =
+  | "efd"
+  | "documentos-fiscais"
+  | "analise-fiscal"
+  | "configuracao-acervo";
 
 interface AppStore {
   // App mode (null = landing page)
   appMode: AppMode;
   setAppMode: (mode: AppMode) => void;
+
+  // Global context
+  contextMode: ContextMode;
+  setContextMode: (mode: ContextMode) => void;
+  contextPeriodo: string;
+  setContextPeriodo: (periodo: string) => void;
+  efdCutoffDate: string;
+  setEfdCutoffDate: (date: string) => void;
 
   // CNPJ selection
   selectedCnpj: string | null;
@@ -26,7 +40,13 @@ interface AppStore {
   selectedFile: ParquetFile | null;
   setSelectedFile: (file: ParquetFile | null) => void;
 
-  // Active tab
+  // Shell navigation
+  activeDomain: FiscalDomain;
+  setActiveDomain: (domain: FiscalDomain) => void;
+  activeSubItem: string;
+  setActiveSubItem: (item: string) => void;
+
+  // Legacy active tab compatibility
   activeTab: string;
   setActiveTab: (tab: string) => void;
 
@@ -87,7 +107,11 @@ interface AppStore {
   setDossieUsarSqlConsolidadoContato: (enabled: boolean) => void;
   dossieSectionTableStateById: Record<
     string,
-    { sortBy: string | null; sortDesc: boolean; columnFilters: Record<string, string> }
+    {
+      sortBy: string | null;
+      sortDesc: boolean;
+      columnFilters: Record<string, string>;
+    }
   >;
   setDossieSectionSort: (
     sectionKey: string,
@@ -102,191 +126,215 @@ interface AppStore {
   clearDossieSectionColumnFilters: (sectionKey: string) => void;
 }
 
+function buildConsultaResetState() {
+  return {
+    consultaPage: 1,
+    consultaFilters: [],
+    consultaVisibleCols: [],
+    consultaSort: null,
+    consultaColumnFilters: {},
+    consultaHiddenCols: new Set<string>(),
+  };
+}
+
 export const useAppStore = create<AppStore>()(
   persist(
     (set) => ({
-  appMode: null,
-  setAppMode: (mode) => set({ appMode: mode }),
+      appMode: null,
+      setAppMode: (mode) => set({ appMode: mode }),
 
-  selectedCnpj: null,
-  setSelectedCnpj: (cnpj) =>
-    set({
-      selectedCnpj: cnpj,
+      contextMode: "cnpj",
+      setContextMode: (mode) => set({ contextMode: mode }),
+      contextPeriodo: "",
+      setContextPeriodo: (periodo) => set({ contextPeriodo: periodo }),
+      efdCutoffDate: "",
+      setEfdCutoffDate: (date) => set({ efdCutoffDate: date }),
+
+      selectedCnpj: null,
+      setSelectedCnpj: (cnpj) =>
+        set({
+          selectedCnpj: cnpj,
+          contextMode: cnpj ? "cnpj" : "cnpj",
+          selectedFile: null,
+          ...buildConsultaResetState(),
+        }),
+
       selectedFile: null,
-      consultaPage: 1,
+      setSelectedFile: (file) =>
+        set({
+          selectedFile: file,
+          ...buildConsultaResetState(),
+        }),
+
+      activeDomain: "efd",
+      setActiveDomain: (domain) => set({ activeDomain: domain }),
+      activeSubItem: "bloco-c",
+      setActiveSubItem: (item) => set({ activeSubItem: item }),
+
+      activeTab: "consulta",
+      setActiveTab: (tab) => set({ activeTab: tab }),
+
       consultaFilters: [],
-      consultaVisibleCols: [],
-      consultaSort: null,
-      consultaColumnFilters: {},
-      consultaHiddenCols: new Set<string>(),
-    }),
+      addConsultaFilter: (f) =>
+        set((s) => ({ consultaFilters: [...s.consultaFilters, f] })),
+      removeConsultaFilter: (idx) =>
+        set((s) => ({
+          consultaFilters: s.consultaFilters.filter((_, i) => i !== idx),
+        })),
+      clearConsultaFilters: () => set({ consultaFilters: [] }),
 
-  selectedFile: null,
-  setSelectedFile: (file) =>
-    set({
-      selectedFile: file,
+      consultaVisibleCols: [],
+      setConsultaVisibleCols: (cols) => set({ consultaVisibleCols: cols }),
+
       consultaPage: 1,
-      consultaFilters: [],
-      consultaVisibleCols: [],
+      setConsultaPage: (p) => set({ consultaPage: p }),
+
       consultaSort: null,
+      setConsultaSort: (s) => set({ consultaSort: s }),
+
       consultaColumnFilters: {},
+      setConsultaColumnFilter: (col, val) =>
+        set((s) => ({
+          consultaColumnFilters: { ...s.consultaColumnFilters, [col]: val },
+        })),
+      clearConsultaColumnFilters: () => set({ consultaColumnFilters: {} }),
+
       consultaHiddenCols: new Set<string>(),
-    }),
+      setConsultaHiddenCol: (col, visible) =>
+        set((s) => {
+          const next = new Set(s.consultaHiddenCols);
+          if (visible) next.delete(col);
+          else next.add(col);
+          return { consultaHiddenCols: next };
+        }),
+      resetConsultaHiddenCols: () =>
+        set({ consultaHiddenCols: new Set<string>() }),
 
-  activeTab: 'consulta',
-  setActiveTab: (tab) => set({ activeTab: tab }),
+      consultaHighlightRules: [],
+      addConsultaHighlightRule: (r) =>
+        set((s) => ({
+          consultaHighlightRules: [...s.consultaHighlightRules, r],
+        })),
+      removeConsultaHighlightRule: (i) =>
+        set((s) => ({
+          consultaHighlightRules: s.consultaHighlightRules.filter(
+            (_, idx) => idx !== i,
+          ),
+        })),
 
-  consultaFilters: [],
-  addConsultaFilter: (f) =>
-    set((s) => ({ consultaFilters: [...s.consultaFilters, f] })),
-  removeConsultaFilter: (idx) =>
-    set((s) => ({
-      consultaFilters: s.consultaFilters.filter((_, i) => i !== idx),
-    })),
-  clearConsultaFilters: () => set({ consultaFilters: [] }),
+      selectedConsultas: null,
+      setSelectedConsultas: (ids) => set({ selectedConsultas: ids }),
 
-  consultaVisibleCols: [],
-  setConsultaVisibleCols: (cols) => set({ consultaVisibleCols: cols }),
+      leftPanelVisible: true,
+      toggleLeftPanel: () =>
+        set((s) => ({ leftPanelVisible: !s.leftPanelVisible })),
 
-  consultaPage: 1,
-  setConsultaPage: (p) => set({ consultaPage: p }),
-
-  consultaSort: null,
-  setConsultaSort: (s) => set({ consultaSort: s }),
-
-  consultaColumnFilters: {},
-  setConsultaColumnFilter: (col, val) =>
-    set((s) => ({
-      consultaColumnFilters: { ...s.consultaColumnFilters, [col]: val },
-    })),
-  clearConsultaColumnFilters: () => set({ consultaColumnFilters: {} }),
-
-  consultaHiddenCols: new Set<string>(),
-  setConsultaHiddenCol: (col, visible) =>
-    set((s) => {
-      const next = new Set(s.consultaHiddenCols);
-      if (visible) next.delete(col);
-      else next.add(col);
-      return { consultaHiddenCols: next };
-    }),
-  resetConsultaHiddenCols: () =>
-    set({ consultaHiddenCols: new Set<string>() }),
-
-  consultaHighlightRules: [],
-  addConsultaHighlightRule: (r) =>
-    set((s) => ({
-      consultaHighlightRules: [...s.consultaHighlightRules, r],
-    })),
-  removeConsultaHighlightRule: (i) =>
-    set((s) => ({
-      consultaHighlightRules: s.consultaHighlightRules.filter(
-        (_, idx) => idx !== i,
-      ),
-    })),
-
-  selectedConsultas: null,
-  setSelectedConsultas: (ids) => set({ selectedConsultas: ids }),
-
-  leftPanelVisible: true,
-  toggleLeftPanel: () =>
-    set((s) => ({ leftPanelVisible: !s.leftPanelVisible })),
-
-  pipelineWatchCnpj: null,
-  pipelineStatus: null,
-  pipelinePolling: false,
-  startPipelineMonitor: (cnpj, status) =>
-    set({
-      pipelineWatchCnpj: cnpj,
-      pipelineStatus: status,
-      pipelinePolling: true,
-    }),
-  updatePipelineStatus: (status) =>
-    set({
-      pipelineStatus: status,
-      pipelinePolling:
-        status?.status === 'done' || status?.status === 'error' ? false : true,
-    }),
-  stopPipelineMonitor: () =>
-    set({
+      pipelineWatchCnpj: null,
+      pipelineStatus: null,
       pipelinePolling: false,
-    }),
+      startPipelineMonitor: (cnpj, status) =>
+        set({
+          pipelineWatchCnpj: cnpj,
+          pipelineStatus: status,
+          pipelinePolling: true,
+        }),
+      updatePipelineStatus: (status) =>
+        set({
+          pipelineStatus: status,
+          pipelinePolling:
+            status?.status === "done" || status?.status === "error"
+              ? false
+              : true,
+        }),
+      stopPipelineMonitor: () =>
+        set({
+          pipelinePolling: false,
+        }),
 
-  dossieViewMode: 'executivo',
-  setDossieViewMode: (mode) => set({ dossieViewMode: mode }),
+      dossieViewMode: "executivo",
+      setDossieViewMode: (mode) => set({ dossieViewMode: mode }),
 
-  dossieTableProfile: 'compacto',
-  setDossieTableProfile: (profile) => set({ dossieTableProfile: profile }),
+      dossieTableProfile: "compacto",
+      setDossieTableProfile: (profile) => set({ dossieTableProfile: profile }),
 
-  dossieUsarSqlConsolidadoContato: false,
-  setDossieUsarSqlConsolidadoContato: (enabled) =>
-    set({ dossieUsarSqlConsolidadoContato: enabled }),
+      dossieUsarSqlConsolidadoContato: false,
+      setDossieUsarSqlConsolidadoContato: (enabled) =>
+        set({ dossieUsarSqlConsolidadoContato: enabled }),
 
-  dossieSectionTableStateById: {},
-  setDossieSectionSort: (sectionKey, sortBy, sortDesc) =>
-    set((state) => {
-      const atual = state.dossieSectionTableStateById[sectionKey] ?? {
-        sortBy: null,
-        sortDesc: false,
-        columnFilters: {},
-      };
-      return {
-        dossieSectionTableStateById: {
-          ...state.dossieSectionTableStateById,
-          [sectionKey]: {
-            ...atual,
-            sortBy,
-            sortDesc,
-          },
-        },
-      };
-    }),
-  setDossieSectionColumnFilter: (sectionKey, column, value) =>
-    set((state) => {
-      const atual = state.dossieSectionTableStateById[sectionKey] ?? {
-        sortBy: null,
-        sortDesc: false,
-        columnFilters: {},
-      };
-      return {
-        dossieSectionTableStateById: {
-          ...state.dossieSectionTableStateById,
-          [sectionKey]: {
-            ...atual,
-            columnFilters: {
-              ...atual.columnFilters,
-              [column]: value,
-            },
-          },
-        },
-      };
-    }),
-  clearDossieSectionColumnFilters: (sectionKey) =>
-    set((state) => {
-      const atual = state.dossieSectionTableStateById[sectionKey] ?? {
-        sortBy: null,
-        sortDesc: false,
-        columnFilters: {},
-      };
-      return {
-        dossieSectionTableStateById: {
-          ...state.dossieSectionTableStateById,
-          [sectionKey]: {
-            ...atual,
+      dossieSectionTableStateById: {},
+      setDossieSectionSort: (sectionKey, sortBy, sortDesc) =>
+        set((state) => {
+          const atual = state.dossieSectionTableStateById[sectionKey] ?? {
+            sortBy: null,
+            sortDesc: false,
             columnFilters: {},
-          },
-        },
-      };
+          };
+          return {
+            dossieSectionTableStateById: {
+              ...state.dossieSectionTableStateById,
+              [sectionKey]: {
+                ...atual,
+                sortBy,
+                sortDesc,
+              },
+            },
+          };
+        }),
+      setDossieSectionColumnFilter: (sectionKey, column, value) =>
+        set((state) => {
+          const atual = state.dossieSectionTableStateById[sectionKey] ?? {
+            sortBy: null,
+            sortDesc: false,
+            columnFilters: {},
+          };
+          return {
+            dossieSectionTableStateById: {
+              ...state.dossieSectionTableStateById,
+              [sectionKey]: {
+                ...atual,
+                columnFilters: {
+                  ...atual.columnFilters,
+                  [column]: value,
+                },
+              },
+            },
+          };
+        }),
+      clearDossieSectionColumnFilters: (sectionKey) =>
+        set((state) => {
+          const atual = state.dossieSectionTableStateById[sectionKey] ?? {
+            sortBy: null,
+            sortDesc: false,
+            columnFilters: {},
+          };
+          return {
+            dossieSectionTableStateById: {
+              ...state.dossieSectionTableStateById,
+              [sectionKey]: {
+                ...atual,
+                columnFilters: {},
+              },
+            },
+          };
+        }),
     }),
-}),
     {
-      name: 'fiscal-parquet-app-store',
+      name: "fiscal-parquet-app-store",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         appMode: state.appMode,
+        contextMode: state.contextMode,
+        contextPeriodo: state.contextPeriodo,
+        efdCutoffDate: state.efdCutoffDate,
+        selectedCnpj: state.selectedCnpj,
         leftPanelVisible: state.leftPanelVisible,
+        activeDomain: state.activeDomain,
+        activeSubItem: state.activeSubItem,
+        activeTab: state.activeTab,
         dossieViewMode: state.dossieViewMode,
         dossieTableProfile: state.dossieTableProfile,
-        dossieUsarSqlConsolidadoContato: state.dossieUsarSqlConsolidadoContato,
+        dossieUsarSqlConsolidadoContato:
+          state.dossieUsarSqlConsolidadoContato,
         dossieSectionTableStateById: state.dossieSectionTableStateById,
       }),
     },
