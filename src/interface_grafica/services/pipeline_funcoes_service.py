@@ -145,7 +145,7 @@ class ServicoExtracao:
         else:
             candidatos = [Path(consultas_dir)]
 
-        self.consultas_dirs = [diretorio for idx, diretorio in enumerate(candidatos) if diretorio not in candidatos[:idx]]
+        self.consultas_dirs = list(dict.fromkeys(candidatos))
         self.consultas_dir = self.consultas_dirs[0] if self.consultas_dirs else SQL_DIR
         self.cnpj_root = cnpj_root
 
