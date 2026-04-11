@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cnpjApi, pipelineApi, sqlApi } from "../../api/client";
 import { useAppStore } from "../../store/appStore";
+import { ExtractionApproachSelector, type ExtractionApproach } from "../pipeline/ExtractionApproachSelector";
 import { ExtrairSelecaoModal } from "../modals/ExtrairSelecaoModal";
 import { GerenciarConsultasModal } from "../modals/GerenciarConsultasModal";
 import { GerenciarCnpjModal } from "../modals/GerenciarCnpjModal";
@@ -34,6 +35,7 @@ export function LeftPanel() {
   const [showSqlSelector, setShowSqlSelector] = useState(false);
   const [showExtrairModal, setShowExtrairModal] = useState(false);
   const [showGerenciarModal, setShowGerenciarModal] = useState(false);
+  const [selectedApproach, setSelectedApproach] = useState<ExtractionApproach>("full");
   const [gerenciarCnpj, setGerenciarCnpj] = useState<{
     cnpj: string;
     razaoSocial: string | null;
@@ -93,7 +95,7 @@ export function LeftPanel() {
     return selectedCnpj;
   };
 
-  const runPipeline = async (modo: "full" | "extract" | "process") => {
+  const runPipeline = async (modo: ExtractionApproach) => {
     const cnpj = await ensureSelectedCnpj();
     if (!cnpj) return;
 
@@ -170,6 +172,25 @@ export function LeftPanel() {
         ? "bg-rose-500"
         : "bg-blue-500";
 
+  const consultasResumo = useMemo(() => {
+    if (selectedConsultas === null) {
+      return `todas (${sqlFiles.length})`;
+    }
+    return `${selectedConsultas.length} de ${sqlFiles.length}`;
+  }, [selectedConsultas, sqlFiles.length]);
+
+  const runLabel =
+    selectedApproach === "full"
+      ? "Executar extração + processamento"
+      : selectedApproach === "extract"
+        ? "Executar somente extração"
+        : "Executar somente processamento";
+
+  const approachNote =
+    selectedApproach === "process"
+      ? "Esta abordagem reaproveita o que já está materializado no CNPJ e ignora data limite e consultas SQL."
+      : `Esta abordagem vai usar consultas ${consultasResumo} e data limite ${dataLimite}.`;
+
   const sectionCls = "border border-slate-700 rounded p-2 mb-3";
   const sectionTitleCls =
     "text-xs text-slate-400 font-semibold mb-2 uppercase tracking-wide";
@@ -204,18 +225,7 @@ export function LeftPanel() {
             }
           }}
         />
-        <div className="flex gap-1 mb-2">
-          <button
-            className={
-              btnCls + " flex-1 bg-blue-700 hover:bg-blue-600 text-white"
-            }
-            onClick={() => void runPipeline("full")}
-            disabled={(!selectedCnpj && !newCnpj.trim()) || pipelinePolling || addMutation.isPending}
-            aria-busy={pipelinePolling || addMutation.isPending}
-          >
-            {pipelinePolling || addMutation.isPending ? "Processando..." : "Extrair + Processar"}
-          </button>
-        </div>
+
         <div className="flex items-center gap-2 mb-2">
           <label htmlFor="input-data-limite" className="text-xs text-slate-400">
             Data limite EFD:
@@ -227,60 +237,80 @@ export function LeftPanel() {
             onChange={(e) => setDataLimite(e.target.value)}
           />
         </div>
-        <div className="grid grid-cols-2 gap-1">
+
+        <div className="mb-2 text-[11px] text-slate-500">
+          Realidade atual do código: o frontend só dispara três modos reais do pipeline — extrair + processar, somente extrair ou somente processar.
+        </div>
+
+        <ExtractionApproachSelector
+          selectedApproach={selectedApproach}
+          onSelect={setSelectedApproach}
+          consultasResumo={consultasResumo}
+          dataLimite={dataLimite}
+        />
+
+        <div className="mt-2 rounded-xl border border-slate-800 bg-slate-950/30 p-2 text-[11px] text-slate-400">
+          {approachNote}
+        </div>
+
+        <div className="mt-2 grid grid-cols-1 gap-2">
           <button
-            className={
-              btnCls + " bg-slate-700 hover:bg-slate-600 text-slate-200"
-            }
-            onClick={() => setShowExtrairModal(true)}
-            disabled={(!selectedCnpj && !newCnpj.trim()) || pipelinePolling}
+            className={btnCls + " bg-blue-700 hover:bg-blue-600 text-white"}
+            onClick={() => void runPipeline(selectedApproach)}
+            disabled={(!selectedCnpj && !newCnpj.trim()) || pipelinePolling || addMutation.isPending}
+            aria-busy={pipelinePolling || addMutation.isPending}
           >
-            Extrair Tabelas Brutas
-          </button>
-          <button
-            className={
-              btnCls + " bg-slate-700 hover:bg-slate-600 text-slate-200"
-            }
-            onClick={() => void runPipeline("process")}
-            disabled={(!selectedCnpj && !newCnpj.trim()) || pipelinePolling}
-          >
-            {pipelinePolling ? "Processando..." : "Processamento"}
+            {pipelinePolling || addMutation.isPending ? "Processando..." : runLabel}
           </button>
 
-          <button
-            className={
-              btnCls + " bg-slate-700 hover:bg-slate-600 text-slate-200"
-            }
-            onClick={() => {
-              void queryClient.invalidateQueries({ queryKey: ["cnpjs"] });
-              if (selectedCnpj) {
-                void queryClient.invalidateQueries({
-                  queryKey: ["files", selectedCnpj],
-                });
-              }
-            }}
-          >
-            Atualizar lista
-          </button>
-          <button
-            className={
-              btnCls + " bg-slate-700 hover:bg-slate-600 text-slate-200"
-            }
-          >
-            Abrir pasta
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              className={btnCls + " bg-slate-700 hover:bg-slate-600 text-slate-200"}
+              onClick={() => setShowExtrairModal(true)}
+              disabled={pipelinePolling}
+            >
+              Seleção guiada SQL
+            </button>
+            <button
+              className={btnCls + " bg-slate-700 hover:bg-slate-600 text-slate-200"}
+              onClick={() => setShowGerenciarModal(true)}
+            >
+              Gerenciar consultas
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1">
+            <button
+              className={btnCls + " bg-slate-700 hover:bg-slate-600 text-slate-200"}
+              onClick={() => {
+                void queryClient.invalidateQueries({ queryKey: ["cnpjs"] });
+                if (selectedCnpj) {
+                  void queryClient.invalidateQueries({
+                    queryKey: ["files", selectedCnpj],
+                  });
+                }
+              }}
+            >
+              Atualizar lista
+            </button>
+            <button
+              className={btnCls + " bg-slate-700 hover:bg-slate-600 text-slate-200"}
+            >
+              Abrir pasta
+            </button>
+          </div>
         </div>
 
         {/* SQL query selector */}
-        <div className="mt-1 border border-slate-700 rounded text-xs">
+        <div className="mt-2 border border-slate-700 rounded text-xs">
           <button
             className="w-full flex items-center justify-between px-2 py-1.5 text-slate-300 hover:bg-slate-700 rounded"
             onClick={() => setShowSqlSelector((s) => !s)}
           >
             <span>
               {selectedConsultas === null
-                ? `Consultas SQL: todas (${sqlFiles.length})`
-                : `Consultas SQL: ${selectedConsultas.length} de ${sqlFiles.length}`}
+                ? `Consultas SQL da extração: todas (${sqlFiles.length})`
+                : `Consultas SQL da extração: ${selectedConsultas.length} de ${sqlFiles.length}`}
             </span>
             <span className="text-slate-500">
               {showSqlSelector ? "▲" : "▼"}
@@ -288,6 +318,9 @@ export function LeftPanel() {
           </button>
           {showSqlSelector && (
             <div className="border-t border-slate-700 p-1.5">
+              <div className="mb-1 text-[10px] text-slate-500">
+                Essas consultas são usadas pelas abordagens <span className="text-slate-300">Extrair + Processar</span> e <span className="text-slate-300">Somente Extração</span>.
+              </div>
               <div className="flex gap-1 mb-1.5 flex-wrap">
                 <button
                   className="px-1.5 py-0.5 rounded bg-blue-800 hover:bg-blue-700 text-blue-100 text-[10px]"
@@ -300,13 +333,6 @@ export function LeftPanel() {
                   onClick={() => setSelectedConsultas([])}
                 >
                   Nenhuma
-                </button>
-                <button
-                  className="px-1.5 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-slate-300 text-[10px] ml-auto"
-                  onClick={() => setShowGerenciarModal(true)}
-                  title="Adicionar ou excluir consultas"
-                >
-                  ⚙ Gerenciar
                 </button>
               </div>
               <div
@@ -511,9 +537,9 @@ export function LeftPanel() {
           onConfirm={(sel) => {
             setSelectedConsultas(sel);
             setShowExtrairModal(false);
-            void runPipeline("extract");
           }}
           sqlFiles={sqlFiles}
+          confirmLabel="Aplicar seleção"
         />
       )}
 
