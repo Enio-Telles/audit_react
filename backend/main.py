@@ -43,6 +43,7 @@ from routers import (
     fiscal_ressarcimento,
     fiscal_summary,
     fisconforme,
+    frontend_primeira_leva,
     observabilidade,
     oracle,
     parquet,
@@ -145,6 +146,11 @@ app.include_router(
     fiscal_documentos.router,
     prefix="/api/fiscal/documentos",
     tags=["fiscal-documentos"],
+)
+app.include_router(
+    frontend_primeira_leva.router,
+    prefix="/api/frontend",
+    tags=["frontend-primeira-leva"],
 )
 app.include_router(
     fiscal_fiscalizacao.router,
