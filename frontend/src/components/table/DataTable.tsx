@@ -136,8 +136,22 @@ function moverColunaNaOrdem(
   return proximaOrdem;
 }
 
+interface CompiledHighlightRule extends HighlightRule {
+  _vLower?: string;
+  _vFloat?: number;
+}
+
+function compileRule(rule: HighlightRule): CompiledHighlightRule {
+  const compiled: CompiledHighlightRule = { ...rule };
+  if (rule.value) {
+    compiled._vLower = rule.value.toLowerCase();
+    compiled._vFloat = parseFloat(rule.value.replace(",", "."));
+  }
+  return compiled;
+}
+
 function matchesRule(
-  rule: HighlightRule,
+  rule: CompiledHighlightRule,
   row: Record<string, unknown>,
 ): boolean {
   const cellVal = String(row[rule.column] ?? "");
@@ -146,14 +160,15 @@ function matchesRule(
     case "igual":
       return cellVal === v;
     case "contem":
-      return cellVal.toLowerCase().includes(v.toLowerCase());
+      if (!rule._vLower) return cellVal.toLowerCase().includes(v.toLowerCase());
+      return cellVal.toLowerCase().includes(rule._vLower);
     case "maior":
       return (
-        parseFloat(cellVal.replace(",", ".")) > parseFloat(v.replace(",", "."))
+        parseFloat(cellVal.replace(",", ".")) > (rule._vFloat ?? parseFloat(v.replace(",", ".")))
       );
     case "menor":
       return (
-        parseFloat(cellVal.replace(",", ".")) < parseFloat(v.replace(",", "."))
+        parseFloat(cellVal.replace(",", ".")) < (rule._vFloat ?? parseFloat(v.replace(",", ".")))
       );
     case "e_nulo":
       return cellVal === "" || cellVal === "null" || cellVal === "undefined";
@@ -318,11 +333,11 @@ export function DataTable({
   };
 
   const rowRules = useMemo(
-    () => (highlightRules ?? []).filter((r) => r.type === "row"),
+    () => (highlightRules ?? []).filter((r) => r.type === "row").map(compileRule),
     [highlightRules],
   );
   const colRules = useMemo(
-    () => (highlightRules ?? []).filter((r) => r.type === "column"),
+    () => (highlightRules ?? []).filter((r) => r.type === "column").map(compileRule),
     [highlightRules],
   );
 
