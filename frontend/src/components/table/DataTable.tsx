@@ -15,6 +15,11 @@ import {
 } from "@tanstack/react-table";
 import type { HighlightRule } from "../../api/types";
 
+interface CompiledHighlightRule extends HighlightRule {
+  valueLower: string;
+  valueFloat: number;
+}
+
 interface DataTableProps {
   columns: string[];
   appearanceKey?: string;
@@ -137,24 +142,20 @@ function moverColunaNaOrdem(
 }
 
 function matchesRule(
-  rule: HighlightRule,
+  rule: CompiledHighlightRule,
   row: Record<string, unknown>,
 ): boolean {
   const cellVal = String(row[rule.column] ?? "");
-  const v = rule.value ?? "";
+
   switch (rule.operator) {
     case "igual":
-      return cellVal === v;
+      return cellVal === (rule.value ?? "");
     case "contem":
-      return cellVal.toLowerCase().includes(v.toLowerCase());
+      return cellVal.toLowerCase().includes(rule.valueLower);
     case "maior":
-      return (
-        parseFloat(cellVal.replace(",", ".")) > parseFloat(v.replace(",", "."))
-      );
+      return parseFloat(cellVal.replace(",", ".")) > rule.valueFloat;
     case "menor":
-      return (
-        parseFloat(cellVal.replace(",", ".")) < parseFloat(v.replace(",", "."))
-      );
+      return parseFloat(cellVal.replace(",", ".")) < rule.valueFloat;
     case "e_nulo":
       return cellVal === "" || cellVal === "null" || cellVal === "undefined";
     case "nao_e_nulo":
@@ -317,13 +318,21 @@ export function DataTable({
     return s.desc ? "v" : "^";
   };
 
+  const compiledHighlightRules = useMemo(() => {
+    return (highlightRules ?? []).map((r) => ({
+      ...r,
+      valueLower: (r.value ?? "").toLowerCase(),
+      valueFloat: parseFloat((r.value ?? "").replace(",", ".")),
+    }));
+  }, [highlightRules]);
+
   const rowRules = useMemo(
-    () => (highlightRules ?? []).filter((r) => r.type === "row"),
-    [highlightRules],
+    () => compiledHighlightRules.filter((r) => r.type === "row"),
+    [compiledHighlightRules],
   );
   const colRules = useMemo(
-    () => (highlightRules ?? []).filter((r) => r.type === "column"),
-    [highlightRules],
+    () => compiledHighlightRules.filter((r) => r.type === "column"),
+    [compiledHighlightRules],
   );
 
   const getRowHighlightColor = (
