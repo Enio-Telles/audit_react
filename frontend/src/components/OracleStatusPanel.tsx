@@ -142,7 +142,8 @@ function ConnectionEditor({
           type="button"
           onClick={onTest}
           disabled={disabled}
-          className="rounded-xl border border-slate-600 bg-slate-900/60 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:border-blue-400 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-busy={slot.state === "loading"}
+          className="rounded-xl border border-slate-600 bg-slate-900/60 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:border-blue-400 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
         >
           {slot.state === "loading" ? "Testando..." : "Testar conexao"}
         </button>
@@ -363,7 +364,9 @@ export function OracleStatusPanel() {
       <button
         type="button"
         onClick={() => setShowConfigModal(true)}
-        className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-blue-400 hover:text-white"
+        aria-haspopup="dialog"
+        aria-expanded={showConfigModal}
+        className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-blue-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
       >
         <svg
           width="14"
@@ -440,7 +443,7 @@ export function OracleStatusPanel() {
                   <button
                     type="button"
                     onClick={() => setShowConfigModal(false)}
-                    className="rounded-xl border border-slate-600 bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-400 hover:text-white"
+                    className="rounded-xl border border-slate-600 bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
                   >
                     Fechar
                   </button>
@@ -509,7 +512,7 @@ export function OracleStatusPanel() {
                   <button
                     type="button"
                     onClick={clearCredentials}
-                    className="rounded-xl border border-slate-600 bg-slate-900/60 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-400 hover:text-white"
+                    className="rounded-xl border border-slate-600 bg-slate-900/60 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
                   >
                     Limpar credenciais
                   </button>
@@ -519,7 +522,8 @@ export function OracleStatusPanel() {
                       void saveConfig();
                     }}
                     disabled={saveState.state === "loading"}
-                    className="rounded-xl bg-gradient-to-r from-sky-600 to-blue-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                    aria-busy={saveState.state === "loading"}
+                    className="rounded-xl bg-gradient-to-r from-sky-600 to-blue-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
                   >
                     {saveState.state === "loading"
                       ? "Salvando..."
