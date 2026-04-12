@@ -74,7 +74,10 @@ function readAppearance(storageKey: string | undefined): TableAppearance {
   try {
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) return DEFAULT_APPEARANCE;
-    return { ...DEFAULT_APPEARANCE, ...(JSON.parse(raw) as Partial<TableAppearance>) };
+    return {
+      ...DEFAULT_APPEARANCE,
+      ...(JSON.parse(raw) as Partial<TableAppearance>),
+    };
   } catch {
     return DEFAULT_APPEARANCE;
   }
@@ -136,25 +139,26 @@ function moverColunaNaOrdem(
   return proximaOrdem;
 }
 
+// ⚡ Bolt Optimization: Pre-compile highlight rules outside the render loop
+interface CompiledHighlightRule extends HighlightRule {
+  valueLower: string;
+  valueFloat: number;
+}
+
 function matchesRule(
-  rule: HighlightRule,
+  rule: CompiledHighlightRule,
   row: Record<string, unknown>,
 ): boolean {
   const cellVal = String(row[rule.column] ?? "");
-  const v = rule.value ?? "";
   switch (rule.operator) {
     case "igual":
-      return cellVal === v;
+      return cellVal === (rule.value ?? "");
     case "contem":
-      return cellVal.toLowerCase().includes(v.toLowerCase());
+      return cellVal.toLowerCase().includes(rule.valueLower);
     case "maior":
-      return (
-        parseFloat(cellVal.replace(",", ".")) > parseFloat(v.replace(",", "."))
-      );
+      return parseFloat(cellVal.replace(",", ".")) > rule.valueFloat;
     case "menor":
-      return (
-        parseFloat(cellVal.replace(",", ".")) < parseFloat(v.replace(",", "."))
-      );
+      return parseFloat(cellVal.replace(",", ".")) < rule.valueFloat;
     case "e_nulo":
       return cellVal === "" || cellVal === "null" || cellVal === "undefined";
     case "nao_e_nulo":
@@ -192,7 +196,9 @@ export function DataTable({
   showColumnFilters,
   highlightRules,
 }: DataTableProps) {
-  const storageKey = appearanceKey ? `datatable_appearance_${appearanceKey}` : undefined;
+  const storageKey = appearanceKey
+    ? `datatable_appearance_${appearanceKey}`
+    : undefined;
   const selectable = !!onRowSelect && !!rowKey;
   const shouldAutoHighlight = autoHighlight ?? highlightRows ?? false;
   const isServerSort = !!onSortChange;
@@ -317,13 +323,25 @@ export function DataTable({
     return s.desc ? "v" : "^";
   };
 
+  // ⚡ Bolt Optimization: Compile rules once when they change, caching expensive `.toLowerCase()` and `parseFloat()`
+  const compiledRules = useMemo(() => {
+    return (highlightRules ?? []).map((r) => {
+      const v = r.value ?? "";
+      return {
+        ...r,
+        valueLower: v.toLowerCase(),
+        valueFloat: parseFloat(v.replace(",", ".")),
+      } as CompiledHighlightRule;
+    });
+  }, [highlightRules]);
+
   const rowRules = useMemo(
-    () => (highlightRules ?? []).filter((r) => r.type === "row"),
-    [highlightRules],
+    () => compiledRules.filter((r) => r.type === "row"),
+    [compiledRules],
   );
   const colRules = useMemo(
-    () => (highlightRules ?? []).filter((r) => r.type === "column"),
-    [highlightRules],
+    () => compiledRules.filter((r) => r.type === "column"),
+    [compiledRules],
   );
 
   const getRowHighlightColor = (
@@ -553,12 +571,12 @@ export function DataTable({
                           handleHeaderClick(h.column.id);
                         }}
                         onMouseEnter={(evento) => {
-                          (evento.currentTarget.style.backgroundColor =
-                            "rgba(51, 65, 85, 0.35)");
+                          evento.currentTarget.style.backgroundColor =
+                            "rgba(51, 65, 85, 0.35)";
                         }}
                         onMouseLeave={(evento) => {
-                          (evento.currentTarget.style.backgroundColor =
-                            "transparent");
+                          evento.currentTarget.style.backgroundColor =
+                            "transparent";
                         }}
                       >
                         <span className="flex items-center gap-1 pr-3">
