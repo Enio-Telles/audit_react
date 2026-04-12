@@ -870,9 +870,28 @@ def _salvar_notificacao_em_disco(
     output_dir: str,
 ) -> str:
     try:
-        target_dir = Path(output_dir).expanduser()
+        if ".." in output_dir or ".." in nome_arquivo:
+            logger.warning("Tentativa de path traversal bloqueada.")
+            return ""
+        from utilitarios.project_paths import WORKSPACE_ROOT
+        base = WORKSPACE_ROOT.resolve()
+        req_path = Path(output_dir).expanduser()
+
+        if req_path.is_absolute():
+            target_dir = req_path.resolve()
+        else:
+            target_dir = (base / req_path).resolve()
+
+        if not target_dir.is_relative_to(base):
+            logger.warning("Caminho fora do diretório permitido bloqueado: %s", target_dir)
+            return ""
+
         target_dir.mkdir(parents=True, exist_ok=True)
-        target_path = target_dir / nome_arquivo
+        target_path = (target_dir / nome_arquivo).resolve()
+
+        if not target_path.is_relative_to(base):
+            return ""
+
         target_path.write_text(conteudo, encoding="utf-8")
         return str(target_path)
     except OSError as exc:
