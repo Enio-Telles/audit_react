@@ -463,27 +463,28 @@ def get_bloco_h_resumo(
     df = _aplicar_filtros_bloco_h(df, dt_inv, cod_mot_inv, indicador_propriedade)
     total_linhas = df.height
 
-    inventarios_h005 = 0
+    # ⚡ Bolt Optimization: Compute multiple counts in a single pass over the dataframe to prevent redundant scans.
+    agg_exprs = []
     if "dt_inv" in df.columns:
-        inventarios_h005 = df.select(pl.col("dt_inv").n_unique()).item()
+        agg_exprs.append(pl.col("dt_inv").n_unique().alias("inventarios_h005"))
 
-    total_produtos = 0
     if "codigo_produto" in df.columns:
-        total_produtos = (
-            df.filter(
-                pl.col("codigo_produto").is_not_null()
-                & (pl.col("codigo_produto").cast(pl.Utf8).str.len_chars() > 0)
-            )
-            .select(pl.col("codigo_produto").n_unique())
-            .item()
+        agg_exprs.append(
+            pl.when(
+                pl.col("codigo_produto").is_not_null() &
+                (pl.col("codigo_produto").cast(pl.Utf8).str.len_chars() > 0)
+            ).then(pl.col("codigo_produto")).otherwise(pl.lit(None)).drop_nulls().n_unique().alias("total_produtos")
         )
 
-    valor_total_itens = 0.0
     if "valor_item" in df.columns:
-        valor_total_itens = float(
-            df.select(pl.col("valor_item").cast(pl.Float64).fill_null(0).sum()).item()
-            or 0.0
+        agg_exprs.append(
+            pl.col("valor_item").cast(pl.Float64).fill_null(0).sum().alias("valor_total_itens")
         )
+
+    res = df.select(agg_exprs).to_dicts()[0] if agg_exprs else {}
+    inventarios_h005 = res.get("inventarios_h005", 0)
+    total_produtos = res.get("total_produtos", 0)
+    valor_total_itens = float(res.get("valor_total_itens", 0.0) or 0.0)
 
     motivos = []
     if "cod_mot_inv" in df.columns:
