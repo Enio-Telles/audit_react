@@ -26,7 +26,7 @@ from starlette.responses import StreamingResponse
 
 from interface_grafica.config import CNPJ_ROOT
 from interface_grafica.services.sql_service import SqlService
-from utilitarios.project_paths import APP_STATE_ROOT, ENV_PATH
+from utilitarios.project_paths import APP_STATE_ROOT, ENV_PATH, WORKSPACE_ROOT
 from utilitarios.sql_catalog import resolve_sql_path
 
 from services.report_docx_service import ReportDocxService
@@ -864,17 +864,35 @@ def _salvar_auditor_config(req: AuditorConfigRequest) -> None:
     _salvar_json(AUDITOR_CONFIG_PATH, payload)
 
 
+def _obter_diretorio_seguro(output_dir: str) -> Path:
+    if ".." in output_dir:
+        raise ValueError("Caminho não pode conter referências a diretórios superiores (..)")
+
+    # Resolver o caminho base de forma segura e anexar o caminho fornecido
+    # Se path fornecido for absoluto, o / substitui o da esquerda, então temos que remover o / inicial
+    stripped_dir = output_dir.lstrip("/\\")
+    target_dir = (WORKSPACE_ROOT / stripped_dir).resolve()
+
+    if not target_dir.is_relative_to(WORKSPACE_ROOT.resolve()):
+        raise ValueError("Caminho fora do diretório de trabalho permitido")
+
+    return target_dir
+
+
 def _salvar_notificacao_em_disco(
     conteudo: str,
     nome_arquivo: str,
     output_dir: str,
 ) -> str:
     try:
-        target_dir = Path(output_dir).expanduser()
+        target_dir = _obter_diretorio_seguro(output_dir)
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / nome_arquivo
         target_path.write_text(conteudo, encoding="utf-8")
         return str(target_path)
+    except ValueError as e:
+        logger.warning("Tentativa de gravação de arquivo fora do diretório permitido: %s", e)
+        return ""
     except OSError as exc:
         logger.warning("Não foi possível salvar notificação em disco (%s): %s", output_dir, exc)
         return ""
@@ -1065,11 +1083,13 @@ def gerar_notificacoes_lote(req: GerarNotificacoesLoteRequest):
     headers = {"Content-Disposition": f'attachment; filename="{nome_zip}"'}
     if output_dir:
         try:
-            target_dir = Path(output_dir).expanduser()
+            target_dir = _obter_diretorio_seguro(output_dir)
             target_dir.mkdir(parents=True, exist_ok=True)
             (target_dir / nome_zip).write_bytes(zip_buffer.getvalue())
             headers["X-Saved-To"] = str(target_dir)
             headers["X-Saved-Count"] = str(len(cnpjs_validos))
+        except ValueError as e:
+            logger.warning("Tentativa de gravação de ZIP fora do diretório permitido: %s", e)
         except OSError as exc:
             logger.warning("Não foi possível salvar ZIP em disco (%s): %s", output_dir, exc)
     return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
