@@ -136,25 +136,26 @@ function moverColunaNaOrdem(
   return proximaOrdem;
 }
 
+interface CompiledHighlightRule extends HighlightRule {
+  _lowerValue?: string;
+  _numValue?: number;
+}
+
 function matchesRule(
-  rule: HighlightRule,
+  rule: CompiledHighlightRule,
   row: Record<string, unknown>,
 ): boolean {
   const cellVal = String(row[rule.column] ?? "");
-  const v = rule.value ?? "";
+
   switch (rule.operator) {
     case "igual":
-      return cellVal === v;
+      return cellVal === (rule.value ?? "");
     case "contem":
-      return cellVal.toLowerCase().includes(v.toLowerCase());
+      return cellVal.toLowerCase().includes(rule._lowerValue!);
     case "maior":
-      return (
-        parseFloat(cellVal.replace(",", ".")) > parseFloat(v.replace(",", "."))
-      );
+      return parseFloat(cellVal.replace(",", ".")) > rule._numValue!;
     case "menor":
-      return (
-        parseFloat(cellVal.replace(",", ".")) < parseFloat(v.replace(",", "."))
-      );
+      return parseFloat(cellVal.replace(",", ".")) < rule._numValue!;
     case "e_nulo":
       return cellVal === "" || cellVal === "null" || cellVal === "undefined";
     case "nao_e_nulo":
@@ -317,13 +318,26 @@ export function DataTable({
     return s.desc ? "v" : "^";
   };
 
+  // ⚡ Bolt Optimization: Pre-compile highlight rules configurations (string cases and parsed numbers)
+  // to avoid redundant O(N*M) memory allocations inside the inner row/cell rendering loop.
+  const compiledHighlightRules = useMemo<CompiledHighlightRule[]>(() => {
+    return (highlightRules ?? []).map((r) => ({
+      ...r,
+      _lowerValue: r.operator === "contem" ? (r.value ?? "").toLowerCase() : undefined,
+      _numValue:
+        r.operator === "maior" || r.operator === "menor"
+          ? parseFloat((r.value ?? "").replace(",", "."))
+          : undefined,
+    }));
+  }, [highlightRules]);
+
   const rowRules = useMemo(
-    () => (highlightRules ?? []).filter((r) => r.type === "row"),
-    [highlightRules],
+    () => compiledHighlightRules.filter((r) => r.type === "row"),
+    [compiledHighlightRules],
   );
   const colRules = useMemo(
-    () => (highlightRules ?? []).filter((r) => r.type === "column"),
-    [highlightRules],
+    () => compiledHighlightRules.filter((r) => r.type === "column"),
+    [compiledHighlightRules],
   );
 
   const getRowHighlightColor = (
