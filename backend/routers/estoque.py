@@ -463,27 +463,40 @@ def get_bloco_h_resumo(
     df = _aplicar_filtros_bloco_h(df, dt_inv, cod_mot_inv, indicador_propriedade)
     total_linhas = df.height
 
-    inventarios_h005 = 0
+    # ⚡ Bolt Optimization: Use a single df.select() containing multiple aggregations to process all metrics concurrently in a single pass.
+    agg_exprs: list[pl.Expr] = []
+
     if "dt_inv" in df.columns:
-        inventarios_h005 = df.select(pl.col("dt_inv").n_unique()).item()
+        agg_exprs.append(pl.col("dt_inv").n_unique().alias("inventarios_h005"))
+    else:
+        agg_exprs.append(pl.lit(0).alias("inventarios_h005"))
 
-    total_produtos = 0
     if "codigo_produto" in df.columns:
-        total_produtos = (
-            df.filter(
-                pl.col("codigo_produto").is_not_null()
-                & (pl.col("codigo_produto").cast(pl.Utf8).str.len_chars() > 0)
-            )
-            .select(pl.col("codigo_produto").n_unique())
-            .item()
+        agg_exprs.append(
+            pl.when(pl.col("codigo_produto").is_not_null() & (pl.col("codigo_produto").cast(pl.Utf8).str.len_chars() > 0))
+            .then(pl.col("codigo_produto"))
+            .otherwise(pl.lit(None))
+            .drop_nulls()
+            .n_unique()
+            .alias("total_produtos")
         )
+    else:
+        agg_exprs.append(pl.lit(0).alias("total_produtos"))
 
-    valor_total_itens = 0.0
     if "valor_item" in df.columns:
-        valor_total_itens = float(
-            df.select(pl.col("valor_item").cast(pl.Float64).fill_null(0).sum()).item()
-            or 0.0
-        )
+        agg_exprs.append(pl.col("valor_item").cast(pl.Float64).fill_null(0).sum().alias("valor_total_itens"))
+    else:
+        agg_exprs.append(pl.lit(0.0).alias("valor_total_itens"))
+
+    if agg_exprs:
+        aggs = df.select(agg_exprs).to_dicts()[0]
+        inventarios_h005 = aggs["inventarios_h005"]
+        total_produtos = aggs["total_produtos"]
+        valor_total_itens = float(aggs["valor_total_itens"] or 0.0)
+    else:
+        inventarios_h005 = 0
+        total_produtos = 0
+        valor_total_itens = 0.0
 
     motivos = []
     if "cod_mot_inv" in df.columns:
