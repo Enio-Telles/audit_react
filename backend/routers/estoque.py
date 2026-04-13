@@ -461,29 +461,42 @@ def get_bloco_h_resumo(
 
     df = pl.read_parquet(path)
     df = _aplicar_filtros_bloco_h(df, dt_inv, cod_mot_inv, indicador_propriedade)
-    total_linhas = df.height
 
-    inventarios_h005 = 0
+    # ⚡ Bolt Optimization: Compute multiple counts in a single pass over the dataframe to prevent performance bottlenecks.
+    aggs = [pl.len().alias("total_linhas")]
+
     if "dt_inv" in df.columns:
-        inventarios_h005 = df.select(pl.col("dt_inv").n_unique()).item()
+        aggs.append(pl.col("dt_inv").n_unique().alias("inventarios_h005"))
+    else:
+        aggs.append(pl.lit(0).alias("inventarios_h005"))
 
-    total_produtos = 0
     if "codigo_produto" in df.columns:
-        total_produtos = (
-            df.filter(
+        aggs.append(
+            pl.when(
                 pl.col("codigo_produto").is_not_null()
                 & (pl.col("codigo_produto").cast(pl.Utf8).str.len_chars() > 0)
-            )
-            .select(pl.col("codigo_produto").n_unique())
-            .item()
+            ).then(pl.col("codigo_produto"))
+            .otherwise(pl.lit(None))
+            .drop_nulls()
+            .n_unique()
+            .alias("total_produtos")
         )
+    else:
+        aggs.append(pl.lit(0).alias("total_produtos"))
 
-    valor_total_itens = 0.0
     if "valor_item" in df.columns:
-        valor_total_itens = float(
-            df.select(pl.col("valor_item").cast(pl.Float64).fill_null(0).sum()).item()
-            or 0.0
+        aggs.append(
+            pl.col("valor_item").cast(pl.Float64).fill_null(0).sum().alias("valor_total_itens")
         )
+    else:
+        aggs.append(pl.lit(0.0).alias("valor_total_itens"))
+
+    res_aggs = df.select(aggs).to_dicts()[0]
+
+    total_linhas = res_aggs.get("total_linhas", 0)
+    inventarios_h005 = res_aggs.get("inventarios_h005", 0)
+    total_produtos = res_aggs.get("total_produtos", 0)
+    valor_total_itens = float(res_aggs.get("valor_total_itens", 0.0) or 0.0)
 
     motivos = []
     if "cod_mot_inv" in df.columns:
