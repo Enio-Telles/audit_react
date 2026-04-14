@@ -5,6 +5,7 @@ import { fiscalFeatureApi } from "../../features/fiscal/api";
 import { useAppStore } from "../../store/appStore";
 import { ExtractionApproachSelector, type ExtractionApproach } from "../pipeline/ExtractionApproachSelector";
 import { ExtractionReadinessBanner } from "../pipeline/ExtractionReadinessBanner";
+import { ProcessingDomainSelector } from "../pipeline/ProcessingDomainSelector";
 import { ExtrairSelecaoModal } from "../modals/ExtrairSelecaoModal";
 import { GerenciarConsultasModal } from "../modals/GerenciarConsultasModal";
 import { GerenciarCnpjModal } from "../modals/GerenciarCnpjModal";
@@ -44,6 +45,7 @@ export function LeftPanel() {
   const [showExtrairModal, setShowExtrairModal] = useState(false);
   const [showGerenciarModal, setShowGerenciarModal] = useState(false);
   const [selectedApproach, setSelectedApproach] = useState<ExtractionApproach>("full");
+  const [selectedProcessingTables, setSelectedProcessingTables] = useState<string[] | null>(null);
   const [gerenciarCnpj, setGerenciarCnpj] = useState<{
     cnpj: string;
     razaoSocial: string | null;
@@ -137,7 +139,7 @@ export function LeftPanel() {
         modo !== "process" && selectedConsultas !== null
           ? selectedConsultas
           : undefined,
-      tabelas: undefined,
+      tabelas: modo === "process" && selectedProcessingTables !== null ? selectedProcessingTables : undefined,
     });
     setSelectedCnpj(cnpj);
   };
@@ -201,9 +203,14 @@ export function LeftPanel() {
         ? "Executar somente extração"
         : "Executar somente processamento";
 
+  const processSummary =
+    selectedProcessingTables === null
+      ? "todos os domínios analíticos"
+      : `${selectedProcessingTables.length} tabela(s) de domínio selecionada(s)`;
+
   const approachNote =
     selectedApproach === "process"
-      ? "Esta abordagem reaproveita o que já está materializado no CNPJ e ignora data limite e consultas SQL."
+      ? `Esta abordagem reaproveita o que já está materializado no CNPJ e ignora data limite e consultas SQL. Reprocessamento atual: ${processSummary}.`
       : `Esta abordagem vai usar consultas ${consultasResumo} e data limite ${dataLimite}.`;
 
   const openCatalogTab = () => {
@@ -268,6 +275,15 @@ export function LeftPanel() {
             onOpenSqlSelection={() => setShowExtrairModal(true)}
           />
         </div>
+
+        {selectedApproach === "process" ? (
+          <div className="mt-2">
+            <ProcessingDomainSelector
+              selectedTables={selectedProcessingTables}
+              onChange={setSelectedProcessingTables}
+            />
+          </div>
+        ) : null}
 
         <div className="mt-2 rounded-xl border border-slate-800 bg-slate-950/30 p-2 text-[11px] text-slate-400">{approachNote}</div>
 
