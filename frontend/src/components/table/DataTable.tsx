@@ -234,7 +234,16 @@ export function DataTable({
 
   const effectiveRows = useMemo(() => {
     if (onColumnFilterChange) return rows;
-    const hasFilters = Object.values(effectiveColFilters).some((v) => v !== "");
+
+    // ⚡ Bolt Optimization: Replace Object.values().some() with for...in loop and early break to prevent O(N*C) object allocations
+    let hasFilters = false;
+    for (const key in effectiveColFilters) {
+      if (effectiveColFilters[key] !== "") {
+        hasFilters = true;
+        break;
+      }
+    }
+
     if (!hasFilters) return rows;
 
     // ⚡ Bolt Optimization: Pre-compute active filter lowercases and use for...of loop with early return instead of Object.entries().every() to prevent O(N*C) array allocations.
