@@ -7,3 +7,8 @@
 **Vulnerability:** The `output_dir` provided by the user in `fisconforme.py` was used directly with `Path(output_dir).expanduser()` to save files, allowing arbitrary file writes anywhere on the system.
 **Learning:** Internal tool features like "save to custom directory" must be confined to a safe base directory when implemented in a web backend to prevent path traversal and arbitrary writes.
 **Prevention:** Always validate user-provided paths by checking for `..`, resolving them safely against a predefined base directory, and enforcing `.is_relative_to(safe_base)`.
+
+## 2024-05-26 - Path Traversal Bypass via String Prefix Check
+**Vulnerability:** The application used string matching (`str(path).startswith(str(base))`) to check if a directory was within an allowed base directory. This allowed directory traversal to adjacent folders (e.g., `/app/sql_fake` bypasses a check for `/app/sql`).
+**Learning:** String prefix checks do not account for path boundaries and are inherently insecure for path containment validation.
+**Prevention:** Always use the `pathlib` method `path.is_relative_to(base.resolve())` to securely verify path containment.
