@@ -9,9 +9,9 @@ import { GerenciarCnpjModal } from "../modals/GerenciarCnpjModal";
 const LS_KEY = "fiscalParquet.selectedConsultas";
 
 const inputCls =
-  "w-full bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500";
+  "w-full bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-900 transition-colors";
 const btnCls =
-  "px-3 py-1.5 rounded text-xs font-medium cursor-pointer transition-colors";
+  "px-3 py-1.5 rounded text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900";
 
 export function LeftPanel() {
   const queryClient = useQueryClient();
@@ -210,8 +210,10 @@ export function LeftPanel() {
               btnCls + " flex-1 bg-blue-700 hover:bg-blue-600 text-white"
             }
             onClick={() => void runPipeline("full")}
+            disabled={(!selectedCnpj && !newCnpj.trim()) || pipelinePolling}
+            aria-busy={pipelinePolling}
           >
-            Extrair + Processar
+            {pipelinePolling ? "Processando..." : "Extrair + Processar"}
           </button>
         </div>
         <div className="flex items-center gap-2 mb-2">
@@ -220,7 +222,7 @@ export function LeftPanel() {
           </label>
           <input
             id="input-data-limite"
-            className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none w-28"
+            className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-900 transition-colors w-28"
             value={dataLimite}
             onChange={(e) => setDataLimite(e.target.value)}
           />
@@ -241,6 +243,7 @@ export function LeftPanel() {
             }
             onClick={() => void runPipeline("process")}
             disabled={(!selectedCnpj && !newCnpj.trim()) || pipelinePolling}
+            aria-busy={pipelinePolling}
           >
             {pipelinePolling ? "Processando..." : "Processamento"}
           </button>
