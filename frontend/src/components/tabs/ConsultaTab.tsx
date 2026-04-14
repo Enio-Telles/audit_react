@@ -36,6 +36,16 @@ export function ConsultaTab() {
 
   const [showColFilters, setShowColFilters] = useState(false);
 
+  // ⚡ Bolt Optimization: Memoize the check and use for...in loop to prevent O(C) array allocations
+  const hasActiveColumnFilters = useMemo(() => {
+    for (const key in consultaColumnFilters) {
+      if (Object.hasOwn(consultaColumnFilters, key) && consultaColumnFilters[key] !== '') {
+        return true;
+      }
+    }
+    return false;
+  }, [consultaColumnFilters]);
+
   const { data: schema } = useQuery({
     queryKey: ['schema', selectedCnpj, selectedFile?.path],
     queryFn: () => cnpjApi.getSchema(selectedCnpj!, selectedFile!.path),
@@ -148,7 +158,7 @@ export function ConsultaTab() {
           Filtros ▽
         </button>
 
-        {Object.values(consultaColumnFilters).some((v) => v !== '') && (
+        {hasActiveColumnFilters && (
           <button
             className={btnCls + ' bg-red-800 hover:bg-red-700 text-slate-200'}
             onClick={clearConsultaColumnFilters}
