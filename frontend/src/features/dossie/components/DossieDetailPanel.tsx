@@ -33,6 +33,7 @@ export function DossieDetailPanel({
         <button
           type="button"
           onClick={onFechar}
+          aria-label="Fechar detalhe"
           className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
         >
           ✕ Fechar detalhe
