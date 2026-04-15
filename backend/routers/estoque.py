@@ -459,19 +459,21 @@ def get_bloco_h_resumo(
             "propriedade": [],
         }
 
-    df = pl.read_parquet(path)
-    df = _aplicar_filtros_bloco_h(df, dt_inv, cod_mot_inv, indicador_propriedade)
-    total_linhas = df.height
+    lf = pl.scan_parquet(path)
+    lf = _aplicar_filtros_bloco_h(lf, dt_inv, cod_mot_inv, indicador_propriedade)
 
-    # ⚡ Bolt Optimization: Use a single df.select() containing multiple aggregations to process all metrics concurrently in a single pass.
-    agg_exprs: list[pl.Expr] = []
+    cols = lf.collect_schema().names()
 
-    if "dt_inv" in df.columns:
+    agg_exprs: list[pl.Expr] = [
+        pl.len().alias("total_linhas")
+    ]
+
+    if "dt_inv" in cols:
         agg_exprs.append(pl.col("dt_inv").n_unique().alias("inventarios_h005"))
     else:
         agg_exprs.append(pl.lit(0).alias("inventarios_h005"))
 
-    if "codigo_produto" in df.columns:
+    if "codigo_produto" in cols:
         agg_exprs.append(
             pl.when(pl.col("codigo_produto").is_not_null() & (pl.col("codigo_produto").cast(pl.Utf8).str.len_chars() > 0))
             .then(pl.col("codigo_produto"))
@@ -483,40 +485,57 @@ def get_bloco_h_resumo(
     else:
         agg_exprs.append(pl.lit(0).alias("total_produtos"))
 
-    if "valor_item" in df.columns:
+    if "valor_item" in cols:
         agg_exprs.append(pl.col("valor_item").cast(pl.Float64).fill_null(0).sum().alias("valor_total_itens"))
     else:
         agg_exprs.append(pl.lit(0.0).alias("valor_total_itens"))
 
-    if agg_exprs:
-        aggs = df.select(agg_exprs).to_dicts()[0]
-        inventarios_h005 = aggs["inventarios_h005"]
-        total_produtos = aggs["total_produtos"]
-        valor_total_itens = float(aggs["valor_total_itens"] or 0.0)
-    else:
-        inventarios_h005 = 0
-        total_produtos = 0
-        valor_total_itens = 0.0
+    lf_aggs = lf.select(agg_exprs)
+
+    motivos_lf = None
+    if "cod_mot_inv" in cols:
+        group_cols = ["cod_mot_inv", "mot_inv_desc"] if "mot_inv_desc" in cols else ["cod_mot_inv"]
+        motivos_lf = (
+            lf.group_by(group_cols)
+            .agg(pl.len().alias("qtd_itens"))
+            .sort("qtd_itens", descending=True)
+        )
+        if "mot_inv_desc" not in cols:
+            motivos_lf = motivos_lf.with_columns(pl.lit(None).alias("mot_inv_desc"))
+
+    propriedades_lf = None
+    if "indicador_propriedade" in cols:
+        propriedades_lf = (
+            lf.group_by("indicador_propriedade")
+            .agg(pl.len().alias("qtd_itens"))
+            .sort("qtd_itens", descending=True)
+        )
+
+    queries_to_collect = [lf_aggs]
+    if motivos_lf is not None:
+        queries_to_collect.append(motivos_lf)
+    if propriedades_lf is not None:
+        queries_to_collect.append(propriedades_lf)
+
+    results = pl.collect_all(queries_to_collect)
+
+    df_aggs = results[0]
+    aggs = df_aggs.to_dicts()[0]
+    total_linhas = aggs["total_linhas"]
+    inventarios_h005 = aggs["inventarios_h005"]
+    total_produtos = aggs["total_produtos"]
+    valor_total_itens = float(aggs["valor_total_itens"] or 0.0)
 
     motivos = []
-    if "cod_mot_inv" in df.columns:
-        motivos_df = (
-            df.group_by(["cod_mot_inv", "mot_inv_desc"] if "mot_inv_desc" in df.columns else ["cod_mot_inv"])
-            .agg(pl.len().alias("qtd_itens"))
-            .sort("qtd_itens", descending=True)
-        )
-        if "mot_inv_desc" not in motivos_df.columns:
-            motivos_df = motivos_df.with_columns(pl.lit(None).alias("mot_inv_desc"))
-        motivos = motivos_df.to_dicts()
-
     propriedade = []
-    if "indicador_propriedade" in df.columns:
-        propriedade = (
-            df.group_by("indicador_propriedade")
-            .agg(pl.len().alias("qtd_itens"))
-            .sort("qtd_itens", descending=True)
-            .to_dicts()
-        )
+
+    res_idx = 1
+    if motivos_lf is not None:
+        motivos = results[res_idx].to_dicts()
+        res_idx += 1
+
+    if propriedades_lf is not None:
+        propriedade = results[res_idx].to_dicts()
 
     return {
         "inventarios_h005": int(inventarios_h005 or 0),
