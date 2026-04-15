@@ -1,4 +1,5 @@
 import {
+  memo,
   useEffect,
   useMemo,
   useRef,
@@ -79,7 +80,10 @@ function readAppearance(storageKey: string | undefined): TableAppearance {
   try {
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) return DEFAULT_APPEARANCE;
-    return { ...DEFAULT_APPEARANCE, ...(JSON.parse(raw) as Partial<TableAppearance>) };
+    return {
+      ...DEFAULT_APPEARANCE,
+      ...(JSON.parse(raw) as Partial<TableAppearance>),
+    };
   } catch {
     return DEFAULT_APPEARANCE;
   }
@@ -165,7 +169,11 @@ function matchesRule(
   }
 }
 
-export function DataTable({
+// ⚡ Bolt Optimization: Wrap DataTable in React.memo()
+// This prevents unnecessary expensive re-renders of the table (which can contain thousands of cells)
+// when parent components re-render, assuming stable props are passed down.
+// Expected Impact: Reduces re-renders significantly on complex dashboard views containing tables.
+export const DataTable = memo(function DataTable({
   columns,
   appearanceKey,
   orderedColumns,
@@ -193,7 +201,9 @@ export function DataTable({
   showColumnFilters,
   highlightRules,
 }: DataTableProps) {
-  const storageKey = appearanceKey ? `datatable_appearance_${appearanceKey}` : undefined;
+  const storageKey = appearanceKey
+    ? `datatable_appearance_${appearanceKey}`
+    : undefined;
   const selectable = !!onRowSelect && !!rowKey;
   const shouldAutoHighlight = autoHighlight ?? highlightRows ?? false;
   const isServerSort = !!onSortChange;
@@ -562,12 +572,12 @@ export function DataTable({
                           handleHeaderClick(h.column.id);
                         }}
                         onMouseEnter={(evento) => {
-                          (evento.currentTarget.style.backgroundColor =
-                            "rgba(51, 65, 85, 0.35)");
+                          evento.currentTarget.style.backgroundColor =
+                            "rgba(51, 65, 85, 0.35)";
                         }}
                         onMouseLeave={(evento) => {
-                          (evento.currentTarget.style.backgroundColor =
-                            "transparent");
+                          evento.currentTarget.style.backgroundColor =
+                            "transparent";
                         }}
                       >
                         <span className="flex items-center gap-1 pr-3">
@@ -760,4 +770,4 @@ export function DataTable({
       </div>
     </div>
   );
-}
+});
