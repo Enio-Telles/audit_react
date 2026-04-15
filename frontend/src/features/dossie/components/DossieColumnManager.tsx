@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   DndContext,
   closestCenter,
@@ -165,13 +165,17 @@ export function DossieColumnManager({
     [columnOrder, onReorder],
   );
 
-  if (!open) return null;
+  const filteredColumns = useMemo(() => {
+    // ⚡ Bolt Optimization: Hoist lowercasing outside filter loop to prevent O(N) string allocations per re-render
+    const searchLower = searchTerm ? searchTerm.toLowerCase() : "";
+    if (!searchLower) return columnOrder;
 
-  const filteredColumns = searchTerm
-    ? columnOrder.filter((col) =>
-        col.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
-    : columnOrder;
+    return columnOrder.filter((col) =>
+      col.toLowerCase().includes(searchLower),
+    );
+  }, [columnOrder, searchTerm]);
+
+  if (!open) return null;
 
   const visibleCount = columns.filter((c) => !hiddenColumns.has(c)).length;
 
