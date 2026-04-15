@@ -901,13 +901,24 @@ function ResultsStep({
   onToggleExpandedCnpj: (cnpj: string) => void;
   onParaNotificacoes: () => void;
 }) {
-  const totalMalhas = results.reduce(
-    (sum, item) => sum + (item.malhas?.length ?? 0),
-    0,
-  );
-  const totalErros = results.filter((item) => item.error).length;
-  const totalComPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) > 0).length;
-  const totalSemPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) === 0).length;
+  // ⚡ Bolt Optimization: Compute multiple totals concurrently in a single pass over the dataset instead of multiple .reduce() / .filter() passes
+  const { totalMalhas, totalErros, totalComPendencia, totalSemPendencia, totalCache } = useMemo(() => {
+    let malhas = 0, erros = 0, comPendencia = 0, semPendencia = 0, cache = 0;
+    for (const item of results) {
+      const ml = item.malhas?.length ?? 0;
+      malhas += ml;
+      if (item.error) {
+        erros++;
+      } else if (ml > 0) {
+        comPendencia++;
+      } else {
+        semPendencia++;
+      }
+      if (item.from_cache) cache++;
+    }
+    return { totalMalhas: malhas, totalErros: erros, totalComPendencia: comPendencia, totalSemPendencia: semPendencia, totalCache: cache };
+  }, [results]);
+
   const resultadosFiltrados = useMemo(
     () => obter_resultados_filtrados(results, filtroResultados),
     [filtroResultados, results],
@@ -963,7 +974,7 @@ function ResultsStep({
             </span>
             <span>
               <span className="font-semibold text-white">
-                {results.filter((item) => item.from_cache).length}
+                {totalCache}
               </span>{" "}
               carregados do cache
             </span>
