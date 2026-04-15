@@ -200,6 +200,7 @@ export const HighlightRulesPanel = memo(function HighlightRulesPanel({
                     onClick={() => onRemove(i)}
                     className="ml-auto text-red-400 hover:text-red-300 text-xs shrink-0 cursor-pointer"
                     title="Remover"
+                    aria-label="Remover regra"
                   >
                     ✕
                   </button>

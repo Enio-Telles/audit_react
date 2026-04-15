@@ -264,7 +264,7 @@ describe('DossieTab', () => {
       expect(screen.getByText('Detalhe mockado: Contato')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Fechar painel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar detalhe' }));
 
     await waitFor(() => {
       expect(screen.getByText('Nenhuma secao selecionada')).toBeInTheDocument();
