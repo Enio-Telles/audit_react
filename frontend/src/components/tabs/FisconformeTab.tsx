@@ -901,13 +901,38 @@ function ResultsStep({
   onToggleExpandedCnpj: (cnpj: string) => void;
   onParaNotificacoes: () => void;
 }) {
-  const totalMalhas = results.reduce(
-    (sum, item) => sum + (item.malhas?.length ?? 0),
-    0,
-  );
-  const totalErros = results.filter((item) => item.error).length;
-  const totalComPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) > 0).length;
-  const totalSemPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) === 0).length;
+  // ⚡ Bolt: Single pass aggregation instead of chained O(N) operations
+  const {
+    totalMalhas,
+    totalErros,
+    totalComPendencia,
+    totalSemPendencia,
+    totalFromCache,
+  } = useMemo(() => {
+    let tMalhas = 0,
+      tErros = 0,
+      tComPendencia = 0,
+      tSemPendencia = 0,
+      tFromCache = 0;
+    for (const item of results) {
+      const malhasCount = item.malhas?.length ?? 0;
+      tMalhas += malhasCount;
+      if (item.error) {
+        tErros++;
+      } else {
+        if (malhasCount > 0) tComPendencia++;
+        else tSemPendencia++;
+      }
+      if (item.from_cache) tFromCache++;
+    }
+    return {
+      totalMalhas: tMalhas,
+      totalErros: tErros,
+      totalComPendencia: tComPendencia,
+      totalSemPendencia: tSemPendencia,
+      totalFromCache: tFromCache,
+    };
+  }, [results]);
   const resultadosFiltrados = useMemo(
     () => obter_resultados_filtrados(results, filtroResultados),
     [filtroResultados, results],
@@ -963,7 +988,7 @@ function ResultsStep({
             </span>
             <span>
               <span className="font-semibold text-white">
-                {results.filter((item) => item.from_cache).length}
+                {totalFromCache}
               </span>{" "}
               carregados do cache
             </span>
