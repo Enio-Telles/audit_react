@@ -901,13 +901,30 @@ function ResultsStep({
   onToggleExpandedCnpj: (cnpj: string) => void;
   onParaNotificacoes: () => void;
 }) {
-  const totalMalhas = results.reduce(
-    (sum, item) => sum + (item.malhas?.length ?? 0),
-    0,
-  );
-  const totalErros = results.filter((item) => item.error).length;
-  const totalComPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) > 0).length;
-  const totalSemPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) === 0).length;
+  // ⚡ Bolt: Consolidated multiple array traversals (.reduce, .filter) into a single
+  // O(N) pass to optimize performance when processing large CNPJ lists.
+  const { totalMalhas, totalErros, totalComPendencia, totalSemPendencia, fromCache } = useMemo(() => {
+    let tMalhas = 0, tErros = 0, tComPendencia = 0, tSemPendencia = 0, fCache = 0;
+    for (const item of results) {
+      if (item.error) {
+        tErros++;
+      } else {
+        const cMalhas = item.malhas?.length ?? 0;
+        tMalhas += cMalhas;
+        if (cMalhas > 0) tComPendencia++;
+        else tSemPendencia++;
+      }
+      if (item.from_cache) fCache++;
+    }
+    return {
+      totalMalhas: tMalhas,
+      totalErros: tErros,
+      totalComPendencia: tComPendencia,
+      totalSemPendencia: tSemPendencia,
+      fromCache: fCache,
+    };
+  }, [results]);
+
   const resultadosFiltrados = useMemo(
     () => obter_resultados_filtrados(results, filtroResultados),
     [filtroResultados, results],
@@ -963,7 +980,7 @@ function ResultsStep({
             </span>
             <span>
               <span className="font-semibold text-white">
-                {results.filter((item) => item.from_cache).length}
+                {fromCache}
               </span>{" "}
               carregados do cache
             </span>
