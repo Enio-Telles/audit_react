@@ -901,13 +901,25 @@ function ResultsStep({
   onToggleExpandedCnpj: (cnpj: string) => void;
   onParaNotificacoes: () => void;
 }) {
-  const totalMalhas = results.reduce(
-    (sum, item) => sum + (item.malhas?.length ?? 0),
-    0,
-  );
-  const totalErros = results.filter((item) => item.error).length;
-  const totalComPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) > 0).length;
-  const totalSemPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) === 0).length;
+  // ⚡ Bolt Optimization: Use a single for...of loop to compute totals instead of multiple chained filter/reduce calls
+  // This reduces array traversals from 4x O(N) to 1x O(N), significantly improving performance for large result sets.
+  let totalMalhas = 0;
+  let totalErros = 0;
+  let totalComPendencia = 0;
+  let totalSemPendencia = 0;
+
+  for (const item of results) {
+    const qtdeMalhas = item.malhas?.length ?? 0;
+    totalMalhas += qtdeMalhas;
+
+    if (item.error) {
+      totalErros += 1;
+    } else if (qtdeMalhas > 0) {
+      totalComPendencia += 1;
+    } else {
+      totalSemPendencia += 1;
+    }
+  }
   const resultadosFiltrados = useMemo(
     () => obter_resultados_filtrados(results, filtroResultados),
     [filtroResultados, results],
