@@ -40,7 +40,7 @@ describe("DossieContatoDetalhe", () => {
 
     render(<DossieContatoDetalhe dados={dados} />);
 
-    expect(screen.getAllByText("Agenda dos contadores").length).toBeGreaterThan(
+    expect(screen.getAllByText("Contadores e escritórios contábeis vinculados").length).toBeGreaterThan(
       0,
     );
     expect(screen.getByText("Contador Consolidado")).toBeInTheDocument();
@@ -109,8 +109,8 @@ describe("DossieContatoDetalhe", () => {
 
     render(<DossieContatoDetalhe dados={dados} />);
 
-    expect(screen.getAllByText("Agenda da empresa").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Agenda dos socios").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Matriz, filiais e dados cadastrais da empresa").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Sócios atuais e anteriores vinculados ao CNPJ").length).toBeGreaterThan(0);
     expect(screen.getByText("Empresa Base")).toBeInTheDocument();
     expect(screen.getByText("Socio Atual")).toBeInTheDocument();
     expect(screen.getByText("Socio Antigo")).toBeInTheDocument();
