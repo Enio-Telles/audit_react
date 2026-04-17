@@ -464,28 +464,31 @@ function resumir_grupos(
 ): ResumoGrupoAgenda[] {
   return (Object.keys(grupos) as GrupoAgenda[]).map((grupo) => {
     const entidades = grupos[grupo];
+    // ⚡ Bolt Optimization: Consolidate multiple distinct aggregations into a single pass
+    // Expected impact: Eliminates 4 redundant array traversals per group.
+    const stats = entidades.reduce(
+      (acc, entidade) => {
+        const status = calcular_status_entidade(entidade);
+        return {
+          telefones: acc.telefones + entidade.telefones.length,
+          emails: acc.emails + entidade.emails.length,
+          enderecos: acc.enderecos + entidade.enderecos.length,
+          conflitos: acc.conflitos + (status === "divergente" ? 1 : 0),
+          semContato: acc.semContato + (status === "sem contato" ? 1 : 0),
+        };
+      },
+      { telefones: 0, emails: 0, enderecos: 0, conflitos: 0, semContato: 0 }
+    );
+
     return {
       grupo,
       titulo: TITULOS_GRUPO[grupo],
       totalEntidades: entidades.length,
-      totalTelefones: entidades.reduce(
-        (total, entidade) => total + entidade.telefones.length,
-        0,
-      ),
-      totalEmails: entidades.reduce(
-        (total, entidade) => total + entidade.emails.length,
-        0,
-      ),
-      totalEnderecos: entidades.reduce(
-        (total, entidade) => total + entidade.enderecos.length,
-        0,
-      ),
-      totalConflitos: entidades.filter(
-        (entidade) => calcular_status_entidade(entidade) === "divergente",
-      ).length,
-      totalSemContato: entidades.filter(
-        (entidade) => calcular_status_entidade(entidade) === "sem contato",
-      ).length,
+      totalTelefones: stats.telefones,
+      totalEmails: stats.emails,
+      totalEnderecos: stats.enderecos,
+      totalConflitos: stats.conflitos,
+      totalSemContato: stats.semContato,
     };
   });
 }
