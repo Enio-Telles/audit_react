@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from interface_grafica.services.parquet_service import FilterCondition, ParquetService
@@ -42,7 +42,10 @@ def _safe_value(v: Any) -> Any:
 @router.post("/query")
 def query_parquet(req: QueryRequest):
     try:
-        p = Path(req.path).resolve()
+        if ".." in req.path:
+            raise ValueError()
+        req_p = Path(req.path)
+        p = req_p.resolve() if req_p.is_absolute() else (CNPJ_ROOT / req_p).resolve()
         if not p.is_relative_to(CNPJ_ROOT.resolve()):
             raise ValueError()
     except Exception:
