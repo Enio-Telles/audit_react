@@ -464,29 +464,32 @@ function resumir_grupos(
 ): ResumoGrupoAgenda[] {
   return (Object.keys(grupos) as GrupoAgenda[]).map((grupo) => {
     const entidades = grupos[grupo];
-    return {
+    const result = {
       grupo,
       titulo: TITULOS_GRUPO[grupo],
       totalEntidades: entidades.length,
-      totalTelefones: entidades.reduce(
-        (total, entidade) => total + entidade.telefones.length,
-        0,
-      ),
-      totalEmails: entidades.reduce(
-        (total, entidade) => total + entidade.emails.length,
-        0,
-      ),
-      totalEnderecos: entidades.reduce(
-        (total, entidade) => total + entidade.enderecos.length,
-        0,
-      ),
-      totalConflitos: entidades.filter(
-        (entidade) => calcular_status_entidade(entidade) === "divergente",
-      ).length,
-      totalSemContato: entidades.filter(
-        (entidade) => calcular_status_entidade(entidade) === "sem contato",
-      ).length,
+      totalTelefones: 0,
+      totalEmails: 0,
+      totalEnderecos: 0,
+      totalConflitos: 0,
+      totalSemContato: 0,
     };
+
+    // ⚡ Bolt: Single pass aggregation to avoid redundant O(N) traversals
+    for (const entidade of entidades) {
+      result.totalTelefones += entidade.telefones.length;
+      result.totalEmails += entidade.emails.length;
+      result.totalEnderecos += entidade.enderecos.length;
+
+      const status = calcular_status_entidade(entidade);
+      if (status === "divergente") {
+        result.totalConflitos += 1;
+      } else if (status === "sem contato") {
+        result.totalSemContato += 1;
+      }
+    }
+
+    return result;
   });
 }
 
