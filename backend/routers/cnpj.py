@@ -302,7 +302,10 @@ def list_files(cnpj: str):
 @router.get("/{cnpj}/schema")
 def get_schema(cnpj: str, path: str):
     try:
-        p = Path(path).resolve()
+        if ".." in path:
+            raise ValueError()
+        req_p = Path(path)
+        p = req_p.resolve() if req_p.is_absolute() else (CNPJ_ROOT / req_p).resolve()
         if not p.is_relative_to(CNPJ_ROOT.resolve()):
             raise ValueError()
     except Exception:
@@ -324,7 +327,10 @@ def delete_parquet_file(cnpj: str, body: DeleteFileRequest, request: Request):
     cnpj = _sanitize(cnpj)
     cnpj_root = (CNPJ_ROOT / cnpj).resolve()
     try:
-        p = Path(body.path).resolve()
+        if ".." in body.path:
+            raise ValueError()
+        req_p = Path(body.path)
+        p = req_p.resolve() if req_p.is_absolute() else (cnpj_root / req_p).resolve()
         if not p.is_relative_to(cnpj_root):
             raise ValueError()
     except Exception:
