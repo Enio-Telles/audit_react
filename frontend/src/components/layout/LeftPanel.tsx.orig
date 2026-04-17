@@ -270,7 +270,7 @@ export function LeftPanel() {
         {/* SQL query selector */}
         <div className="mt-1 border border-slate-700 rounded text-xs">
           <button
-            className="w-full flex items-center justify-between px-2 py-1.5 text-slate-300 hover:bg-slate-700 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            className="w-full flex items-center justify-between px-2 py-1.5 text-slate-300 hover:bg-slate-700 rounded"
             onClick={() => setShowSqlSelector((s) => !s)}
           >
             <span>
@@ -286,19 +286,19 @@ export function LeftPanel() {
             <div className="border-t border-slate-700 p-1.5">
               <div className="flex gap-1 mb-1.5 flex-wrap">
                 <button
-                  className="px-1.5 py-0.5 rounded bg-blue-800 hover:bg-blue-700 text-blue-100 text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                  className="px-1.5 py-0.5 rounded bg-blue-800 hover:bg-blue-700 text-blue-100 text-[10px]"
                   onClick={() => setSelectedConsultas(null)}
                 >
                   Todas
                 </button>
                 <button
-                  className="px-1.5 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                  className="px-1.5 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px]"
                   onClick={() => setSelectedConsultas([])}
                 >
                   Nenhuma
                 </button>
                 <button
-                  className="px-1.5 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-slate-300 text-[10px] ml-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                  className="px-1.5 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-slate-300 text-[10px] ml-auto"
                   onClick={() => setShowGerenciarModal(true)}
                   title="Adicionar ou excluir consultas"
                   aria-haspopup="dialog"
@@ -437,7 +437,7 @@ export function LeftPanel() {
             <div key={r.cnpj} className="flex items-center gap-0.5 group">
               <button
                 onClick={() => setSelectedCnpj(r.cnpj)}
-                className={`flex-1 text-left px-2 py-1.5 rounded text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
+                className={`flex-1 text-left px-2 py-1.5 rounded text-xs transition-colors ${
                   selectedCnpj === r.cnpj
                     ? "bg-blue-700 text-white"
                     : "text-slate-300 hover:bg-slate-700"
@@ -484,7 +484,7 @@ export function LeftPanel() {
               <button
                 key={f.path}
                 onClick={() => setSelectedFile(f)}
-                className={`w-full text-left px-1 py-0.5 rounded text-xs truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
+                className={`w-full text-left px-1 py-0.5 rounded text-xs truncate ${
                   selectedFile?.path === f.path
                     ? "bg-blue-800 text-blue-200"
                     : "hover:bg-slate-700 text-slate-300"
