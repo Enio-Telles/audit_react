@@ -78,7 +78,7 @@ function SectionPill({
           className={`ml-0.5 rounded p-0.5 text-[11px] transition-colors ${
             isSyncing
               ? "animate-spin text-blue-400"
-              : "text-slate-500 opacity-0 group-hover:opacity-100 hover:text-blue-300"
+              : "text-slate-500 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none hover:text-blue-300"
           }`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
