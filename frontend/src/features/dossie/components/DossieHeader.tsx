@@ -23,22 +23,27 @@ export function DossieHeader({
   onAbrirSecaoPrioritaria,
   onSincronizarPendentes,
 }: DossieHeaderProps) {
-  const ultimaAtualizacao = sections
-    ?.map((s) => s.updatedAt)
-    .filter(Boolean)
-    .sort()
-    .at(-1);
+  // ⚡ Bolt Optimization: Replace multiple .filter() and .sort() chains with a single O(N) pass
+  let ultimaAtualizacao: string | undefined;
+  let totalPendentes = 0;
+  let totalErros = 0;
+  let totalDivergencias = 0;
 
-  const totalPendentes =
-    sections?.filter((secao) => secao.syncEnabled && secao.status === 'idle').length ?? 0;
-  const totalErros =
-    sections?.filter((secao) => secao.status === 'error').length ?? 0;
-  const totalDivergencias =
-    sections?.filter(
-      (secao) =>
+  if (sections) {
+    for (const secao of sections) {
+      if (secao.updatedAt && (!ultimaAtualizacao || new Date(secao.updatedAt) > new Date(ultimaAtualizacao))) {
+        ultimaAtualizacao = secao.updatedAt;
+      }
+      if (secao.syncEnabled && secao.status === 'idle') totalPendentes++;
+      if (secao.status === 'error') totalErros++;
+      if (
         secao.alternateStrategyComparison === 'divergencia_funcional' ||
-        secao.alternateStrategyComparison === 'divergencia_basica',
-    ).length ?? 0;
+        secao.alternateStrategyComparison === 'divergencia_basica'
+      ) {
+        totalDivergencias++;
+      }
+    }
+  }
 
   const dataFormatada = formatarDataAtualizacao(ultimaAtualizacao);
 
