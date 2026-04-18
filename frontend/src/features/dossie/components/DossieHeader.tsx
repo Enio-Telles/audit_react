@@ -29,16 +29,25 @@ export function DossieHeader({
     .sort()
     .at(-1);
 
-  const totalPendentes =
-    sections?.filter((secao) => secao.syncEnabled && secao.status === 'idle').length ?? 0;
-  const totalErros =
-    sections?.filter((secao) => secao.status === 'error').length ?? 0;
-  const totalDivergencias =
-    sections?.filter(
-      (secao) =>
+  // ⚡ Bolt Performance Optimization
+  // Calculate multiple distinct aggregations over the sections array in a single for...of loop
+  // instead of chained .filter().length calls to prevent redundant O(N) traversals per metric.
+  let totalPendentes = 0;
+  let totalErros = 0;
+  let totalDivergencias = 0;
+
+  if (sections) {
+    for (const secao of sections) {
+      if (secao.syncEnabled && secao.status === 'idle') totalPendentes++;
+      if (secao.status === 'error') totalErros++;
+      if (
         secao.alternateStrategyComparison === 'divergencia_funcional' ||
-        secao.alternateStrategyComparison === 'divergencia_basica',
-    ).length ?? 0;
+        secao.alternateStrategyComparison === 'divergencia_basica'
+      ) {
+        totalDivergencias++;
+      }
+    }
+  }
 
   const dataFormatada = formatarDataAtualizacao(ultimaAtualizacao);
 
