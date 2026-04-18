@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 
 from interface_grafica.services.registry_service import RegistryService
-from utilitarios.sql_catalog import list_sql_entries, normalize_sql_id, resolve_sql_path
+from utilitarios.sql_catalog import list_sql_entries, normalize_sql_id
 
 router = APIRouter()
 registry = RegistryService()
