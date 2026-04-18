@@ -42,7 +42,13 @@ def _safe_value(v: Any) -> Any:
 @router.post("/query")
 def query_parquet(req: QueryRequest):
     try:
-        p = Path(req.path).resolve()
+        if ".." in req.path:
+            raise ValueError()
+        req_path = Path(req.path)
+        if req_path.is_absolute():
+            p = req_path.resolve()
+        else:
+            p = (CNPJ_ROOT / req_path).resolve()
         if not p.is_relative_to(CNPJ_ROOT.resolve()):
             raise ValueError()
     except Exception:
