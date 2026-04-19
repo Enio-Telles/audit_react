@@ -94,7 +94,8 @@ def create_sql_file(req: SqlFileCreate):
         if folder_norm.is_absolute() or ".." in folder_norm.parts:
             raise HTTPException(400, "Pasta inválida.")
         dest_dir = (SQL_ROOT / folder_norm).resolve()
-        if not str(dest_dir).startswith(str(SQL_ROOT.resolve())):
+        # 🛡️ Sentinel: Used is_relative_to() instead of string startswith() to prevent path traversal bypasses via partial directory name matches (e.g., /sql_fake bypassing /sql).
+        if not dest_dir.is_relative_to(SQL_ROOT.resolve()):
             raise HTTPException(400, "Pasta fora do diretório permitido.")
     else:
         dest_dir = SQL_ROOT.resolve()
