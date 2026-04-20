@@ -901,13 +901,22 @@ function ResultsStep({
   onToggleExpandedCnpj: (cnpj: string) => void;
   onParaNotificacoes: () => void;
 }) {
-  const totalMalhas = results.reduce(
-    (sum, item) => sum + (item.malhas?.length ?? 0),
-    0,
-  );
-  const totalErros = results.filter((item) => item.error).length;
-  const totalComPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) > 0).length;
-  const totalSemPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) === 0).length;
+  // ⚡ Bolt: Use a single for...of loop to compute all metrics in one pass instead of 5 O(N) traversals
+  const { totalMalhas, totalErros, totalComPendencia, totalSemPendencia, totalFromCache } = useMemo(() => {
+    let malhas = 0, erros = 0, comPendencia = 0, semPendencia = 0, fromCache = 0;
+    for (const item of results) {
+      const len = item.malhas?.length ?? 0;
+      malhas += len;
+      if (item.error) {
+        erros++;
+      } else {
+        if (len > 0) comPendencia++;
+        else semPendencia++;
+      }
+      if (item.from_cache) fromCache++;
+    }
+    return { totalMalhas: malhas, totalErros: erros, totalComPendencia: comPendencia, totalSemPendencia: semPendencia, totalFromCache: fromCache };
+  }, [results]);
   const resultadosFiltrados = useMemo(
     () => obter_resultados_filtrados(results, filtroResultados),
     [filtroResultados, results],
@@ -963,7 +972,7 @@ function ResultsStep({
             </span>
             <span>
               <span className="font-semibold text-white">
-                {results.filter((item) => item.from_cache).length}
+                {totalFromCache}
               </span>{" "}
               carregados do cache
             </span>
