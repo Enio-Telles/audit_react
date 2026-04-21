@@ -4,3 +4,7 @@
 ## 2026-04-12 - Pre-compile React UI rules into useMemo hook
 **Learning:** When applying dynamic rules across large datasets in React (e.g., evaluating highlight rules per table cell), executing `.toLowerCase()` and `parseFloat()` directly inside the render loop causes redundant O(N*M) allocations.
 **Action:** Pre-compile the rule configurations inside a `useMemo` hook to cache parsed variables before iterating the dataset.
+
+## 2024-05-24 - LazyFrame Redundant Scans
+**Learning:** In Polars, separately calling `.collect()` on different aggregations or slices of the same `LazyFrame` forces Polars to scan the underlying dataset multiple times (e.g., once for the count, once for the slice).
+**Action:** Always combine operations that evaluate the same `LazyFrame` into a single `pl.collect_all([...])` execution, enabling Polars to apply common subplan elimination (CSE) and avoid duplicate disk reads.
