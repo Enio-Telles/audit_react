@@ -464,7 +464,7 @@ export function LeftPanel() {
                 aria-label="Gerenciar dados do CNPJ"
                 aria-haspopup="dialog"
                 aria-expanded={gerenciarCnpj?.cnpj === r.cnpj}
-                className="shrink-0 px-1.5 py-1.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-opacity text-[11px]"
+                className="shrink-0 px-1.5 py-1.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 transition-opacity text-[11px]"
               >
                 ⚙
               </button>
