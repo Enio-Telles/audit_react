@@ -101,7 +101,7 @@ describe('DossieTab', () => {
     expect(screen.getByText(/Ultima atualizacao:/i)).toBeInTheDocument();
     expect(screen.getByText('1 linha')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sincronizar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sincronizar seção' }));
 
     await waitFor(() => {
       expect(syncSecao).toHaveBeenCalledWith('12345678000190', 'contato', undefined);
@@ -145,7 +145,7 @@ describe('DossieTab', () => {
     render(<DossieTab cnpj="12345678000190" razaoSocial="Empresa Teste" />, { wrapper });
 
     await screen.findByText('Contato');
-    fireEvent.click(screen.getByRole('button', { name: 'Sincronizar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sincronizar seção' }));
 
     await waitFor(() => {
       expect(screen.getByText('Falha simulada no sync')).toBeInTheDocument();
@@ -198,7 +198,7 @@ describe('DossieTab', () => {
     const checkbox = screen.getByRole('checkbox');
     expect(checkbox).toBeChecked();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sincronizar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sincronizar seção' }));
 
     await waitFor(() => {
       expect(syncSecao).toHaveBeenCalledWith('12345678000190', 'contato', {
@@ -264,7 +264,7 @@ describe('DossieTab', () => {
       expect(screen.getByText('Detalhe mockado: Contato')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Fechar painel' }));
+    fireEvent.click(screen.getByRole('button', { name: '✕ Fechar detalhe' }));
 
     await waitFor(() => {
       expect(screen.getByText('Nenhuma secao selecionada')).toBeInTheDocument();
