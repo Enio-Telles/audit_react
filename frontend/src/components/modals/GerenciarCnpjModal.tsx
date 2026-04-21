@@ -469,7 +469,7 @@ export function GerenciarCnpjModal({ cnpj, razaoSocial, isOpen, onClose }: Props
                         onClick={() => handleDeleteFile(f)}
                         disabled={deletingFiles.has(f.path) || isSectionBusy.parquet}
                         aria-label={`Apagar ${f.name}`}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-rose-900/50 hover:bg-rose-700 text-rose-300 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30 shrink-0"
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-rose-900/50 hover:bg-rose-700 text-rose-300 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus-visible:ring-rose-500 transition-opacity disabled:opacity-30 shrink-0"
                       >
                         {deletingFiles.has(f.path) ? "…" : "🗑"}
                       </button>
