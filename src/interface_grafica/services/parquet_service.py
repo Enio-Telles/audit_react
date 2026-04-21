@@ -323,10 +323,23 @@ class ParquetService:
         count_key = (*path_signature, self._conditions_key(conditions))
         total_rows = self._count_cache.get(count_key)
         count_cache_hit = total_rows is not None
+
+        all_columns = self.get_schema(parquet_path)
+        if not visible_columns:
+            visible_columns = all_columns[:]
+        offset = (page - 1) * page_size
+
+        lf_page = lf_all.sort(sort_by, descending=sort_desc) if sort_by and sort_by in all_columns else lf_all
+        lf_page = lf_page.slice(offset, page_size)
+
         if total_rows is None:
             inicio_count = perf_counter()
-            total_rows = int(lf_all.select(pl.len().alias("n")).collect().item())
+            # ⚡ Bolt: Using pl.collect_all to evaluate both length and slice simultaneously allows Polars to use common subplan elimination (CSE) and avoids redundant full file scans.
+            res = pl.collect_all([lf_all.select(pl.len().alias("n")), lf_page])
+            total_rows = int(res[0].item())
+            df_all = res[1]
             self._count_cache[count_key] = total_rows
+
             registrar_evento_performance(
                 "parquet_service.get_page.count_rows",
                 perf_counter() - inicio_count,
@@ -335,6 +348,17 @@ class ParquetService:
                     "cache_hit": False,
                     "total_rows": total_rows,
                     "quantidade_filtros": len(conditions or []),
+                },
+            )
+            registrar_evento_performance(
+                "parquet_service.get_page.collect_page",
+                perf_counter() - inicio_count,
+                {
+                    "parquet_path": parquet_path,
+                    "page": page,
+                    "page_size": page_size,
+                    "linhas_pagina": df_all.height,
+                    "cache_hit_count": count_cache_hit,
                 },
             )
         else:
@@ -348,25 +372,19 @@ class ParquetService:
                     "quantidade_filtros": len(conditions or []),
                 },
             )
-        all_columns = self.get_schema(parquet_path)
-        if not visible_columns:
-            visible_columns = all_columns[:]
-        offset = (page - 1) * page_size
-        if sort_by and sort_by in all_columns:
-            lf_all = lf_all.sort(sort_by, descending=sort_desc)
-        inicio_collect = perf_counter()
-        df_all = lf_all.slice(offset, page_size).collect()
-        registrar_evento_performance(
-            "parquet_service.get_page.collect_page",
-            perf_counter() - inicio_collect,
-            {
-                "parquet_path": parquet_path,
-                "page": page,
-                "page_size": page_size,
-                "linhas_pagina": df_all.height,
-                "cache_hit_count": count_cache_hit,
-            },
-        )
+            inicio_collect = perf_counter()
+            df_all = lf_page.collect()
+            registrar_evento_performance(
+                "parquet_service.get_page.collect_page",
+                perf_counter() - inicio_collect,
+                {
+                    "parquet_path": parquet_path,
+                    "page": page,
+                    "page_size": page_size,
+                    "linhas_pagina": df_all.height,
+                    "cache_hit_count": count_cache_hit,
+                },
+            )
         df_visible = df_all.select([c for c in visible_columns if c in df_all.columns])
         registrar_evento_performance(
             "parquet_service.get_page.total",
