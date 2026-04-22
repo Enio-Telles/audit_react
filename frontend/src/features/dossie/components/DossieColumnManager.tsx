@@ -198,6 +198,7 @@ export function DossieColumnManager({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Fechar gestão de colunas"
             className="rounded-md p-1.5 text-xs text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
           >
             ✕
