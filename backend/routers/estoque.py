@@ -90,7 +90,7 @@ def _format_dt_inv_value(v: Any) -> Any:
 def _df_to_response(df: pl.DataFrame, page: int = 1, page_size: int = 500) -> dict:
     total = df.height
     start = (page - 1) * page_size
-    end = start + page_size
+    start + page_size
     df_page = df.slice(start, page_size)
     rows = []
     for row in df_page.to_dicts():
