@@ -464,28 +464,30 @@ function resumir_grupos(
 ): ResumoGrupoAgenda[] {
   return (Object.keys(grupos) as GrupoAgenda[]).map((grupo) => {
     const entidades = grupos[grupo];
+    // ⚡ Bolt: Consolidated multiple array traversals into a single reduce pass to improve performance by avoiding redundant O(N) loops.
+    const metrics = entidades.reduce(
+      (acc, entidade) => {
+        const status = calcular_status_entidade(entidade);
+        return {
+          telefones: acc.telefones + entidade.telefones.length,
+          emails: acc.emails + entidade.emails.length,
+          enderecos: acc.enderecos + entidade.enderecos.length,
+          conflitos: acc.conflitos + (status === "divergente" ? 1 : 0),
+          semContato: acc.semContato + (status === "sem contato" ? 1 : 0),
+        };
+      },
+      { telefones: 0, emails: 0, enderecos: 0, conflitos: 0, semContato: 0 }
+    );
+
     return {
       grupo,
       titulo: TITULOS_GRUPO[grupo],
       totalEntidades: entidades.length,
-      totalTelefones: entidades.reduce(
-        (total, entidade) => total + entidade.telefones.length,
-        0,
-      ),
-      totalEmails: entidades.reduce(
-        (total, entidade) => total + entidade.emails.length,
-        0,
-      ),
-      totalEnderecos: entidades.reduce(
-        (total, entidade) => total + entidade.enderecos.length,
-        0,
-      ),
-      totalConflitos: entidades.filter(
-        (entidade) => calcular_status_entidade(entidade) === "divergente",
-      ).length,
-      totalSemContato: entidades.filter(
-        (entidade) => calcular_status_entidade(entidade) === "sem contato",
-      ).length,
+      totalTelefones: metrics.telefones,
+      totalEmails: metrics.emails,
+      totalEnderecos: metrics.enderecos,
+      totalConflitos: metrics.conflitos,
+      totalSemContato: metrics.semContato,
     };
   });
 }
