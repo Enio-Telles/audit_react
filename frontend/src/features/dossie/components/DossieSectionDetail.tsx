@@ -617,6 +617,7 @@ function SectionTableView({
             type="button"
             onClick={() => setShowFilters((v) => !v)}
             title="Alternar filtros de coluna"
+            aria-label="Alternar filtros de coluna"
             className={`rounded-md border px-2 py-1.5 text-[11px] transition-colors ${
               showFilters
                 ? "border-blue-600/60 bg-blue-900/40 text-blue-200"
@@ -632,6 +633,7 @@ function SectionTableView({
             type="button"
             onClick={() => setColumnManagerOpen(true)}
             title="Gestão de colunas"
+            aria-label="Gestão de colunas"
             className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-400 transition-colors hover:text-slate-200"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
