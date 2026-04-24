@@ -901,13 +901,25 @@ function ResultsStep({
   onToggleExpandedCnpj: (cnpj: string) => void;
   onParaNotificacoes: () => void;
 }) {
-  const totalMalhas = results.reduce(
-    (sum, item) => sum + (item.malhas?.length ?? 0),
-    0,
-  );
-  const totalErros = results.filter((item) => item.error).length;
-  const totalComPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) > 0).length;
-  const totalSemPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) === 0).length;
+  // ⚡ Bolt: Consolidate multiple array iterations (.reduce and .filter) into a single loop
+  // to prevent redundant O(N) traversals per metric and improve calculation performance.
+  let totalMalhas = 0;
+  let totalErros = 0;
+  let totalComPendencia = 0;
+  let totalSemPendencia = 0;
+
+  for (const item of results) {
+    const malhasCount = item.malhas?.length ?? 0;
+    totalMalhas += malhasCount;
+
+    if (item.error) {
+      totalErros++;
+    } else if (malhasCount > 0) {
+      totalComPendencia++;
+    } else {
+      totalSemPendencia++;
+    }
+  }
   const resultadosFiltrados = useMemo(
     () => obter_resultados_filtrados(results, filtroResultados),
     [filtroResultados, results],
