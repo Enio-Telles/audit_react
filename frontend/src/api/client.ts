@@ -297,12 +297,12 @@ export const sqlApi = {
     api
       .get<{ content: string }>("/sql/file", { params: { path } })
       .then((r) => r.data),
-  execute: (sql: string, cnpj?: string, params?: Record<string, string>) =>
+  execute: (sql_id: string, cnpj?: string, params?: Record<string, string>) =>
     api
       .post<{
         rows: Record<string, unknown>[];
         count: number;
-      }>("/sql/execute", { sql, cnpj, params })
+      }>("/sql/execute", { sql_id, cnpj, params })
       .then((r) => r.data),
   createFile: (payload: { name: string; folder: string; content: string }) =>
     api
