@@ -388,8 +388,13 @@ def carregar_dados_secao(secao_id: str, cnpj: str, limite: int = 500) -> DossieS
 
     try:
         lazyframe = pl.scan_parquet(caminho_arquivo)
-        row_count = int(lazyframe.select(pl.len()).collect().item())
-        dataframe = lazyframe.limit(max(1, min(limite, 5000))).collect()
+        # ⚡ Bolt: Evaluate length and data payload concurrently to leverage Polars Common Subplan Elimination and prevent redundant parquet scans
+        resultados = pl.collect_all([
+            lazyframe.select(pl.len()),
+            lazyframe.limit(max(1, min(limite, 5000)))
+        ])
+        row_count = int(resultados[0].item())
+        dataframe = resultados[1]
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Falha ao carregar dados da secao: {exc}") from exc
 
