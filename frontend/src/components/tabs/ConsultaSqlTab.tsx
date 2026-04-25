@@ -8,6 +8,7 @@ import { ColumnToggle } from '../table/ColumnToggle';
 export function ConsultaSqlTab() {
   const { selectedCnpj } = useAppStore();
   const [sqlText, setSqlText] = useState('');
+  const [selectedSqlId, setSelectedSqlId] = useState<string | null>(null);
   const [result, setResult] = useState<{ rows: Record<string, unknown>[]; count: number } | null>(null);
   const [error, setError] = useState('');
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
@@ -18,7 +19,10 @@ export function ConsultaSqlTab() {
   });
 
   const execMutation = useMutation({
-    mutationFn: () => sqlApi.execute(sqlText, selectedCnpj ?? undefined),
+    mutationFn: () => {
+      if (!selectedSqlId) throw new Error("Nenhum arquivo SQL selecionado");
+      return sqlApi.execute(selectedSqlId, selectedCnpj ?? undefined);
+    },
     onSuccess: (data) => { setResult(data); setError(''); },
     onError: (err: Error) => setError(err.message),
   });
@@ -26,6 +30,7 @@ export function ConsultaSqlTab() {
   const loadFile = async (path: string) => {
     const { content } = await sqlApi.readFile(path);
     setSqlText(content);
+    setSelectedSqlId(path);
   };
 
   const textareaCls = 'w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500 resize-none';
@@ -50,22 +55,22 @@ export function ConsultaSqlTab() {
 
       {/* SQL editor */}
       <textarea
-        className={textareaCls}
+        className={textareaCls + ' opacity-75 cursor-not-allowed'}
         rows={8}
         value={sqlText}
-        onChange={(e) => setSqlText(e.target.value)}
-        placeholder="Digite ou cole o SQL aqui..."
+        readOnly
+        placeholder="Selecione um arquivo SQL acima para visualizar..."
       />
 
       <div className="flex gap-2 flex-wrap items-center">
         <button
           onClick={() => execMutation.mutate()}
-          disabled={!sqlText.trim() || execMutation.isPending}
+          disabled={!selectedSqlId || execMutation.isPending}
           className={btnCls + ' bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40'}
         >
           {execMutation.isPending ? 'Executando...' : 'Executar SQL'}
         </button>
-        <button onClick={() => setSqlText('')} className={btnCls + ' bg-slate-700 hover:bg-slate-600 text-slate-200'}>
+        <button onClick={() => { setSqlText(''); setSelectedSqlId(null); setResult(null); setError(''); }} className={btnCls + ' bg-slate-700 hover:bg-slate-600 text-slate-200'}>
           Limpar
         </button>
         {result && (
