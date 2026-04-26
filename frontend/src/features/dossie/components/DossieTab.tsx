@@ -75,7 +75,8 @@ function SectionPill({
           }}
           disabled={isSyncing}
           title="Sincronizar seção"
-          className={`ml-0.5 rounded p-0.5 text-[11px] transition-colors ${
+          aria-label="Sincronizar seção"
+          className={`ml-0.5 rounded p-0.5 text-[11px] transition-colors focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${
             isSyncing
               ? "animate-spin text-blue-400"
               : "text-slate-500 opacity-0 group-hover:opacity-100 hover:text-blue-300"
