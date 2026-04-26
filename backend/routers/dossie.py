@@ -387,9 +387,13 @@ def carregar_dados_secao(secao_id: str, cnpj: str, limite: int = 500) -> DossieS
     caminho_arquivo = caminhos_arquivos[0]
 
     try:
+        # ⚡ Bolt: Using pl.collect_all() executes multiple lazy evaluations on the same scan in a single graph,
+        # leveraging Common Subplan Elimination to avoid scanning the underlying parquet file twice.
         lazyframe = pl.scan_parquet(caminho_arquivo)
-        row_count = int(lazyframe.select(pl.len()).collect().item())
-        dataframe = lazyframe.limit(max(1, min(limite, 5000))).collect()
+        count_lf = lazyframe.select(pl.len())
+        data_lf = lazyframe.limit(max(1, min(limite, 5000)))
+        count_df, dataframe = pl.collect_all([count_lf, data_lf])
+        row_count = int(count_df.item())
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Falha ao carregar dados da secao: {exc}") from exc
 
