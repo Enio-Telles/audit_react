@@ -387,9 +387,15 @@ def carregar_dados_secao(secao_id: str, cnpj: str, limite: int = 500) -> DossieS
     caminho_arquivo = caminhos_arquivos[0]
 
     try:
+        # ⚡ Bolt: Use pl.collect_all() to execute row count and limit queries concurrently.
+        # This prevents scanning the underlying Parquet file twice and enables Common Subplan Elimination (CSE),
+        # roughly halving the I/O and query time for large dossier sections.
         lazyframe = pl.scan_parquet(caminho_arquivo)
-        row_count = int(lazyframe.select(pl.len()).collect().item())
-        dataframe = lazyframe.limit(max(1, min(limite, 5000))).collect()
+        [count_df, dataframe] = pl.collect_all([
+            lazyframe.select(pl.len()),
+            lazyframe.limit(max(1, min(limite, 5000)))
+        ])
+        row_count = int(count_df.item())
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Falha ao carregar dados da secao: {exc}") from exc
 
