@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from interface_grafica.services.parquet_service import FilterCondition, ParquetService
