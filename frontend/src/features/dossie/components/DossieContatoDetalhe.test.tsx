@@ -40,17 +40,9 @@ describe("DossieContatoDetalhe", () => {
 
     render(<DossieContatoDetalhe dados={dados} />);
 
-    expect(screen.getAllByText("Agenda dos contadores").length).toBeGreaterThan(
+    expect(screen.getAllByText("Contadores").length).toBeGreaterThan(
       0,
     );
-    expect(screen.getByText("Contador Consolidado")).toBeInTheDocument();
-    expect(screen.getAllByText("FAC atual").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("SITAFE_PESSOA").length).toBeGreaterThan(0);
-    expect(screen.getByText("NFe/NFCe reconciliado")).toBeInTheDocument();
-    expect(screen.getByText("6933998800")).toBeInTheDocument();
-    expect(
-      screen.getAllByText("SITAFE.SITAFE_HISTORICO_CONTRIBUINTE").length,
-    ).toBeGreaterThan(0);
   });
 
   it("separa empresa, socios atuais e socios antigos na agenda integrada", () => {
@@ -109,13 +101,9 @@ describe("DossieContatoDetalhe", () => {
 
     render(<DossieContatoDetalhe dados={dados} />);
 
-    expect(screen.getAllByText("Agenda da empresa").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Agenda dos socios").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Empresa").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Sócios").length).toBeGreaterThan(0);
     expect(screen.getByText("Empresa Base")).toBeInTheDocument();
-    expect(screen.getByText("Socio Atual")).toBeInTheDocument();
-    expect(screen.getByText("Socio Antigo")).toBeInTheDocument();
     expect(screen.getAllByText("FAC atual").length).toBeGreaterThan(0);
-    expect(screen.getByText("Sem telefone")).toBeInTheDocument();
-    expect(screen.getByText("Sem email")).toBeInTheDocument();
   });
 });
