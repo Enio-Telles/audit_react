@@ -901,13 +901,23 @@ function ResultsStep({
   onToggleExpandedCnpj: (cnpj: string) => void;
   onParaNotificacoes: () => void;
 }) {
-  const totalMalhas = results.reduce(
-    (sum, item) => sum + (item.malhas?.length ?? 0),
-    0,
-  );
-  const totalErros = results.filter((item) => item.error).length;
-  const totalComPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) > 0).length;
-  const totalSemPendencia = results.filter((item) => !item.error && (item.malhas?.length ?? 0) === 0).length;
+  // ⚡ Bolt: Consolidate multiple array iterations (reduce and filters) into a single O(N) pass,
+  // avoiding redundant allocations and recalculations on every render.
+  const { totalMalhas, totalErros, totalComPendencia, totalSemPendencia } = useMemo(() => {
+    let tMalhas = 0, tErros = 0, tCom = 0, tSem = 0;
+    for (const item of results) {
+      const ml = item.malhas?.length ?? 0;
+      tMalhas += ml;
+      if (item.error) {
+        tErros++;
+      } else if (ml > 0) {
+        tCom++;
+      } else {
+        tSem++;
+      }
+    }
+    return { totalMalhas: tMalhas, totalErros: tErros, totalComPendencia: tCom, totalSemPendencia: tSem };
+  }, [results]);
   const resultadosFiltrados = useMemo(
     () => obter_resultados_filtrados(results, filtroResultados),
     [filtroResultados, results],
