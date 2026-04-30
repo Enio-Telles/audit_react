@@ -30,9 +30,12 @@ def _read_env() -> dict[str, str]:
 
 
 def _write_key(conteudo: str, chave: str, valor: str) -> str:
+    # 🛡️ Sentinel: Sanitize newlines to prevent CRLF/env injection
+    valor_seguro = str(valor).replace("\n", "").replace("\r", "")
     if re.search(rf"^{chave}=", conteudo, flags=re.MULTILINE):
-        return re.sub(rf"^{chave}=.*$", f"{chave}={valor}", conteudo, flags=re.MULTILINE)
-    return conteudo.rstrip() + f"\n{chave}={valor}\n"
+        # 🛡️ Sentinel: Use lambda to prevent re.sub from evaluating backslashes as escape sequences
+        return re.sub(rf"^{chave}=.*$", lambda m: f"{chave}={valor_seguro}", conteudo, flags=re.MULTILINE)
+    return conteudo.rstrip() + f"\n{chave}={valor_seguro}\n"
 
 
 # ---------------------------------------------------------------------------

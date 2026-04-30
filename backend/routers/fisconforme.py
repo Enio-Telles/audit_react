@@ -454,12 +454,13 @@ def configurar_db(req: DbConfigRequest):
         if FISCONFORME_ENV.exists():
             lines = FISCONFORME_ENV.read_text(encoding="latin-1").splitlines()
 
+        # 🛡️ Sentinel: Sanitize inputs to prevent CRLF/env injection
         keys_to_set = {
-            "ORACLE_HOST": req.oracle_host,
-            "ORACLE_PORT": str(req.oracle_port),
-            "ORACLE_SERVICE": req.oracle_service,
-            "DB_USER": req.db_user,
-            "DB_PASSWORD": req.db_password,
+            "ORACLE_HOST": str(req.oracle_host).replace("\n", "").replace("\r", ""),
+            "ORACLE_PORT": str(req.oracle_port).replace("\n", "").replace("\r", ""),
+            "ORACLE_SERVICE": str(req.oracle_service).replace("\n", "").replace("\r", ""),
+            "DB_USER": str(req.db_user).replace("\n", "").replace("\r", ""),
+            "DB_PASSWORD": str(req.db_password).replace("\n", "").replace("\r", ""),
         }
         existing_keys = set()
         new_lines = []
