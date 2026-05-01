@@ -15,8 +15,11 @@ Data: 2026-04-01
 
 import sys
 import logging
+import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+
+PADRAO_CONFIG = re.compile(r'^CONFIG_(.+)_AUDITOR$')
 
 # Adiciona o diretório pai ao path para permitir imports relativos
 # (removido — usamos imports relativos do pacote)
@@ -1212,10 +1215,9 @@ def carregar_dados_salvos() -> Dict[str, Dict[str, str]]:
         
         # Encontra todas as configurações salvas
         configs = {}
-        padrao_config = re.compile(r'^CONFIG_(.+)_AUDITOR$')
         
         for chave, valor in env_vars.items():
-            match = padrao_config.match(chave)
+            match = PADRAO_CONFIG.match(chave)
             if match:
                 nome_config = match.group(1)
                 

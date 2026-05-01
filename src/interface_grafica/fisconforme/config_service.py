@@ -15,6 +15,8 @@ from .path_resolver import get_env_path
 
 logger = logging.getLogger(__name__)
 
+PADRAO_CONFIG = re.compile(r"^CONFIG_(.+)_AUDITOR$")
+
 
 def carregar_config_db() -> Dict[str, str]:
     """
@@ -104,10 +106,9 @@ def carregar_dados_salvos() -> Dict[str, Dict[str, str]]:
 
         env_vars = dotenv_values(env_path)
         configs: Dict[str, Dict[str, str]] = {}
-        padrao_config = re.compile(r"^CONFIG_(.+)_AUDITOR$")
 
         for chave, valor in env_vars.items():
-            match = padrao_config.match(chave)
+            match = PADRAO_CONFIG.match(chave)
             if match:
                 nome_config = match.group(1)
                 configs[nome_config] = {
