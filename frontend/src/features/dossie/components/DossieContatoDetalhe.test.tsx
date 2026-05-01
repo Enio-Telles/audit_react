@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { DossieSectionData } from "../types";
@@ -40,9 +40,10 @@ describe("DossieContatoDetalhe", () => {
 
     render(<DossieContatoDetalhe dados={dados} />);
 
-    expect(screen.getAllByText("Agenda dos contadores").length).toBeGreaterThan(
+    expect(screen.getAllByText("Contadores").length).toBeGreaterThan(
       0,
     );
+    fireEvent.click(screen.getByText("Contadores"));
     expect(screen.getByText("Contador Consolidado")).toBeInTheDocument();
     expect(screen.getAllByText("FAC atual").length).toBeGreaterThan(0);
     expect(screen.getAllByText("SITAFE_PESSOA").length).toBeGreaterThan(0);
@@ -109,9 +110,10 @@ describe("DossieContatoDetalhe", () => {
 
     render(<DossieContatoDetalhe dados={dados} />);
 
-    expect(screen.getAllByText("Agenda da empresa").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Agenda dos socios").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Empresa").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Sócios").length).toBeGreaterThan(0);
     expect(screen.getByText("Empresa Base")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Sócios"));
     expect(screen.getByText("Socio Atual")).toBeInTheDocument();
     expect(screen.getByText("Socio Antigo")).toBeInTheDocument();
     expect(screen.getAllByText("FAC atual").length).toBeGreaterThan(0);
