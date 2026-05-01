@@ -30,9 +30,10 @@ def _read_env() -> dict[str, str]:
 
 
 def _write_key(conteudo: str, chave: str, valor: str) -> str:
+    safe_valor = valor.replace("\n", "").replace("\r", "")
     if re.search(rf"^{chave}=", conteudo, flags=re.MULTILINE):
-        return re.sub(rf"^{chave}=.*$", f"{chave}={valor}", conteudo, flags=re.MULTILINE)
-    return conteudo.rstrip() + f"\n{chave}={valor}\n"
+        return re.sub(rf"^{chave}=.*$", lambda m: f"{chave}={safe_valor}", conteudo, flags=re.MULTILINE)
+    return conteudo.rstrip() + f"\n{chave}={safe_valor}\n"
 
 
 # ---------------------------------------------------------------------------
