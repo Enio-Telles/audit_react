@@ -40,6 +40,7 @@ export function ConsultaSqlTab() {
         {sqlFiles.map((f) => (
           <button
             key={f.path}
+            type="button"
             onClick={() => loadFile(f.path)}
             className="px-2 py-1 rounded text-xs bg-slate-700 hover:bg-slate-600 text-slate-300"
           >
@@ -50,6 +51,7 @@ export function ConsultaSqlTab() {
 
       {/* SQL editor */}
       <textarea
+        aria-label="Editor de código SQL"
         className={textareaCls}
         rows={8}
         value={sqlText}
@@ -59,13 +61,15 @@ export function ConsultaSqlTab() {
 
       <div className="flex gap-2 flex-wrap items-center">
         <button
+          type="button"
+          aria-busy={execMutation.isPending}
           onClick={() => execMutation.mutate()}
           disabled={!sqlText.trim() || execMutation.isPending}
           className={btnCls + ' bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40'}
         >
           {execMutation.isPending ? 'Executando...' : 'Executar SQL'}
         </button>
-        <button onClick={() => setSqlText('')} className={btnCls + ' bg-slate-700 hover:bg-slate-600 text-slate-200'}>
+        <button type="button" onClick={() => setSqlText('')} className={btnCls + ' bg-slate-700 hover:bg-slate-600 text-slate-200'}>
           Limpar
         </button>
         {result && (
@@ -96,6 +100,18 @@ export function ConsultaSqlTab() {
             totalRows={result.count}
             hiddenColumns={hiddenCols}
           />
+        </div>
+      )}
+
+      {!result && !execMutation.isPending && (
+        <div className="flex flex-1 items-center justify-center text-slate-500 text-xs mt-4">
+          Nenhuma consulta executada.
+        </div>
+      )}
+
+      {result && result.rows.length === 0 && !execMutation.isPending && (
+        <div className="flex flex-1 items-center justify-center text-slate-500 text-xs mt-4">
+          A consulta retornou 0 registros.
         </div>
       )}
     </div>
