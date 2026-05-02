@@ -7,3 +7,8 @@
 **Vulnerability:** The `output_dir` provided by the user in `fisconforme.py` was used directly with `Path(output_dir).expanduser()` to save files, allowing arbitrary file writes anywhere on the system.
 **Learning:** Internal tool features like "save to custom directory" must be confined to a safe base directory when implemented in a web backend to prevent path traversal and arbitrary writes.
 **Prevention:** Always validate user-provided paths by checking for `..`, resolving them safely against a predefined base directory, and enforcing `.is_relative_to(safe_base)`.
+
+## 2024-05-25 - CRLF Injection in .env Files
+**Vulnerability:** The application dynamically updated its `.env` file using user-provided input without sanitizing newlines, allowing attackers to inject arbitrary environment variables via CRLF injection. Furthermore, direct string replacement with `re.sub` caused Python `re` module errors when input contained backslashes.
+**Learning:** Any user input written to a configuration file must be sanitized to prevent injection attacks.
+**Prevention:** Always remove newline characters (`\n`, `\r`) from user input before writing to `.env`. When using `re.sub` to replace content dynamically, use a `lambda` to prevent issues with backslash escaping.
